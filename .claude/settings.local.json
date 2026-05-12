@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(docker exec *)",
+      "Bash(curl -s -X POST http://localhost:8000/api/v1/auth/send-otp -H 'Content-Type: application/json' -H 'Accept: application/json' -d '{\"phone\":\"00962791234567\"}')",
+      "Bash(python3 -m json.tool)",
+      "Bash(curl -s http://localhost:8000/api/v1/crm/auth/me -H 'Authorization: Bearer 2|rSIzwTuE8J64cRJyXexf0HNjjBason4CEjfxzbUS05c4b2ba' -H 'Accept: application/json')",
+      "Bash(curl -s -X POST http://localhost:8000/api/v1/crm/auth/login -H 'Content-Type: application/json' -H 'Accept: application/json' -d '{\"email\":\"admin@ifluent.jo\",\"password\":\"secret123\"}')",
+      "Bash(curl -s -X POST http://localhost:8000/api/v1/crm/auth/login -H 'Content-Type: application/json' -H 'Accept: application/json' -d '{\"email\":\"cc1@ifluent.jo\",\"password\":\"secret123\"}')",
+      "Bash(curl -s -X POST http://localhost:8000/api/v1/crm/auth/login -H 'Content-Type: application/json' -H 'Accept: application/json' -d '{\"email\":\"ss1@ifluent.jo\",\"password\":\"secret123\"}')",
+      "Bash(curl -s -X POST http://localhost:8000/api/v1/crm/auth/login -H 'Content-Type: application/json' -d '{\"email\":\"admin@ifluent.jo\",\"password\":\"password\"}')",
+      "Bash(curl -s -X POST http://localhost:8000/api/v1/crm/auth/login -H 'Content-Type: application/json' -d '{\"email\":\"cc_deact@test.com\",\"password\":\"password123\"}')",
+      "Bash(curl -sv -X POST http://localhost:8000/api/v1/crm/auth/login -H 'Content-Type: application/json' -d '{\"email\":\"admin@ifluent.jo\",\"password\":\"password\"}')",
+      "Bash(docker compose *)",
+      "Bash(curl -s -X POST http://localhost:8000/api/v1/crm/auth/login -H 'Content-Type: application/json' -d '{\"email\":\"teacher_test@ifluent.jo\",\"password\":\"password\"}')",
+      "Bash(curl -s -H 'Authorization: Bearer fad392de68eadc2264334f6266de3a2ef2dd7d7c1f2774949d70b463c01fc390' https://api.daily.co/v1/rooms/ifluent-session-1)",
+      "Bash(curl -s -X POST http://localhost:8000/api/v1/crm/auth/login -H 'Content-Type: application/json' -d '{\"email\":\"admin@ifluent.jo\",\"password\":\"Admin@1234\"}')",
+      "Bash(python3 -c \" import sys,json; d=json.load\\(sys.stdin\\)['data']; print\\(f\\\\\" Level back to: {d['level']['code']}\\\\\"\\) \" echo \"\" echo \"══════════════════════════════════════════════════════\" echo \" 4 — Block: try to schedule assessment for SUBSCRIBED student\" echo \"══════════════════════════════════════════════════════\")",
+      "Bash(python3 -c ' *)",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\)['dependencies']; [print\\(k,'✓'\\) for k in ['zustand','axios','expo-linear-gradient','expo-secure-store'] if k in d]\")"
+    ]
+  }
+}

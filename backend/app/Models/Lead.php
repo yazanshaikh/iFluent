@@ -1,0 +1,71 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\SoftDeletes;
+
+class Lead extends Model
+{
+    use HasFactory, SoftDeletes;
+
+    const STATUS_NEW        = 'new';
+    const STATUS_ASSIGNED   = 'assigned';
+    const STATUS_WORKING    = 'working';
+    const STATUS_OPEN_SEA   = 'open_sea';
+    const STATUS_SUBSCRIBER = 'subscriber';
+
+    protected $fillable = [
+        'name',
+        'phone',
+        'source',
+        'age',
+        'status',
+        'assigned_to',
+        'is_small_treasure',
+        'moved_to_open_sea_at',
+        'converted_at',
+    ];
+
+    protected function casts(): array
+    {
+        return [
+            'is_small_treasure'    => 'boolean',
+            'moved_to_open_sea_at' => 'datetime',
+            'converted_at'         => 'datetime',
+        ];
+    }
+
+    // ─── Relationships ────────────────────────────────────────────────────────
+
+    public function assignedTo(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'assigned_to');
+    }
+
+    public function remarks(): HasMany
+    {
+        return $this->hasMany(LeadRemark::class)->latest();
+    }
+
+    public function student(): HasOne
+    {
+        return $this->hasOne(Student::class);
+    }
+
+    // ─── Helpers ──────────────────────────────────────────────────────────────
+
+    public function isInOpenSea(): bool
+    {
+        return $this->status === self::STATUS_OPEN_SEA;
+    }
+
+    public function isSubscriber(): bool
+    {
+        return $this->status === self::STATUS_SUBSCRIBER;
+    }
+}

@@ -1,0 +1,126 @@
+services:
+
+  # ─── 1. Laravel PHP-FPM ───────────────────────────────────────────────────
+  app:
+    build:
+      context: ./docker/php
+      dockerfile: Dockerfile
+    container_name: ifluent_app
+    restart: unless-stopped
+    working_dir: /var/www/backend
+    volumes:
+      - ./backend:/var/www/backend
+    networks:
+      - ifluent_network
+    depends_on:
+      - db
+      - redis
+
+  # ─── 2. Nginx ─────────────────────────────────────────────────────────────
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: ifluent_nginx
+    restart: unless-stopped
+    ports:
+      - "8000:80"
+    volumes:
+      - ./backend:/var/www/backend
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf
+    networks:
+      - ifluent_network
+    depends_on:
+      - app
+
+  # ─── 3. PostgreSQL 16 ─────────────────────────────────────────────────────
+  db:
+    image: postgres:16-alpine
+    container_name: ifluent_db
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: ${DB_DATABASE:-ifluent}
+      POSTGRES_USER: ${DB_USERNAME:-ifluent_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-secret}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - ifluent_network
+
+  # ─── 4. Redis ─────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: ifluent_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redisdata:/data
+    networks:
+      - ifluent_network
+
+  # ─── 5. Laravel Reverb (WebSocket) ────────────────────────────────────────
+  reverb:
+    build:
+      context: ./docker/php
+      dockerfile: Dockerfile
+    container_name: ifluent_reverb
+    restart: unless-stopped
+    working_dir: /var/www/backend
+    command: php artisan reverb:start --host=0.0.0.0 --port=8080
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./backend:/var/www/backend
+    networks:
+      - ifluent_network
+    depends_on:
+      - app
+      - redis
+
+  # ─── 6. Queue Worker ──────────────────────────────────────────────────────
+  queue:
+    build:
+      context: ./docker/php
+      dockerfile: Dockerfile
+    container_name: ifluent_queue
+    restart: unless-stopped
+    working_dir: /var/www/backend
+    command: php artisan queue:work redis --sleep=3 --tries=3 --max-time=3600
+    volumes:
+      - ./backend:/var/www/backend
+    networks:
+      - ifluent_network
+    depends_on:
+      - app
+      - redis
+
+  # ─── 7. Scheduler ─────────────────────────────────────────────────────────
+  scheduler:
+    build:
+      context: ./docker/php
+      dockerfile: Dockerfile
+    container_name: ifluent_scheduler
+    restart: unless-stopped
+    working_dir: /var/www/backend
+    command: sh -c "while true; do php artisan schedule:run --verbose --no-interaction & sleep 60; done"
+    volumes:
+      - ./backend:/var/www/backend
+    networks:
+      - ifluent_network
+    depends_on:
+      - app
+      - db
+
+# ─── Volumes ──────────────────────────────────────────────────────────────────
+volumes:
+  pgdata:
+    driver: local
+  redisdata:
+    driver: local
+
+# ─── Network ──────────────────────────────────────────────────────────────────
+networks:
+  ifluent_network:
+    driver: bridge
