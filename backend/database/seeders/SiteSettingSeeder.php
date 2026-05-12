@@ -13,7 +13,7 @@ class SiteSettingSeeder extends Seeder
             // ── Hero Section ───────────────────────────────────────────────────
             ['key' => 'hero_title',        'value' => 'تعلّم الإنجليزية مع أفضل المعلمين', 'type' => 'text',  'label' => 'Hero Title',    'group' => 'hero'],
             ['key' => 'hero_subtitle',     'value' => 'حصص خاصة وجلسات مجموعية تفاعلية عبر منصة iFluent', 'type' => 'text', 'label' => 'Hero Subtitle', 'group' => 'hero'],
-            ['key' => 'hero_cta_text',     'value' => 'ابدأ رحلتك الآن',                   'type' => 'text',  'label' => 'CTA Button Text','group' => 'hero'],
+            ['key' => 'hero_cta_text',     'value' => 'احجز حصة تقييم مستوى مجانية',       'type' => 'text',  'label' => 'CTA Button Text','group' => 'hero'],
             ['key' => 'hero_image',        'value' => null,                                 'type' => 'image', 'label' => 'Hero Image',     'group' => 'hero'],
 
             // ── About Section ──────────────────────────────────────────────────
