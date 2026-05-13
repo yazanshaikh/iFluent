@@ -17,7 +17,9 @@
       "Bash(curl -s -X POST http://localhost:8000/api/v1/crm/auth/login -H 'Content-Type: application/json' -d '{\"email\":\"admin@ifluent.jo\",\"password\":\"Admin@1234\"}')",
       "Bash(python3 -c \" import sys,json; d=json.load\\(sys.stdin\\)['data']; print\\(f\\\\\" Level back to: {d['level']['code']}\\\\\"\\) \" echo \"\" echo \"══════════════════════════════════════════════════════\" echo \" 4 — Block: try to schedule assessment for SUBSCRIBED student\" echo \"══════════════════════════════════════════════════════\")",
       "Bash(python3 -c ' *)",
-      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\)['dependencies']; [print\\(k,'✓'\\) for k in ['zustand','axios','expo-linear-gradient','expo-secure-store'] if k in d]\")"
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\)['dependencies']; [print\\(k,'✓'\\) for k in ['zustand','axios','expo-linear-gradient','expo-secure-store'] if k in d]\")",
+      "Bash(npx tsc *)",
+      "Bash(php artisan *)"
     ]
   }
 }
