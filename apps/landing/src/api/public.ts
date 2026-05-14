@@ -1,31 +1,8 @@
 import { apiClient } from './client';
+import type { SiteSettings } from '@ifluent/shared';
 
-export interface SiteSettings {
-  // Hero
-  hero_title?:       string;
-  hero_subtitle?:    string;
-  hero_cta_text?:    string;
-  hero_image?:       string;
-  // About
-  about_title?:      string;
-  about_text?:       string;
-  about_image?:      string;
-  // Contact
-  contact_phone?:    string;
-  contact_email?:    string;
-  contact_whatsapp?: string;
-  // Footer & social
-  social_instagram?: string | null;
-  social_facebook?:  string | null;
-  social_snapchat?:  string | null;
-  social_tiktok?:    string | null;
-  app_store_url?:    string | null;
-  google_play_url?:  string | null;
-  footer_text?:      string;
-  // General
-  platform_name?:    string;
-  logo?:             string | null;
-}
+// Re-export so callers can import SiteSettings from here without changing their imports
+export type { SiteSettings };
 
 /** Hero primary CTA — single source of truth for the main booking button */
 export const HERO_CTA_LABEL = 'احجز حصة تقييم مستوى مجانية';

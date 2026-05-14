@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { View, ScrollView, StyleSheet, Platform } from 'react-native';
-import { fetchSiteSettings, DEFAULT_SETTINGS, type SiteSettings } from '@/src/api/public';
+import { fetchSiteSettings, DEFAULT_SETTINGS } from '@/src/api/public';
+import type { SiteSettings }    from '@ifluent/shared';
+import { Colors }               from '@ifluent/shared';
 import { Navbar }            from '@/src/components/landing/Navbar';
 import { HeroSection }       from '@/src/components/landing/HeroSection';
 import { LevelsSection }     from '@/src/components/landing/LevelsSection';
@@ -10,7 +12,6 @@ import { DemoSection }       from '@/src/components/landing/DemoSection';
 import { Footer }            from '@/src/components/landing/Footer';
 import { BookingModal }      from '@/src/components/landing/BookingModal';
 import { ScrollContext }     from '@/src/contexts/ScrollContext';
-import { Colors }            from '@/src/constants/colors';
 
 export default function LandingPage() {
   const [settings, setSettings]       = useState<SiteSettings>(DEFAULT_SETTINGS);

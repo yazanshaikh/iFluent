@@ -6,18 +6,31 @@ const monorepoRoot = path.resolve(__dirname, '../..');
 
 const config = getDefaultConfig(__dirname);
 
-// ── Monorepo: watch packages/shared ──────────────────────────────────────────
+// ── 1. Watch the whole monorepo so Metro sees packages/shared changes ─────────
 config.watchFolders = [monorepoRoot];
 
-// ── Resolve: prefer app node_modules, then monorepo root node_modules ────────
+// ── 2. Module search order: app → monorepo root ───────────────────────────────
 config.resolver.nodeModulesPaths = [
-  path.resolve(__dirname,  'node_modules'),
+  path.resolve(__dirname,    'node_modules'),
   path.resolve(monorepoRoot, 'node_modules'),
 ];
 
-// ── Resolve @ifluent/shared to local source ───────────────────────────────────
-config.resolver.extraNodeModules = {
-  '@ifluent/shared': path.resolve(monorepoRoot, 'packages/shared/src/index.ts'),
+// ── 3. Resolve @ifluent/shared directly to its TypeScript source ──────────────
+//    extraNodeModules expects a *directory* — we use resolveRequest instead,
+//    which lets us return the exact source file path.
+const sharedIndex = path.resolve(monorepoRoot, 'packages/shared/src/index.ts');
+
+const originalResolveRequest = config.resolver.resolveRequest;
+
+config.resolver.resolveRequest = (context, moduleName, platform) => {
+  if (moduleName === '@ifluent/shared') {
+    return { filePath: sharedIndex, type: 'sourceFile' };
+  }
+  // Fall through to default Metro resolution
+  if (originalResolveRequest) {
+    return originalResolveRequest(context, moduleName, platform);
+  }
+  return context.resolveRequest(context, moduleName, platform);
 };
 
 module.exports = config;
