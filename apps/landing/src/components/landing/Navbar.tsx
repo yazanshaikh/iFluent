@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '@ifluent/shared';
-import { useScrollTo } from '@/contexts/ScrollContext';
+import { useScrollTo } from '@ifluent/shared';
 import { Spacing, NAVBAR_HEIGHT, MAX_WIDTH } from '@ifluent/shared';
 import { FontSize, FontWeight } from '@ifluent/shared';
 import { useResponsive } from '@ifluent/shared';

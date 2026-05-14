@@ -11,7 +11,7 @@ import { HowItWorksSection } from '@/src/components/landing/HowItWorksSection';
 import { DemoSection }       from '@/src/components/landing/DemoSection';
 import { Footer }            from '@/src/components/landing/Footer';
 import { BookingModal }      from '@/src/components/landing/BookingModal';
-import { ScrollContext }     from '@/src/contexts/ScrollContext';
+import { ScrollContext }     from '@ifluent/shared';
 
 export default function LandingPage() {
   const [settings, setSettings]       = useState<SiteSettings>(DEFAULT_SETTINGS);

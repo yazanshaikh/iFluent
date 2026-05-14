@@ -4,7 +4,7 @@ import { Colors } from '@ifluent/shared';
 import { Spacing, MAX_WIDTH } from '@ifluent/shared';
 import { FontSize, FontWeight } from '@ifluent/shared';
 import { useResponsive } from '@ifluent/shared';
-import type { SiteSettings } from '@/api/public';
+import type { SiteSettings } from '@ifluent/shared';
 
 export interface DemoSectionProps {
   settings:    SiteSettings;

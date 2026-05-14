@@ -15,7 +15,7 @@ import {
 import { Colors } from '@ifluent/shared';
 import { Spacing } from '@ifluent/shared';
 import { FontSize, FontWeight } from '@ifluent/shared';
-import { submitBooking } from '@/api/booking';
+import { submitBooking } from '@/src/api/booking';
 
 // ── Cross-platform storage (localStorage on web, in-memory on native) ──────────
 

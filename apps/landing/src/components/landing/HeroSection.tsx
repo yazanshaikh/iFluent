@@ -7,8 +7,8 @@ import { Colors } from '@ifluent/shared';
 import { Spacing, NAVBAR_HEIGHT, MAX_WIDTH } from '@ifluent/shared';
 import { FontSize, FontWeight } from '@ifluent/shared';
 import { useResponsive } from '@ifluent/shared';
-import { HERO_CTA_LABEL, type SiteSettings } from '@/api/public';
-import { useScrollTo } from '@/contexts/ScrollContext';
+import { HERO_CTA_LABEL, type SiteSettings } from '@/src/api/public';
+import { useScrollTo } from '@ifluent/shared';
 
 interface HeroSectionProps {
   settings: SiteSettings;
