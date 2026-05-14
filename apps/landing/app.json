@@ -1,0 +1,31 @@
+{
+  "expo": {
+    "name":        "iFluent",
+    "slug":        "ifluent-landing",
+    "version":     "1.0.0",
+    "orientation": "portrait",
+    "icon":        "./assets/images/icon.png",
+    "scheme":      "ifluent",
+    "web": {
+      "output":  "static",
+      "favicon": "./assets/images/favicon.png",
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "image":           "./assets/images/splash-icon.png",
+          "imageWidth":      200,
+          "resizeMode":      "contain",
+          "backgroundColor": "#FFFBEB"
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes":     true,
+      "reactCompiler":   true
+    }
+  }
+}
