@@ -19,7 +19,17 @@
       "Bash(python3 -c ' *)",
       "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\)['dependencies']; [print\\(k,'✓'\\) for k in ['zustand','axios','expo-linear-gradient','expo-secure-store'] if k in d]\")",
       "Bash(npx tsc *)",
-      "Bash(php artisan *)"
+      "Bash(php artisan *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git config *)",
+      "Bash(git push *)",
+      "Bash(brew install *)",
+      "Bash(sed -i '' 's|from '\\\\''@/contexts/ScrollContext'\\\\''|from '\\\\''@ifluent/shared'\\\\''|g' /Users/yazan/Documents/crm_iFluent/apps/landing/src/components/landing/Navbar.tsx)",
+      "Bash(sed -i '' 's|from '\\\\''@/contexts/ScrollContext'\\\\''|from '\\\\''@ifluent/shared'\\\\''|g' /Users/yazan/Documents/crm_iFluent/apps/landing/src/components/landing/HeroSection.tsx)",
+      "Bash(sed -i '' 's|from '\\\\''@/api/public'\\\\''|from '\\\\''@/src/api/public'\\\\''|g' /Users/yazan/Documents/crm_iFluent/apps/landing/src/components/landing/HeroSection.tsx)",
+      "Bash(sed -i '' 's|import type { SiteSettings } from '\\\\''@/api/public'\\\\''|import type { SiteSettings } from '\\\\''@ifluent/shared'\\\\''|g' /Users/yazan/Documents/crm_iFluent/apps/landing/src/components/landing/DemoSection.tsx)",
+      "Bash(sed -i '' 's|import type { SiteSettings } from '\\\\''@/api/public'\\\\''|import type { SiteSettings } from '\\\\''@ifluent/shared'\\\\''|g' /Users/yazan/Documents/crm_iFluent/apps/landing/src/components/landing/Footer.tsx)",
+      "Bash(git add *)"
     ]
   }
 }
