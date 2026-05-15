@@ -3,11 +3,8 @@ import {
   View, Text, StyleSheet, TouchableOpacity,
   Linking, Platform, Image, Pressable,
 } from 'react-native';
+import { useRouter } from 'expo-router';
 import FontAwesome5 from '@expo/vector-icons/FontAwesome5';
-
-/** CRM subdomain — hidden admin entry via 5-tap easter egg on copyright */
-const CRM_LOGIN_URL =
-  (process.env.EXPO_PUBLIC_CRM_URL ?? 'http://localhost:8081') + '/login';
 import { Colors } from '@ifluent/shared';
 import { Spacing, MAX_WIDTH } from '@ifluent/shared';
 import { FontSize, FontWeight } from '@ifluent/shared';
@@ -24,21 +21,17 @@ const QUICK_LINKS = [
 
 export function Footer({ settings }: FooterProps) {
   const { isMobile } = useResponsive();
+  const router    = useRouter();
   const tapCount  = useRef(0);
   const tapTimer  = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // 5 quick taps on copyright → CRM login (hidden easter-egg entry)
-  // Landing has no admin routes — navigate to the CRM subdomain instead
+  // 5 quick taps on copyright → admin login (hidden easter-egg entry)
   const handleCopyrightTap = () => {
     tapCount.current += 1;
     if (tapTimer.current) clearTimeout(tapTimer.current);
     if (tapCount.current >= 5) {
       tapCount.current = 0;
-      if (Platform.OS === 'web') {
-        window.location.href = CRM_LOGIN_URL;
-      } else {
-        Linking.openURL(CRM_LOGIN_URL).catch(() => {});
-      }
+      router.push('/(admin)/login');
       return;
     }
     tapTimer.current = setTimeout(() => { tapCount.current = 0; }, 2000);
