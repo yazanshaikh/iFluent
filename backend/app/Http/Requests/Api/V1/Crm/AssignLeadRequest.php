@@ -12,9 +12,9 @@ class AssignLeadRequest extends FormRequest
     public function rules(): array
     {
         return [
-            // The staff member to assign to — must be a CC user
+            // The staff member to assign to — must be CC or SS
             'user_id' => ['required', 'integer',
-                Rule::exists('users', 'id')->where('role', 'cc')],
+                Rule::exists('users', 'id')->whereIn('role', ['cc', 'ss'])],
         ];
     }
 }

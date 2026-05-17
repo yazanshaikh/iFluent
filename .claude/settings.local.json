@@ -29,7 +29,10 @@
       "Bash(sed -i '' 's|from '\\\\''@/api/public'\\\\''|from '\\\\''@/src/api/public'\\\\''|g' /Users/yazan/Documents/crm_iFluent/apps/landing/src/components/landing/HeroSection.tsx)",
       "Bash(sed -i '' 's|import type { SiteSettings } from '\\\\''@/api/public'\\\\''|import type { SiteSettings } from '\\\\''@ifluent/shared'\\\\''|g' /Users/yazan/Documents/crm_iFluent/apps/landing/src/components/landing/DemoSection.tsx)",
       "Bash(sed -i '' 's|import type { SiteSettings } from '\\\\''@/api/public'\\\\''|import type { SiteSettings } from '\\\\''@ifluent/shared'\\\\''|g' /Users/yazan/Documents/crm_iFluent/apps/landing/src/components/landing/Footer.tsx)",
-      "Bash(git add *)"
+      "Bash(git add *)",
+      "Bash(npm install *)",
+      "Bash(npm run *)",
+      "Bash(xargs cat)"
     ]
   }
 }

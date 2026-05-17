@@ -12,6 +12,9 @@ class UpdateLeadRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'status' => ['sometimes', 'string', Rule::in([
+                'new', 'in_progress', 'interested', 'not_interested', 'postponed',
+            ])],
             'name'   => ['sometimes', 'string', 'max:100'],
             'phone'  => ['sometimes', 'string', 'max:20',
                 Rule::unique('leads', 'phone')->ignore($this->route('lead'))],

@@ -18,7 +18,7 @@ class LeadPolicy
     public function view(User $user, Lead $lead): bool
     {
         if ($user->isSuperAdmin()) return true;
-        return $user->isCC() && $lead->assigned_to === $user->id;
+        return in_array($user->role, ['cc', 'ss']) && $lead->assigned_to === $user->id;
     }
 
     public function create(User $user): bool
@@ -29,7 +29,7 @@ class LeadPolicy
     public function update(User $user, Lead $lead): bool
     {
         if ($user->isSuperAdmin()) return true;
-        return $user->isCC() && $lead->assigned_to === $user->id;
+        return in_array($user->role, ['cc', 'ss']) && $lead->assigned_to === $user->id;
     }
 
     public function delete(User $user, Lead $lead): bool
@@ -53,7 +53,7 @@ class LeadPolicy
     public function toggleSmallTreasure(User $user, Lead $lead): bool
     {
         if ($user->isSuperAdmin()) return true;
-        return $user->isCC() && $lead->assigned_to === $user->id;
+        return in_array($user->role, ['cc', 'ss']) && $lead->assigned_to === $user->id;
     }
 
     /** Only admin can delete from small treasure */
@@ -65,6 +65,6 @@ class LeadPolicy
     public function addRemark(User $user, Lead $lead): bool
     {
         if ($user->isSuperAdmin()) return true;
-        return $user->isCC() && $lead->assigned_to === $user->id;
+        return in_array($user->role, ['cc', 'ss']) && $lead->assigned_to === $user->id;
     }
 }

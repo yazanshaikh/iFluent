@@ -17,9 +17,9 @@ class LeadRemarkController extends Controller
     {
         $this->authorize('addRemark', $lead);
 
-        // Move lead to "working" status when staff first adds a remark
-        if ($lead->status === Lead::STATUS_ASSIGNED) {
-            $lead->update(['status' => Lead::STATUS_WORKING]);
+        // Move lead to in_progress when staff first adds a remark (was still 'new')
+        if ($lead->status === Lead::STATUS_NEW) {
+            $lead->update(['status' => Lead::STATUS_IN_PROGRESS]);
         }
 
         $remark = $lead->remarks()->create([

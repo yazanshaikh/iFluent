@@ -8,6 +8,10 @@ use Illuminate\Http\Resources\Json\JsonResource;
 
 class LeadResource extends JsonResource
 {
+    // بدون data wrapper — الفرونت يقرأ الحقول مباشرة (r.data.id, r.data.name …)
+    // الـ collection wrapping (index) لا تتأثر — يبقى { data: [], meta: {} }
+    public static $wrap = null;
+
     public function toArray(Request $request): array
     {
         $viewer = $request->user();

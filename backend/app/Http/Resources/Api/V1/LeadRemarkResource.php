@@ -15,6 +15,7 @@ class LeadRemarkResource extends JsonResource
             'staff' => [
                 'id'   => $this->staff->id,
                 'name' => $this->staff->name,
+                'role' => $this->staff->role,
             ],
             // Jordan timezone for display (PRD 8.2)
             'created_at' => $this->created_at

@@ -30,8 +30,19 @@ class LeadController extends Controller
         }
 
         // Filters
+        // status يقبل قيمة واحدة أو مصفوفة: ?status=in_process أو ?status[]=in_process&status[]=loss
         if ($request->filled('status')) {
-            $query->where('status', $request->status);
+            $statuses = is_array($request->status)
+                ? $request->status
+                : [$request->status];
+            $query->whereIn('status', $statuses);
+        }
+        // unassigned=1 → فلتر بدون موظف (لعرض الـ pool غير المعيّن للمدير)
+        if ($request->boolean('unassigned')) {
+            $query->whereNull('assigned_to');
+        }
+        if ($request->has('is_small_treasure')) {
+            $query->where('is_small_treasure', $request->boolean('is_small_treasure'));
         }
         if ($request->filled('source')) {
             $query->where('source', $request->source);
@@ -57,25 +68,24 @@ class LeadController extends Controller
         $actor = $request->user();
 
         // ── Determine assignment & status ──────────────────────────────────────
-        // CC adds a lead  → auto-assign to themselves → status: assigned
-        // Admin adds lead with assigned_to → assign to that CC → status: assigned
-        // Admin adds lead without assigned_to → goes to pool → status: new
+        // CC adds lead  → auto-assign to themselves → status: new (في قائمة الموظف)
+        // Admin + assigned_to → assign to staff  → status: new (في قائمة الموظف)
+        // Admin only → unassigned pool            → status: new (في قائمة المدير)
 
         if ($actor->isCC()) {
             $assignedTo = $actor->id;
-            $status     = Lead::STATUS_ASSIGNED;
+            $status     = Lead::STATUS_NEW;
         } elseif ($actor->isSuperAdmin() && $request->filled('assigned_to')) {
-            // Validate the target is a CC
             $target = User::find($request->assigned_to);
-            if (!$target || !$target->isCC()) {
+            if (!$target || !in_array($target->role, ['cc', 'ss'])) {
                 return response()->json([
-                    'message' => 'Leads can only be assigned to CC staff members.',
+                    'message' => 'يمكن تعيين الليدات لموظفي CC أو SS فقط.',
                 ], 422);
             }
             $assignedTo = $target->id;
-            $status     = Lead::STATUS_ASSIGNED;
+            $status     = Lead::STATUS_NEW;
         } else {
-            // Admin adds without specifying CC → unassigned pool
+            // Admin adds without specifying staff → unassigned pool
             $assignedTo = null;
             $status     = Lead::STATUS_NEW;
         }
@@ -124,9 +134,10 @@ class LeadController extends Controller
     {
         $this->authorize('assign', $lead);
 
+        // الحالة تبقى 'new' — الليد ينتقل لقائمة الموظف ولا يُصنَّف حتى يبدأ العمل
         $lead->update([
             'assigned_to' => $request->user_id,
-            'status'      => Lead::STATUS_ASSIGNED,
+            'status'      => Lead::STATUS_NEW,
         ]);
 
         return new LeadResource($lead->load('assignedTo'));
@@ -201,7 +212,7 @@ class LeadController extends Controller
 
         $lead->update([
             'assigned_to'         => request()->user()->id,
-            'status'              => Lead::STATUS_WORKING,
+            'status'              => Lead::STATUS_IN_PROGRESS,
             'moved_to_open_sea_at'=> null,
         ]);
 
