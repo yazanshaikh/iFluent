@@ -4,7 +4,6 @@ import {
   LayoutDashboard,
   Users,
   BookOpen,
-  Settings,
   LogOut,
   ChevronRight,
   ChevronLeft,
@@ -35,7 +34,6 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Open Sea',       to: '/open-sea',         icon: Waves },
   { label: 'Trial Bookings',to: '/bookings',   icon: BookOpen },
   { label: 'Employee Mg',   to: '/employees',  icon: GraduationCap, adminOnly: true },
-  { label: 'Settings',      to: '/settings',   icon: Settings,      adminOnly: true },
 ];
 
 export function Sidebar() {

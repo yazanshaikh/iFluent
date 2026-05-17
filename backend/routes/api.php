@@ -116,6 +116,7 @@ Route::middleware(['auth:sanctum', 'role:super_admin'])
         Route::post('staff/teachers',              [StaffController::class, 'createTeacher']);
         Route::put ('staff/{id}',                  [StaffController::class, 'update']);
         Route::post('staff/{id}/toggle-status',    [StaffController::class, 'toggleStatus']);
+        Route::post('staff/{id}/reset-sessions',   [StaffController::class, 'resetSessionsCount']);
 
         // ── Subscription Approvals ─────────────────────────────────────────────
         Route::get ('subscriptions',                             [AdminSubscriptionController::class, 'index']);

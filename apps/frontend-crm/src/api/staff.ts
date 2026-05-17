@@ -10,6 +10,16 @@ export interface StaffMember {
   role:        StaffRole;
   leads_count?: number;
   created_at:  string;
+  teacher_profile?: {
+    teacher_code:            string;
+    bio:                     string | null;
+    specialization:          string | null;
+    commission_rate:         string;
+    sessions_count:          number;
+    avg_rating:              number | null;
+    sessions_count_reset_at: string | null;
+    is_active:               boolean;
+  };
 }
 
 export interface CreateStaffPayload {
@@ -60,4 +70,7 @@ export const staffApi = {
 
   delete: (id: number) =>
     api.delete(`/admin/staff/${id}`).then((r) => r.data),
+
+  resetSessions: (id: number) =>
+    api.post<{ message: string; reset_at: string }>(`/admin/staff/${id}/reset-sessions`).then((r) => r.data),
 };

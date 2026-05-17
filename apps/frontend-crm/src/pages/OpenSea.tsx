@@ -54,57 +54,6 @@ function LastRemarkCell({ lead }: { lead: OpenSeaLead }) {
   );
 }
 
-/* ══════════════════════════ Pull Confirm Dialog ══════════════════════════ */
-function PullDialog() {
-  const qc = useQueryClient();
-  const { pullTarget, setPullTarget } = useOpenSeaStore();
-
-  const mutation = useMutation({
-    mutationFn: () => openSeaApi.pull(pullTarget!.id),
-    onSuccess:  () => {
-      qc.invalidateQueries({ queryKey: ['open-sea'] });
-      qc.invalidateQueries({ queryKey: ['leads'] });
-      setPullTarget(null);
-    },
-  });
-
-  if (!pullTarget) return null;
-
-  const apiError = (mutation.error as { response?: { data?: { message?: string } } } | null)
-    ?.response?.data?.message ?? (mutation.error ? 'حدث خطأ' : null);
-
-  return (
-    <Dialog open onOpenChange={(o) => !o && setPullTarget(null)}>
-      <DialogContent className="max-w-sm">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Anchor className="h-5 w-5 text-primary" />
-            تأكيد السحب
-          </DialogTitle>
-          <DialogDescription>
-            هل تريد سحب <strong>{pullTarget.name}</strong> من البحر المفتوح وإضافته لقائمتك؟
-          </DialogDescription>
-        </DialogHeader>
-
-        {apiError && (
-          <p className="text-sm text-destructive bg-destructive/10 rounded-md px-3 py-2">
-            {apiError}
-          </p>
-        )}
-
-        <DialogFooter>
-          <Button variant="outline" onClick={() => setPullTarget(null)}
-            disabled={mutation.isPending}>إلغاء</Button>
-          <Button onClick={() => mutation.mutate()} disabled={mutation.isPending}>
-            {mutation.isPending && <Loader2 className="h-4 w-4 animate-spin ml-1" />}
-            نعم، اسحب
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
 /* ══════════════════════════ Re-assign Dialog ═════════════════════════════ */
 function ReassignDialog() {
   const qc = useQueryClient();
@@ -192,11 +141,48 @@ function ReassignDialog() {
 }
 
 /* ══════════════════════════ Column Definitions ═══════════════════════════ */
-function useOpenSeaColumns(isAdmin: boolean): ColumnDef<OpenSeaLead, unknown>[] {
+interface SelectionProps {
+  selectedIds:  Set<number>;
+  toggleId:     (id: number) => void;
+  isAllSelected: boolean;
+  isSomeSelected: boolean;
+  toggleAll:    () => void;
+}
+
+function useOpenSeaColumns(
+  isAdmin: boolean,
+  sel: SelectionProps,
+): ColumnDef<OpenSeaLead, unknown>[] {
   const navigate = useNavigate();
-  const { setPullTarget, setReassignTarget } = useOpenSeaStore();
+  const { setReassignTarget } = useOpenSeaStore();
 
   return [
+    /* ── Checkbox column ── */
+    {
+      id: 'select',
+      header: () => (
+        <input
+          type="checkbox"
+          checked={sel.isAllSelected}
+          ref={(el) => { if (el) el.indeterminate = sel.isSomeSelected; }}
+          onChange={sel.toggleAll}
+          onClick={(e) => e.stopPropagation()}
+          className="h-4 w-4 cursor-pointer accent-primary rounded"
+          aria-label="تحديد الكل"
+        />
+      ),
+      cell: ({ row }) => (
+        <input
+          type="checkbox"
+          checked={sel.selectedIds.has(row.original.id)}
+          onChange={() => sel.toggleId(row.original.id)}
+          onClick={(e) => e.stopPropagation()}
+          className="h-4 w-4 cursor-pointer accent-primary rounded"
+          aria-label="تحديد"
+        />
+      ),
+      enableSorting: false,
+    },
     {
       accessorKey: 'name',
       header: ({ column }) => <SortableHeader column={column} label="الاسم" />,
@@ -233,7 +219,6 @@ function useOpenSeaColumns(isAdmin: boolean): ColumnDef<OpenSeaLead, unknown>[] 
       ),
     },
     {
-      /* آخر ملاحظة مع تاريخها — بدل الألوان */
       id: 'last_remark',
       header: 'آخر ملاحظة',
       enableSorting: false,
@@ -250,32 +235,29 @@ function useOpenSeaColumns(isAdmin: boolean): ColumnDef<OpenSeaLead, unknown>[] 
         </span>
       ),
     },
-    {
-      id: 'actions',
-      header: '',
-      enableSorting: false,
-      cell: ({ row }) => (
-        <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-          <Button size="sm" variant="outline" className="h-7 text-xs gap-1"
-            onClick={() => setPullTarget(row.original)}>
-            <Anchor className="h-3 w-3" />
-            سحب
-          </Button>
-          {isAdmin && (
-            <Button size="sm" variant="secondary" className="h-7 text-xs gap-1"
-              onClick={() => setReassignTarget(row.original)}>
-              <UserRoundCog className="h-3 w-3" />
-              تعيين
-            </Button>
-          )}
-        </div>
-      ),
-    },
+    /* عمود إعادة التعيين — للمدير فقط */
+    ...(isAdmin
+      ? [{
+          id: 'actions',
+          header: '',
+          enableSorting: false,
+          cell: ({ row }: { row: { original: OpenSeaLead } }) => (
+            <div onClick={(e) => e.stopPropagation()}>
+              <Button size="sm" variant="secondary" className="h-7 text-xs gap-1"
+                onClick={() => setReassignTarget(row.original)}>
+                <UserRoundCog className="h-3 w-3" />
+                تعيين
+              </Button>
+            </div>
+          ),
+        } satisfies ColumnDef<OpenSeaLead, unknown>]
+      : []),
   ];
 }
 
 /* ══════════════════════════ Main Page ════════════════════════════════════ */
 export default function OpenSeaPage() {
+  const qc      = useQueryClient();
   const user    = useAuthStore((s) => s.user);
   const isAdmin = user?.role === 'super_admin';
 
@@ -284,6 +266,9 @@ export default function OpenSeaPage() {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo,   setDateTo]   = useState('');
   const [page,     setPage]     = useState(1);
+
+  /* ── Multi-select ── */
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
 
   const hasFilters = !!(phone || dateFrom || dateTo);
 
@@ -303,12 +288,51 @@ export default function OpenSeaPage() {
     staleTime: 30_000,
   });
 
-  const columns = useOpenSeaColumns(isAdmin);
-  const leads   = data?.data ?? [];
+  const leads = data?.data ?? [];
+
+  /* ── Selection helpers ── */
+  const isAllSelected  = leads.length > 0 && leads.every((l) => selectedIds.has(l.id));
+  const isSomeSelected = leads.some((l) => selectedIds.has(l.id)) && !isAllSelected;
+
+  const toggleId = (id: number) =>
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+
+  const toggleAll = () =>
+    setSelectedIds((prev) => {
+      if (isAllSelected) {
+        const next = new Set(prev);
+        leads.forEach((l) => next.delete(l.id));
+        return next;
+      }
+      const next = new Set(prev);
+      leads.forEach((l) => next.add(l.id));
+      return next;
+    });
+
+  /* ── Bulk pull mutation ── */
+  const bulkPullMutation = useMutation({
+    mutationFn: (ids: number[]) => Promise.all(ids.map((id) => openSeaApi.pull(id))),
+    onSuccess: async () => {
+      setSelectedIds(new Set());
+      await qc.invalidateQueries({ queryKey: ['open-sea'] });
+      qc.invalidateQueries({ queryKey: ['leads'] });
+    },
+  });
+
+  const handleBulkPull = () => {
+    if (selectedIds.size === 0) return;
+    bulkPullMutation.mutate([...selectedIds]);
+  };
+
+  const sel: SelectionProps = { selectedIds, toggleId, isAllSelected, isSomeSelected, toggleAll };
+  const columns = useOpenSeaColumns(isAdmin, sel);
 
   return (
     <>
-      <PullDialog />
       <ReassignDialog />
 
       <div className="p-6 space-y-4">
@@ -395,14 +419,56 @@ export default function OpenSeaPage() {
 
         {/* Table */}
         <Card>
-          <CardHeader className="pb-0 flex-row items-center justify-between">
+          <CardHeader className="pb-0 flex-row items-center justify-between gap-4">
             <CardTitle className="text-base font-semibold">عملاء البحر المفتوح</CardTitle>
-            {data && (
-              <p className="text-xs text-muted-foreground">
-                {PER_PAGE} لكل صفحة · {data.total} إجمالي
-              </p>
-            )}
+
+            <div className="flex items-center gap-3">
+              {/* Bulk pull action — يظهر عند تحديد ليدات */}
+              {selectedIds.size > 0 && (
+                <div className="flex items-center gap-2 bg-primary/5 border border-primary/20 rounded-lg px-3 py-1.5">
+                  <span className="text-sm text-primary font-medium">
+                    {selectedIds.size} محدد
+                  </span>
+                  <Button
+                    size="sm"
+                    className="h-7 text-xs gap-1.5"
+                    disabled={bulkPullMutation.isPending}
+                    onClick={handleBulkPull}
+                  >
+                    {bulkPullMutation.isPending
+                      ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      : <Anchor className="h-3.5 w-3.5" />}
+                    سحب ({selectedIds.size})
+                  </Button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedIds(new Set())}
+                    className="text-muted-foreground hover:text-foreground transition-colors"
+                    aria-label="إلغاء التحديد"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              )}
+
+              {data && (
+                <p className="text-xs text-muted-foreground shrink-0">
+                  {PER_PAGE} لكل صفحة · {data.total} إجمالي
+                </p>
+              )}
+            </div>
           </CardHeader>
+
+          {/* Pull error */}
+          {bulkPullMutation.isError && (
+            <div className="px-6 pb-0">
+              <p className="text-sm text-destructive bg-destructive/10 rounded-md px-3 py-2">
+                {(bulkPullMutation.error as { response?: { data?: { message?: string } } })
+                  ?.response?.data?.message ?? 'حدث خطأ أثناء السحب'}
+              </p>
+            </div>
+          )}
+
           <CardContent className="pt-4">
             <DataTable
               columns={columns}
@@ -441,7 +507,6 @@ export default function OpenSeaPage() {
                     السابق
                   </Button>
 
-                  {/* أرقام الصفحات */}
                   {Array.from({ length: data.last_page }, (_, i) => i + 1)
                     .filter((n) => n === 1 || n === data.last_page ||
                                    Math.abs(n - page) <= 1)
@@ -475,6 +540,7 @@ export default function OpenSeaPage() {
             )}
           </CardContent>
         </Card>
+
       </div>
     </>
   );

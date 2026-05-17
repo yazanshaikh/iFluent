@@ -156,6 +156,17 @@ class StaffController extends Controller
         ]);
     }
 
+    // ─── Reset Sessions Count ─────────────────────────────────────────────────
+    public function resetSessionsCount(int $id): JsonResponse
+    {
+        $user = User::with('teacher')->findOrFail($id);
+        if (!$user->isTeacher() || !$user->teacher) {
+            return response()->json(['message' => 'Not a teacher.'], 422);
+        }
+        $user->teacher->update(['sessions_count_reset_at' => now()]);
+        return response()->json(['message' => 'Sessions count reset.', 'reset_at' => now()->toDateTimeString()]);
+    }
+
     // ─── CC Performance Report ────────────────────────────────────────────────
     public function performance(Request $request): JsonResponse
     {

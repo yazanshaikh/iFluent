@@ -20,14 +20,16 @@ class Teacher extends Model
         'balance',
         'is_active',
         'zoom_user_id',
+        'sessions_count_reset_at',
     ];
 
     protected function casts(): array
     {
         return [
-            'commission_rate' => 'decimal:2',
-            'balance'         => 'decimal:2',
-            'is_active'       => 'boolean',
+            'commission_rate'         => 'decimal:2',
+            'balance'                 => 'decimal:2',
+            'is_active'               => 'boolean',
+            'sessions_count_reset_at' => 'datetime',
         ];
     }
 
