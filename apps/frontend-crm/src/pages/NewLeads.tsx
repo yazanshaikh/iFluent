@@ -35,12 +35,17 @@ const leadSchema = z.object({
 });
 type LeadFormData = z.infer<typeof leadSchema>;
 
+type ConflictType = 'own' | 'open_sea' | 'other_staff' | 'admin_pool' | null;
+interface ConflictInfo { type: ConflictType; message: string; leadId?: number }
+
 function AddLeadDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const navigate = useNavigate();
   const qc = useQueryClient();
   const { register, handleSubmit, reset, formState: { errors } } = useForm<LeadFormData>({
     resolver:      zodResolver(leadSchema),
     defaultValues: { name: '', phone: '', source: '', age: '' },
   });
+  const [conflict, setConflict] = useState<ConflictInfo | null>(null);
 
   const mutation = useMutation({
     mutationFn: (payload: CreateLeadPayload) => leadsApi.create(payload),
@@ -48,11 +53,22 @@ function AddLeadDialog({ open, onClose }: { open: boolean; onClose: () => void }
       qc.invalidateQueries({ queryKey: ['new-leads'] });
       qc.invalidateQueries({ queryKey: ['leads'] });
       reset();
+      setConflict(null);
       onClose();
+    },
+    onError: (err: unknown) => {
+      const res = (err as { response?: { data?: { message?: string; conflict?: string; lead_id?: number } } })
+        ?.response?.data;
+      if (res?.conflict) {
+        setConflict({ type: res.conflict as ConflictType, message: res.message ?? '', leadId: res.lead_id });
+      } else {
+        setConflict(null);
+      }
     },
   });
 
   const onSubmit = handleSubmit((data) => {
+    setConflict(null);
     mutation.mutate({
       name:   data.name,
       phone:  data.phone,
@@ -61,13 +77,20 @@ function AddLeadDialog({ open, onClose }: { open: boolean; onClose: () => void }
     });
   });
 
-  const apiError = mutation.error
+  /* conflict-specific actions */
+  const conflictAction = conflict?.type === 'own' && conflict.leadId
+    ? { label: 'فتح البروفايل', onClick: () => { onClose(); navigate(`/leads/${conflict.leadId}`); } }
+    : conflict?.type === 'open_sea'
+    ? { label: 'الذهاب للبحر المفتوح', onClick: () => { onClose(); navigate('/open-sea'); } }
+    : null;
+
+  const genericError = mutation.error && !conflict
     ? ((mutation.error as { response?: { data?: { message?: string } } })
         ?.response?.data?.message ?? 'حدث خطأ أثناء الإضافة')
     : null;
 
   return (
-    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+    <Dialog open={open} onOpenChange={(o) => { if (!o) { setConflict(null); onClose(); } }}>
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>إضافة عميل جديد</DialogTitle>
@@ -96,12 +119,34 @@ function AddLeadDialog({ open, onClose }: { open: boolean; onClose: () => void }
               <Input id="al-age" type="number" min={5} max={100} placeholder="25" dir="ltr" {...register('age')} />
             </div>
           </div>
-          {apiError && (
-            <p className="text-sm text-destructive bg-destructive/10 rounded-md px-3 py-2">{apiError}</p>
+
+          {/* Conflict banner */}
+          {conflict && (
+            <div className={`rounded-md px-3 py-2.5 text-sm flex items-start justify-between gap-3 ${
+              conflict.type === 'other_staff'
+                ? 'bg-destructive/10 text-destructive border border-destructive/20'
+                : 'bg-amber-50 text-amber-800 border border-amber-200 dark:bg-amber-950/30 dark:text-amber-300'
+            }`}>
+              <span>{conflict.message}</span>
+              {conflictAction && (
+                <button
+                  type="button"
+                  onClick={conflictAction.onClick}
+                  className="shrink-0 underline text-xs font-semibold whitespace-nowrap"
+                >
+                  {conflictAction.label}
+                </button>
+              )}
+            </div>
           )}
+
+          {genericError && (
+            <p className="text-sm text-destructive bg-destructive/10 rounded-md px-3 py-2">{genericError}</p>
+          )}
+
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose} disabled={mutation.isPending}>إلغاء</Button>
-            <Button type="submit" disabled={mutation.isPending}>
+            <Button type="submit" disabled={mutation.isPending || conflict?.type === 'other_staff'}>
               {mutation.isPending && <Loader2 className="h-4 w-4 animate-spin ml-1" />}
               إضافة العميل
             </Button>
@@ -260,6 +305,24 @@ export default function NewLeadsPage() {
             day: 'numeric', month: 'short', year: 'numeric',
           })}
         </span>
+      ),
+    },
+    {
+      accessorKey: 'demo_session',
+      header: 'موعد الحصة',
+      enableSorting: false,
+      cell: ({ row }) => row.original.demo_session?.scheduled_at ? (
+        <span className="text-xs text-primary font-medium">
+          {new Date(row.original.demo_session.scheduled_at).toLocaleDateString('ar-SA', {
+            day: 'numeric', month: 'short',
+          })}
+          {' '}
+          {new Date(row.original.demo_session.scheduled_at).toLocaleTimeString('ar-SA', {
+            hour: '2-digit', minute: '2-digit',
+          })}
+        </span>
+      ) : (
+        <span className="text-xs text-muted-foreground">—</span>
       ),
     },
     /* عمود الإجراءات — يظهر للمدير فقط */

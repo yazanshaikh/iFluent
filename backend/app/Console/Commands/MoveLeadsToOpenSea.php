@@ -17,10 +17,19 @@ class MoveLeadsToOpenSea extends Command
         // is_small_treasure = true  → محمية، ما تنتقل أبداً (PRD 5.3)
         // is_small_treasure = false → تنتقل بعد 5 أيام
         // is_small_treasure = NULL  → نعاملها كـ false (أمان إضافي)
+        // الحالات التي تندرج في Lead Pool (يعمل عليها الموظف) — new مستثنى
+        $poolStatuses = [
+            Lead::STATUS_IN_PROGRESS,
+            Lead::STATUS_INTERESTED,
+            Lead::STATUS_NOT_INTERESTED,
+            Lead::STATUS_POSTPONED,
+        ];
+
         $moved = Lead::query()
-            ->whereIn('status', [Lead::STATUS_ASSIGNED, Lead::STATUS_WORKING])
+            ->whereIn('status', $poolStatuses)
             ->where(fn($q) => $q->where('is_small_treasure', false)
                                 ->orWhereNull('is_small_treasure'))
+            ->whereNotNull('assigned_to')   // لا تنقل الليدات غير المعيّنة
             ->where('updated_at', '<=', now()->subDays(5))
             ->update([
                 'status'               => Lead::STATUS_OPEN_SEA,

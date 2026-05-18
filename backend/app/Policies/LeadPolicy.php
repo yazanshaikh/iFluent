@@ -9,10 +9,10 @@ class LeadPolicy
 {
     // super_admin bypasses all policies via Gate::before in AppServiceProvider
 
-    /** CC sees only their own leads. Admin sees all. */
+    /** CC / LP see only their own leads. Admin sees all. */
     public function viewAny(User $user): bool
     {
-        return in_array($user->role, [User::ROLE_SUPER_ADMIN, User::ROLE_CC]);
+        return in_array($user->role, [User::ROLE_SUPER_ADMIN, User::ROLE_CC, User::ROLE_SS]);
     }
 
     public function view(User $user, Lead $lead): bool

@@ -22,6 +22,13 @@ export interface StaffMember {
   };
 }
 
+export interface TeacherBooking {
+  id:           number;
+  status:       'pending' | 'confirmed';
+  scheduled_at: string;
+  lead:         { id: number; name: string; phone: string } | null;
+}
+
 export interface CreateStaffPayload {
   name:     string;
   email:    string;
@@ -73,4 +80,8 @@ export const staffApi = {
 
   resetSessions: (id: number) =>
     api.post<{ message: string; reset_at: string }>(`/admin/staff/${id}/reset-sessions`).then((r) => r.data),
+
+  /** GET /admin/staff/{id}/demo-bookings — حصص تقييمية محجوزة للمعلم (مستقبلية فقط) */
+  teacherDemoBookings: (id: number) =>
+    api.get<{ total: number; bookings: TeacherBooking[] }>(`/admin/staff/${id}/demo-bookings`).then((r) => r.data),
 };

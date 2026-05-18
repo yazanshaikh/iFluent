@@ -90,6 +90,7 @@ Route::middleware(['auth:sanctum', 'role:super_admin,cc,ss'])
         Route::post('leads/{lead}/remarks', [LeadRemarkController::class, 'store']);
 
         // ── Demo Booking (CC books assessment session for lead) ────────────────
+        Route::get ('demo-bookings',                                    [DemoBookingController::class, 'all']);
         Route::get ('leads/{lead}/demo-requests',                      [DemoBookingController::class, 'index']);
         Route::post('leads/{lead}/demo-requests',                      [DemoBookingController::class, 'store']);
         Route::post('demo-requests/{sessionRequest}/cancel',           [DemoBookingController::class, 'cancel']);
@@ -117,6 +118,7 @@ Route::middleware(['auth:sanctum', 'role:super_admin'])
         Route::put ('staff/{id}',                  [StaffController::class, 'update']);
         Route::post('staff/{id}/toggle-status',    [StaffController::class, 'toggleStatus']);
         Route::post('staff/{id}/reset-sessions',   [StaffController::class, 'resetSessionsCount']);
+        Route::get ('staff/{id}/demo-bookings',    [StaffController::class, 'teacherDemoBookings']);
 
         // ── Subscription Approvals ─────────────────────────────────────────────
         Route::get ('subscriptions',                             [AdminSubscriptionController::class, 'index']);

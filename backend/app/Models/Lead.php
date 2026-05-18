@@ -59,6 +59,19 @@ class Lead extends Model
         return $this->hasOne(Student::class);
     }
 
+    public function sessionRequests(): HasMany
+    {
+        return $this->hasMany(\App\Models\SessionRequest::class);
+    }
+
+    public function latestDemoSession(): HasOne
+    {
+        return $this->hasOne(\App\Models\SessionRequest::class)
+            ->where('type', \App\Models\SessionRequest::TYPE_DEMO)
+            ->whereIn('status', ['pending', 'confirmed'])
+            ->latest('requested_at_utc');
+    }
+
     // ─── Helpers ──────────────────────────────────────────────────────────────
 
     public function isInOpenSea(): bool

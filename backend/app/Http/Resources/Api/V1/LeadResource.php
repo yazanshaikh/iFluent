@@ -28,13 +28,23 @@ class LeadResource extends JsonResource
             'status'              => $this->status,
             'is_small_treasure'   => $this->is_small_treasure,
 
-            'assigned_to' => $this->when($this->relationLoaded('assignedTo'), fn() => [
-                'id'   => $this->assignedTo?->id,
-                'name' => $this->assignedTo?->name,
-            ]),
+            'assigned_to' => $this->when($this->relationLoaded('assignedTo'), fn() => $this->assignedTo ? [
+                'id'   => $this->assignedTo->id,
+                'name' => $this->assignedTo->name,
+                'role' => $this->assignedTo->role,
+            ] : null),
 
             'remarks_count'       => $this->when(isset($this->remarks_count), $this->remarks_count),
             'remarks'             => LeadRemarkResource::collection($this->whenLoaded('remarks')),
+
+            'demo_session' => $this->when(
+                $this->relationLoaded('latestDemoSession') && $this->latestDemoSession,
+                fn() => [
+                    'id'           => $this->latestDemoSession->id,
+                    'status'       => $this->latestDemoSession->status,
+                    'scheduled_at' => $this->latestDemoSession->requested_at_utc?->toIso8601String(),
+                ]
+            ),
 
             'moved_to_open_sea_at' => $this->moved_to_open_sea_at?->toIso8601String(),
             'converted_at'         => $this->converted_at?->toIso8601String(),

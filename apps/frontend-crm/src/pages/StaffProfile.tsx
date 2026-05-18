@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
-import { staffApi } from '@/api/staff';
+import { staffApi, type TeacherBooking } from '@/api/staff';
 import { leadsApi, type Lead } from '@/api/leads';
 import { useAuthStore } from '@/stores/authStore';
 import { Navigate } from 'react-router-dom';
@@ -20,7 +20,7 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog';
 import {
-  ArrowRight, Loader2, User, Briefcase, Phone, CalendarDays, Undo2, Gem, Star,
+  ArrowRight, Loader2, User, Briefcase, Phone, CalendarDays, Undo2, Gem, Star, CalendarClock,
 } from 'lucide-react';
 
 /* ── Role labels ── */
@@ -131,6 +131,17 @@ export default function StaffProfilePage() {
 
   /* ── Fetch new leads for this staff member (cc/ss only) ── */
   const isTeacher = staff?.role === 'teacher';
+
+  /* ── Fetch upcoming demo bookings for teacher ── */
+  const {
+    data:      demoBookings,
+    isLoading: demoLoading,
+  } = useQuery({
+    queryKey: ['teacher-demo-bookings', staffId],
+    queryFn:  () => staffApi.teacherDemoBookings(staffId),
+    enabled:  isAdmin && !!staffId && isTeacher,
+    staleTime: 30_000,
+  });
 
   const {
     data:      leadsData,
@@ -297,6 +308,83 @@ export default function StaffProfilePage() {
                   </Button>
                 </div>
               </>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Demo Bookings Card */}
+        <Card>
+          <CardHeader className="pb-0">
+            <CardTitle className="text-base font-semibold flex items-center gap-2">
+              <CalendarClock className="h-4 w-4" />
+              الحصص التقييمية المحجوزة
+              {demoBookings && demoBookings.total > 0 && (
+                <span className="bg-primary/10 text-primary text-xs px-1.5 py-0.5 rounded-full font-mono">
+                  {demoBookings.total}
+                </span>
+              )}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-4 space-y-3">
+
+            {/* Notice: pending teacher app */}
+            <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2 flex items-start gap-2 dark:bg-amber-950/30 dark:border-amber-800 dark:text-amber-400">
+              <span className="shrink-0">⚠️</span>
+              <span>ستكون هذه البيانات فعّالة بالكامل بعد إطلاق تطبيق المعلم لقبول الحصص</span>
+            </p>
+
+            {demoLoading ? (
+              <div className="flex items-center justify-center py-8 text-muted-foreground">
+                <Loader2 className="h-5 w-5 animate-spin ml-2" />
+                جارٍ التحميل...
+              </div>
+            ) : !demoBookings || demoBookings.total === 0 ? (
+              <div className="text-center py-8 text-muted-foreground space-y-1">
+                <p className="text-2xl">📅</p>
+                <p className="text-sm">لا توجد حصص تقييمية محجوزة حالياً</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {demoBookings.bookings.map((booking: TeacherBooking) => {
+                  const d = new Date(booking.scheduled_at);
+                  return (
+                    <div
+                      key={booking.id}
+                      className="rounded-lg border bg-muted/20 px-3 py-2.5 flex items-center gap-3"
+                    >
+                      {/* Lead info */}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">
+                          {booking.lead?.name ?? '—'}
+                        </p>
+                        <p className="text-xs text-muted-foreground font-mono" dir="ltr">
+                          {booking.lead?.phone ?? ''}
+                        </p>
+                      </div>
+
+                      {/* Date + time */}
+                      <div className="text-right shrink-0">
+                        <p className="text-xs font-medium">
+                          {d.toLocaleDateString('ar-SA', {
+                            weekday: 'short', day: 'numeric', month: 'short',
+                          })}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {d.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' })}
+                        </p>
+                      </div>
+
+                      {/* Status badge */}
+                      <Badge
+                        variant={booking.status === 'confirmed' ? 'success' : 'secondary'}
+                        className="text-xs shrink-0"
+                      >
+                        {booking.status === 'confirmed' ? 'مؤكدة' : 'بانتظار القبول'}
+                      </Badge>
+                    </div>
+                  );
+                })}
+              </div>
             )}
           </CardContent>
         </Card>

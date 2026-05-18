@@ -11,8 +11,9 @@ import EmployeesPage  from '@/pages/Employees';
 import OpenSeaPage    from '@/pages/OpenSea';
 import NewLeadsPage    from '@/pages/NewLeads';
 import StaffProfilePage   from '@/pages/StaffProfile';
-import SmallTreasuryPage  from '@/pages/SmallTreasury';
-import NotFoundPage       from '@/pages/NotFound';
+import SmallTreasuryPage   from '@/pages/SmallTreasury';
+import TrialBookingsPage   from '@/pages/TrialBookings';
+import NotFoundPage        from '@/pages/NotFound';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -42,7 +43,7 @@ export default function App() {
             <Route path="/open-sea"       element={<OpenSeaPage />} />
             <Route path="/employees"     element={<EmployeesPage />} />
             <Route path="/employees/:id" element={<StaffProfilePage />} />
-            <Route path="/bookings"     element={<ComingSoon title="Bookings — Trial Classes" />} />
+            <Route path="/bookings"     element={<TrialBookingsPage />} />
             <Route path="/teachers"     element={<ComingSoon title="Teachers" />} />
             <Route path="/settings"     element={<ComingSoon title="Settings" />} />
           </Route>

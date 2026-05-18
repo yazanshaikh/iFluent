@@ -13,7 +13,7 @@ class StoreLeadRequest extends FormRequest
     {
         return [
             'name'        => ['required', 'string', 'max:100'],
-            'phone'       => ['required', 'string', 'max:20', 'unique:leads,phone'],
+            'phone'       => ['required', 'string', 'max:20'],
             'source'      => ['nullable', 'string', 'max:50'],
             'age'         => ['nullable', 'integer', 'min:5', 'max:100'],
             // Admin only: optionally assign to a CC upon creation

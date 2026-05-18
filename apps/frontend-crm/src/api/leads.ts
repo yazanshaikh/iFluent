@@ -19,6 +19,29 @@ export type LeadStatus =
   | 'open_sea'
   | 'subscriber';
 
+export interface DemoSession {
+  id:           number;
+  status:       'pending' | 'confirmed' | 'rejected' | 'cancelled' | 'expired';
+  scheduled_at: string;
+  lesson?:      { id: number; title: string } | null;
+  teacher?:     { name: string } | null;
+  /** بيانات الحضور — تُعبأ فقط عند وجود جلسة مرتبطة (session_id موجود) */
+  attendance?:  {
+    teacher_joined: boolean;
+    student_joined: boolean;
+    ended_at: string | null;
+  } | null;
+}
+
+export interface DemoBooking {
+  id:           number;
+  status:       'pending' | 'confirmed' | 'rejected' | 'cancelled' | 'expired';
+  scheduled_at: string;
+  created_at:   string;
+  lead: { id: number; name: string; phone: string } | null;
+  assigned_to:  { id: number; name: string; role: string } | null;
+}
+
 export interface Lead {
   id:                  number;
   name:                string;
@@ -26,7 +49,8 @@ export interface Lead {
   source:              string | null;
   age:                 number | null;
   status:              LeadStatus;
-  assigned_to:         number | null;
+  /** الموظف المُعيَّن — object عند تحميل العلاقة (في بروفايل الليد والقوائم) */
+  assigned_to:         { id: number; name: string; role: string } | null;
   is_small_treasure:   boolean;
   moved_to_open_sea_at: string | null;
   converted_at:        string | null;
@@ -34,8 +58,7 @@ export interface Lead {
   updated_at:          string;
   /** الملاحظات تأتي مع الليد eager-loaded من GET /crm/leads/{id} */
   remarks?: Remark[];
-  /** بيانات الموظف المُعيَّن (eager-loaded) */
-  assigned_to_user?: { id: number; name: string; role: string } | null;
+  demo_session?: DemoSession | null;
 }
 
 export interface Remark {
@@ -70,6 +93,8 @@ export interface LeadsParams {
   unassigned?:        1 | 0;
   /** 1 → يُعيد ليدات Small Treasury فقط */
   is_small_treasure?: 1 | 0;
+  /** YYYY-MM-DD → فلتر بتاريخ الإضافة */
+  date?: string;
 }
 
 /** الحالات التي تظهر في Lead Pool — الحالات المصنّفة فقط (بدون new) */
@@ -116,4 +141,28 @@ export const leadsApi = {
 
   addRemark: (leadId: number, content: string) =>
     api.post<Remark>(`/crm/leads/${leadId}/remarks`, { content }).then((r) => r.data),
+
+  getDemoRequests: (leadId: number) =>
+    api.get<{ requests: DemoSession[] }>(`/crm/leads/${leadId}/demo-requests`).then(r => r.data),
+
+  bookDemo: (leadId: number, payload: { scheduled_at: string; notes?: string }) =>
+    api.post<{ message: string; request: DemoSession }>(`/crm/leads/${leadId}/demo-requests`, payload).then(r => r.data),
+
+  cancelDemo: (sessionRequestId: number) =>
+    api.post<{ message: string }>(`/crm/demo-requests/${sessionRequestId}/cancel`).then(r => r.data),
+
+  /** GET /crm/demo-bookings — all demo sessions (CC: own leads; admin: all) */
+  listDemoBookings: (params: {
+    page?:      number;
+    status?:    string;
+    search?:    string;
+    date_from?: string;   // YYYY-MM-DD
+    date_to?:   string;   // YYYY-MM-DD
+  }) =>
+    api.get<{
+      data: DemoBooking[];
+      total: number;
+      current_page: number;
+      last_page: number;
+    }>('/crm/demo-bookings', { params }).then(r => r.data),
 };

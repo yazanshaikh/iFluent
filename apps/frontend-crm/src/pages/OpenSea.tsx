@@ -28,7 +28,7 @@ const PER_PAGE = 10;
 
 /* ── آخر ملاحظة: النص + التاريخ ── */
 function LastRemarkCell({ lead }: { lead: OpenSeaLead }) {
-  const sorted = [...(lead.lead_remarks ?? [])].sort(
+  const sorted = (lead.remarks ?? []).slice().sort(
     (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
   );
   const remark = sorted[0];
@@ -37,18 +37,18 @@ function LastRemarkCell({ lead }: { lead: OpenSeaLead }) {
     return <span className="text-muted-foreground text-xs italic">لا توجد ملاحظات</span>;
   }
 
-  const body = remark.body.length > 55
-    ? `${remark.body.slice(0, 55)}…`
-    : remark.body;
+  const preview = remark.content.length > 55
+    ? `${remark.content.slice(0, 55)}…`
+    : remark.content;
 
   return (
     <div className="space-y-0.5 max-w-[220px]">
-      <p className="text-sm leading-snug">{body}</p>
+      <p className="text-sm leading-snug">{preview}</p>
       <p className="text-xs text-muted-foreground">
         {new Date(remark.created_at).toLocaleDateString('ar-SA', {
           day: 'numeric', month: 'short', year: 'numeric',
         })}
-        {remark.user?.name ? ` · ${remark.user.name}` : ''}
+        {remark.staff?.name ? ` · ${remark.staff.name}` : ''}
       </p>
     </div>
   );
@@ -371,7 +371,7 @@ export default function OpenSeaPage() {
               </Label>
               <Input
                 dir="ltr"
-                placeholder="+966 5x xxx xxxx"
+                placeholder="+962 5x xxx xxxx"
                 value={phone}
                 onChange={(e) => { setPhone(e.target.value); setPage(1); }}
                 className="h-9 font-mono text-sm"

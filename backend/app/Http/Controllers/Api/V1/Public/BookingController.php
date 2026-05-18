@@ -27,7 +27,7 @@ class BookingController extends Controller
 
         // ── Server-side duplicate check (same phone, still active) ────────────
         $existing = Lead::where('phone', $validated['phone'])
-            ->whereIn('status', [Lead::STATUS_NEW, Lead::STATUS_ASSIGNED, Lead::STATUS_WORKING])
+            ->whereIn('status', [Lead::STATUS_NEW, Lead::STATUS_IN_PROGRESS])
             ->first();
 
         if ($existing) {
@@ -37,12 +37,19 @@ class BookingController extends Controller
             ], 409);
         }
 
+        // Check if phone matches a Small Treasury lead — assign to that employee
+        $existingSmallTreasure = Lead::where('phone', $validated['phone'])
+            ->where('is_small_treasure', true)
+            ->whereNotNull('assigned_to')
+            ->first();
+
         // ── Create Lead ───────────────────────────────────────────────────────
         $lead = Lead::create([
-            'name'   => $validated['name'],
-            'phone'  => $validated['phone'],
-            'source' => 'landing_page',
-            'status' => Lead::STATUS_NEW,
+            'name'        => $validated['name'],
+            'phone'       => $validated['phone'],
+            'source'      => 'landing_page',
+            'status'      => Lead::STATUS_NEW,
+            'assigned_to' => $existingSmallTreasure?->assigned_to,
         ]);
 
         // ── Attach booking detail as a remark ─────────────────────────────────

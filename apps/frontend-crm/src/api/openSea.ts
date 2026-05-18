@@ -3,7 +3,8 @@ import type { Lead, Remark } from './leads';
 
 export interface OpenSeaLead extends Lead {
   moved_to_open_sea_at: string;
-  lead_remarks:         Remark[];
+  /** تُعاد كـ required (ليس optional) لتجنب استنتاج never[] عند الـ spread */
+  remarks: Remark[];
 }
 
 export interface OpenSeaParams {

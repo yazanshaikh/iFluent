@@ -12,7 +12,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Search, ChevronLeft, Filter, Gem } from 'lucide-react';
+import { Search, ChevronLeft, Filter, Gem, X } from 'lucide-react';
 
 /* ─────────────────────────── Status helpers ────────────────────────────── */
 export const STATUS_LABELS: Record<LeadStatus, string> = {
@@ -84,6 +84,24 @@ function useLeadColumns(onView: (lead: Lead) => void): ColumnDef<Lead, unknown>[
       ),
     },
     {
+      accessorKey: 'demo_session',
+      header: 'موعد الحصة',
+      enableSorting: false,
+      cell: ({ row }) => row.original.demo_session?.scheduled_at ? (
+        <span className="text-xs text-primary font-medium">
+          {new Date(row.original.demo_session.scheduled_at).toLocaleDateString('ar-SA', {
+            day: 'numeric', month: 'short',
+          })}
+          {' '}
+          {new Date(row.original.demo_session.scheduled_at).toLocaleTimeString('ar-SA', {
+            hour: '2-digit', minute: '2-digit',
+          })}
+        </span>
+      ) : (
+        <span className="text-xs text-muted-foreground">—</span>
+      ),
+    },
+    {
       id: 'view',
       header: '',
       cell: ({ row }) => (
@@ -103,9 +121,12 @@ function useLeadColumns(onView: (lead: Lead) => void): ColumnDef<Lead, unknown>[
 /* ─────────────────────────── Main Page ─────────────────────────────────── */
 export default function LeadsPage() {
   const navigate = useNavigate();
-  const [search,  setSearch]  = useState('');
+  const [search,       setSearch]       = useState('');
   const [statusFilter, setStatusFilter] = useState<LeadStatus | 'all'>('all');
+  const [dateFilter,   setDateFilter]   = useState('');
   const [page,         setPage]         = useState(1);
+
+  const hasFilters = search || statusFilter !== 'all' || dateFilter;
 
   /*
    * Lead Pool يعرض حالتين فقط: working + subscriber
@@ -116,8 +137,8 @@ export default function LeadsPage() {
   const apiStatus = statusFilter === 'all' ? POOL_STATUSES : statusFilter;
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['leads', page, search, statusFilter],
-    queryFn:  () => leadsApi.list({ page, search, status: apiStatus }),
+    queryKey: ['leads', page, search, statusFilter, dateFilter],
+    queryFn:  () => leadsApi.list({ page, search, status: apiStatus, date: dateFilter || undefined }),
     staleTime: 30_000,
   });
 
@@ -149,9 +170,11 @@ export default function LeadsPage() {
             />
           </div>
 
-          {/* Status filter — pool statuses only */}
-          <div className="flex items-center gap-2">
+          {/* Status + date filters */}
+          <div className="flex items-center gap-2 flex-wrap">
             <Filter className="h-4 w-4 text-muted-foreground shrink-0" />
+
+            {/* Status filter — pool statuses only */}
             <Select
               value={statusFilter}
               onValueChange={(v) => { setStatusFilter(v as LeadStatus | 'all'); setPage(1); }}
@@ -167,14 +190,35 @@ export default function LeadsPage() {
               </SelectContent>
             </Select>
 
-            {/* Clear filters */}
-            {(search || statusFilter !== 'all') && (
+            {/* Date filter */}
+            <div className="relative">
+              <Input
+                type="date"
+                dir="ltr"
+                value={dateFilter}
+                onChange={(e) => { setDateFilter(e.target.value); setPage(1); }}
+                className={`w-40 text-sm ${dateFilter ? 'border-primary ring-1 ring-primary/20' : ''}`}
+              />
+              {dateFilter && (
+                <button
+                  type="button"
+                  onClick={() => { setDateFilter(''); setPage(1); }}
+                  className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+
+            {/* Clear all filters */}
+            {hasFilters && (
               <Button
                 variant="ghost" size="sm"
-                onClick={() => { setSearch(''); setStatusFilter('all'); setPage(1); }}
-                className="text-muted-foreground text-xs"
+                onClick={() => { setSearch(''); setStatusFilter('all'); setDateFilter(''); setPage(1); }}
+                className="text-muted-foreground text-xs gap-1"
               >
-                مسح الفلاتر ✕
+                <X className="h-3.5 w-3.5" />
+                مسح الكل
               </Button>
             )}
           </div>
@@ -196,7 +240,7 @@ export default function LeadsPage() {
                 <div className="text-center py-16 text-muted-foreground space-y-2">
                   <p className="text-3xl">📋</p>
                   <p>
-                    {search || statusFilter !== 'all'
+                    {hasFilters
                       ? 'لا توجد نتائج للفلاتر المحددة'
                       : 'لا توجد ليدات في الـ Pool — الليدات تنتقل هنا بعد بدء العمل عليها'}
                   </p>

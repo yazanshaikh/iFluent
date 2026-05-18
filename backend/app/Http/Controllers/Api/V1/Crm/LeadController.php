@@ -12,6 +12,7 @@ use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Support\Facades\DB;
 
 class LeadController extends Controller
 {
@@ -22,10 +23,11 @@ class LeadController extends Controller
 
         $query = Lead::withCount('remarks')
             ->with('assignedTo')
+            ->with('latestDemoSession')
             ->latest();
 
-        // CC sees only their own leads
-        if ($request->user()->isCC()) {
+        // CC / LP (SS) see only their own leads — Admin sees all
+        if (!$request->user()->isSuperAdmin()) {
             $query->where('assigned_to', $request->user()->id);
         }
 
@@ -56,16 +58,60 @@ class LeadController extends Controller
                   ->orWhere('phone', 'like', "%{$request->search}%");
             });
         }
+        if ($request->filled('date')) {
+            $query->whereDate('created_at', $request->date);
+        }
 
         return LeadResource::collection($query->paginate(20));
     }
 
     // ─── Create Lead ──────────────────────────────────────────────────────────
-    public function store(StoreLeadRequest $request): LeadResource
+    public function store(StoreLeadRequest $request): LeadResource|JsonResponse
     {
         $this->authorize('create', Lead::class);
 
         $actor = $request->user();
+        $phone = $request->validated()['phone'];
+
+        // ── Duplicate phone check — رسالة عربية واضحة ──────────────────────────
+        $existing = Lead::where('phone', $phone)->first();
+
+        if ($existing) {
+            // Lead belongs to the requesting CC themselves
+            if ($existing->assigned_to === $actor->id) {
+                return response()->json([
+                    'message'  => 'هذا العميل موجود بالفعل في قائمتك.',
+                    'lead_id'  => $existing->id,
+                    'conflict' => 'own',
+                ], 409);
+            }
+
+            // Lead is in Open Sea — redirect to pull from there
+            if ($existing->status === Lead::STATUS_OPEN_SEA) {
+                return response()->json([
+                    'message'  => 'هذا العميل موجود في البحر المفتوح — يمكنك سحبه من صفحة البحر المفتوح.',
+                    'lead_id'  => $existing->id,
+                    'conflict' => 'open_sea',
+                ], 409);
+            }
+
+            // Lead belongs to another employee (assigned and not open sea)
+            if ($existing->assigned_to && $existing->assigned_to !== $actor->id) {
+                return response()->json([
+                    'message'  => 'هذا الرقم مسجّل مسبقاً لدى موظف آخر ولا يمكنك أخذه.',
+                    'conflict' => 'other_staff',
+                ], 409);
+            }
+
+            // Lead is unassigned (admin pool) — only admin should handle it
+            if (is_null($existing->assigned_to)) {
+                return response()->json([
+                    'message'  => 'هذا العميل موجود في قائمة المدير — تواصل مع المدير لتعيينه.',
+                    'lead_id'  => $existing->id,
+                    'conflict' => 'admin_pool',
+                ], 409);
+            }
+        }
 
         // ── Determine assignment & status ──────────────────────────────────────
         // CC adds lead  → auto-assign to themselves → status: new (في قائمة الموظف)
@@ -104,7 +150,7 @@ class LeadController extends Controller
     {
         $this->authorize('view', $lead);
 
-        $lead->load(['assignedTo', 'remarks.staff']);
+        $lead->load(['assignedTo', 'remarks.staff', 'latestDemoSession']);
 
         return new LeadResource($lead);
     }
@@ -189,16 +235,27 @@ class LeadController extends Controller
     {
         $this->authorize('viewAny', Lead::class);
 
+        $perPage = min((int) ($request->query('per_page', 10)), 100);
+
         $query = Lead::where('status', Lead::STATUS_OPEN_SEA)
             ->withCount('remarks')
-            ->with('assignedTo')
-            ->when($request->filled('search'), fn($q) =>
-                $q->where('name', 'ilike', "%{$request->search}%")
-                  ->orWhere('phone', 'like', "%{$request->search}%")
-            )
+            ->with(['assignedTo', 'remarks.staff'])
             ->orderBy('moved_to_open_sea_at');
 
-        return LeadResource::collection($query->paginate(20));
+        // بحث برقم الجوال
+        if ($request->filled('phone')) {
+            $query->where('phone', 'like', "%{$request->phone}%");
+        }
+
+        // فلتر نطاق التاريخ — تاريخ دخول البحر المفتوح
+        if ($request->filled('date_from')) {
+            $query->whereDate('moved_to_open_sea_at', '>=', $request->date_from);
+        }
+        if ($request->filled('date_to')) {
+            $query->whereDate('moved_to_open_sea_at', '<=', $request->date_to);
+        }
+
+        return LeadResource::collection($query->paginate($perPage));
     }
 
     // ─── Pull from Open Sea ───────────────────────────────────────────────────
@@ -206,16 +263,25 @@ class LeadController extends Controller
     {
         $this->authorize('assign', $lead);
 
-        if ($lead->status !== Lead::STATUS_OPEN_SEA) {
-            return response()->json(['message' => 'Lead is not in Open Sea.'], 422);
-        }
+        // Wrap in a transaction with a row-level lock to prevent two employees
+        // from pulling the same lead simultaneously (race condition).
+        return DB::transaction(function () use ($lead) {
+            // Re-fetch with an exclusive lock so concurrent requests queue up.
+            $lead = Lead::lockForUpdate()->findOrFail($lead->id);
 
-        $lead->update([
-            'assigned_to'         => request()->user()->id,
-            'status'              => Lead::STATUS_IN_PROGRESS,
-            'moved_to_open_sea_at'=> null,
-        ]);
+            if ($lead->status !== Lead::STATUS_OPEN_SEA) {
+                return response()->json([
+                    'message' => 'هذه الليدة لم تعد في البحر المفتوح — ربما سحبها موظف آخر للتو.',
+                ], 422);
+            }
 
-        return new LeadResource($lead->load('assignedTo'));
+            $lead->update([
+                'assigned_to'          => request()->user()->id,
+                'status'               => Lead::STATUS_IN_PROGRESS,
+                'moved_to_open_sea_at' => null,
+            ]);
+
+            return new LeadResource($lead->load('assignedTo'));
+        });
     }
 }

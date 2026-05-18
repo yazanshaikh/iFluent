@@ -8,6 +8,7 @@ use App\Http\Requests\Api\V1\Admin\CreateTeacherRequest;
 use App\Http\Requests\Api\V1\Admin\UpdateStaffRequest;
 use App\Http\Resources\Api\V1\StaffResource;
 use App\Models\Lead;
+use App\Models\SessionRequest;
 use App\Models\Teacher;
 use App\Models\User;
 use App\Services\TeacherCodeGenerator;
@@ -166,6 +167,46 @@ class StaffController extends Controller
         }
         $user->teacher->update(['sessions_count_reset_at' => now()]);
         return response()->json(['message' => 'Sessions count reset.', 'reset_at' => now()->toDateTimeString()]);
+    }
+
+    // ─── Teacher: Upcoming Demo Bookings ─────────────────────────────────────
+    public function teacherDemoBookings(int $id): JsonResponse
+    {
+        $user = User::with('teacher')->findOrFail($id);
+
+        if (!$user->isTeacher()) {
+            return response()->json(['message' => 'Not a teacher.'], 422);
+        }
+
+        // Bookings directed to this teacher (targeted or assigned) that are
+        // still pending/confirmed and scheduled in the future.
+        $bookings = SessionRequest::where('type', SessionRequest::TYPE_DEMO)
+            ->where(function ($q) use ($id) {
+                $q->where('target_teacher_id', $id)
+                  ->orWhere('assigned_teacher_id', $id);
+            })
+            ->whereIn('status', [
+                SessionRequest::STATUS_PENDING,
+                SessionRequest::STATUS_CONFIRMED,
+            ])
+            ->where('requested_at_utc', '>', now())
+            ->with('lead:id,name,phone')
+            ->orderBy('requested_at_utc')
+            ->get();
+
+        return response()->json([
+            'total'    => $bookings->count(),
+            'bookings' => $bookings->map(fn($r) => [
+                'id'           => $r->id,
+                'status'       => $r->status,
+                'scheduled_at' => $r->requested_at_utc->toIso8601String(),
+                'lead'         => $r->lead ? [
+                    'id'    => $r->lead->id,
+                    'name'  => $r->lead->name,
+                    'phone' => $r->lead->phone,
+                ] : null,
+            ]),
+        ]);
     }
 
     // ─── CC Performance Report ────────────────────────────────────────────────
