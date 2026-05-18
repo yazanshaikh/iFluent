@@ -26,7 +26,7 @@ import {
 /* ── Role labels ── */
 const ROLE_LABELS: Record<string, string> = {
   cc:      'CC — مبيعات',
-  ss:      'SS — متابعة',
+  ss:      'LP — متابعة',
   teacher: 'مدرّس',
 };
 const ROLE_VARIANT: Record<string, 'default' | 'secondary' | 'outline'> = {
@@ -334,7 +334,7 @@ export default function StaffProfilePage() {
     );
   }
 
-  /* ══════════ CC / SS branch (original behavior) ═══════════════════════ */
+  /* ══════════ CC / LP branch (original behavior) ═══════════════════════ */
   return (
     <div className="p-6 space-y-6 max-w-2xl">
 

@@ -40,6 +40,7 @@ class StaffController extends Controller
     {
         $user = User::withTrashed()
             ->with('teacher')
+            ->withCount('assignedLeads')
             ->findOrFail($id);
 
         if (!in_array($user->role, ['cc', 'ss', 'teacher'])) {

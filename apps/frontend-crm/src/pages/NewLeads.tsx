@@ -168,7 +168,7 @@ function AssignDialog({ lead, onClose }: AssignDialogProps) {
                   <SelectItem key={s.id} value={String(s.id)}>
                     {s.name}
                     <span className="mr-1.5 text-muted-foreground text-xs">
-                      ({s.role.toUpperCase()})
+                      ({s.role === 'ss' ? 'LP' : s.role.toUpperCase()})
                     </span>
                   </SelectItem>
                 ))}

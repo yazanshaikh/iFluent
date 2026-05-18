@@ -20,7 +20,7 @@ import {
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 
-const ROLE_LABELS: Record<string, string> = { cc: 'CC', ss: 'SS', super_admin: 'مدير' };
+const ROLE_LABELS: Record<string, string> = { cc: 'CC', ss: 'LP', super_admin: 'مدير' };
 
 function RemarksHistory({ remarks, open, onToggle }: { remarks: Remark[]; open: boolean; onToggle: () => void }) {
 

@@ -17,8 +17,9 @@ class StaffResource extends JsonResource
             'email'      => $this->email,
             'role'       => $this->role,
             'timezone'   => $this->timezone,
-            'is_active'  => is_null($this->deleted_at),
-            'created_at' => $this->created_at->toDateString(),
+            'is_active'   => is_null($this->deleted_at),
+            'created_at'  => $this->created_at->toDateString(),
+            'leads_count' => $this->assigned_leads_count ?? null,
 
             // CC stats — loaded via withCount
             'stats' => $this->when(

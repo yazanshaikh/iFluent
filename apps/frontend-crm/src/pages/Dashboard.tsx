@@ -1,3 +1,4 @@
+import { Navigate } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Users, BookOpen, GraduationCap, TrendingUp } from 'lucide-react';
@@ -11,6 +12,8 @@ const STATS = [
 
 export default function DashboardPage() {
   const user = useAuthStore((s) => s.user);
+
+  if (user?.role !== 'super_admin') return <Navigate to="/new-leads" replace />;
 
   return (
     <div className="p-6 space-y-6">

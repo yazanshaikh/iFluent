@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { useAuthStore } from '@/stores/authStore';
 
 import AppLayout     from '@/components/layout/AppLayout';
 import LoginPage     from '@/pages/Login';
@@ -32,7 +33,7 @@ export default function App() {
 
           {/* Protected */}
           <Route element={<AppLayout />}>
-            <Route index element={<Navigate to="/dashboard" replace />} />
+            <Route index element={<RootRedirect />} />
             <Route path="/dashboard"    element={<DashboardPage />} />
             <Route path="/leads"        element={<LeadsPage />} />
             <Route path="/leads/:id"    element={<LeadProfilePage />} />
@@ -52,6 +53,11 @@ export default function App() {
       </BrowserRouter>
     </QueryClientProvider>
   );
+}
+
+function RootRedirect() {
+  const role = useAuthStore((s) => s.user?.role);
+  return <Navigate to={role === 'super_admin' ? '/dashboard' : '/new-leads'} replace />;
 }
 
 function ComingSoon({ title }: { title: string }) {

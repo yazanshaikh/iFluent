@@ -27,7 +27,7 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { label: 'Dashboard',     to: '/dashboard',  icon: LayoutDashboard },
+  { label: 'Dashboard',     to: '/dashboard',  icon: LayoutDashboard, adminOnly: true },
   { label: 'New Lead',       to: '/new-leads',        icon: UserPlus },
   { label: 'Lead Pool',      to: '/leads',            icon: Users },
   { label: 'Small Treasury', to: '/small-treasury',   icon: Gem },

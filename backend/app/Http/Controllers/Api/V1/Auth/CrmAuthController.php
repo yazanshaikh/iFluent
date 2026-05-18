@@ -32,7 +32,7 @@ class CrmAuthController extends Controller
             ], 403);
         }
 
-        if (!$user->isCrmUser() && !$user->isTeacher()) {
+        if (!$user->isCrmUser()) {
             return response()->json([
                 'message' => 'Access denied. This login is for CRM users only.',
             ], 403);

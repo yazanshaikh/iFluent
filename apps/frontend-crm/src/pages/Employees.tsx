@@ -19,8 +19,8 @@ import { Loader2, Plus, UserPlus, Briefcase } from 'lucide-react';
 /* ── Role labels ── */
 const ROLE_LABELS: Record<StaffRole, string> = {
   cc:      'CC — مبيعات',
-  ss:      'SS — متابعة',
-  teacher: 'مدرّس',
+  ss:      'LP — متابعة',
+  teacher: 'Tchr',
 };
 
 const ROLE_VARIANT: Record<StaffRole, 'default' | 'secondary' | 'outline'> = {
@@ -139,9 +139,9 @@ function AddStaffDialog({ open, onClose }: { open: boolean; onClose: () => void 
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="cc">CC — Client Coordinator (مبيعات)</SelectItem>
-                <SelectItem value="ss">SS — Sales Support (متابعة)</SelectItem>
-                <SelectItem value="teacher">مدرّس (Teacher)</SelectItem>
+                <SelectItem value="cc">CC —  (مبيعات)</SelectItem>
+                <SelectItem value="ss">LP —  (متابعة)</SelectItem>
+                <SelectItem value="teacher">Tchr (مدرس)</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -156,19 +156,9 @@ function AddStaffDialog({ open, onClose }: { open: boolean; onClose: () => void 
                   placeholder="Business English, IELTS…"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label htmlFor="st-bio">نبذة (اختياري)</Label>
-                  <Input id="st-bio" value={form.bio} onChange={set('bio')} placeholder="مدرّس لغة إنجليزية…" />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="st-comm">نسبة العمولة %</Label>
-                  <Input
-                    id="st-comm" type="number" min={0} max={100} dir="ltr"
-                    value={form.commission_rate} onChange={set('commission_rate')}
-                    placeholder="0"
-                  />
-                </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="st-bio">نبذة (اختياري)</Label>
+                <Input id="st-bio" value={form.bio} onChange={set('bio')} placeholder="مدرّس لغة إنجليزية…" />
               </div>
             </>
           )}
@@ -259,14 +249,14 @@ export default function EmployeesPage() {
         <div className="flex gap-3 text-sm text-muted-foreground flex-wrap">
           <div className="flex items-center gap-1.5">
             <Badge variant="default">CC</Badge>
-            <span>Client Coordinator — مسؤول المبيعات والإقناع</span>
+            <span>Client Consultant — مسؤول المبيعات </span>
           </div>
           <div className="flex items-center gap-1.5">
-            <Badge variant="secondary">SS</Badge>
-            <span>Sales Support — مسؤول المتابعة وتحديث الحالات</span>
+            <Badge variant="secondary">LP</Badge>
+            <span>Lead Progressor — مسؤول المتابعة</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <Badge variant="outline">مدرّس</Badge>
+            <Badge variant="outline">Tchr</Badge>
             <span>Teacher — يدير الجلسات التعليمية</span>
           </div>
         </div>
