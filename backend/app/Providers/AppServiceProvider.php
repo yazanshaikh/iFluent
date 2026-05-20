@@ -42,7 +42,7 @@ class AppServiceProvider extends ServiceProvider
 
         // ─── Subscription / Payment Gates ─────────────────────────────────────
         Gate::define('activate-subscription', fn(User $u) =>
-            in_array($u->role, [User::ROLE_SUPER_ADMIN, User::ROLE_CC])
+            in_array($u->role, [User::ROLE_SUPER_ADMIN, User::ROLE_CC, User::ROLE_SS])
         );
 
         Gate::define('approve-payment', fn(User $u) =>

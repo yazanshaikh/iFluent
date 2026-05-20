@@ -11,6 +11,8 @@ import {
   Waves,
   UserPlus,
   Gem,
+  ClipboardList,
+  UserCheck,
 } from 'lucide-react';
 import { cn }          from '@/lib/utils';
 import { Button }      from '@/components/ui/button';
@@ -32,8 +34,10 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Lead Pool',      to: '/leads',            icon: Users },
   { label: 'Small Treasury', to: '/small-treasury',   icon: Gem },
   { label: 'Open Sea',       to: '/open-sea',         icon: Waves },
-  { label: 'Trial Bookings',to: '/bookings',   icon: BookOpen },
-  { label: 'Employee Mg',   to: '/employees',  icon: GraduationCap, adminOnly: true },
+  { label: 'Trial Bookings',to: '/bookings',        icon: BookOpen },
+  { label: 'Process Orders', to: '/process-orders', icon: ClipboardList },
+  { label: 'Paid Students',  to: '/paid-students',   icon: UserCheck },
+  { label: 'Employee Mg',   to: '/employees',        icon: GraduationCap, adminOnly: true },
 ];
 
 export function Sidebar() {

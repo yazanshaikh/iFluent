@@ -48,6 +48,14 @@ class LeadResource extends JsonResource
 
             'moved_to_open_sea_at' => $this->moved_to_open_sea_at?->toIso8601String(),
             'converted_at'         => $this->converted_at?->toIso8601String(),
+            'converted_by'         => $this->when(
+                $this->status === 'subscriber' && $this->relationLoaded('student'),
+                function () {
+                    $sub = $this->student?->subscriptions?->sortByDesc('id')->first();
+                    if (!$sub?->activatedBy) return null;
+                    return ['id' => $sub->activatedBy->id, 'name' => $sub->activatedBy->name];
+                }
+            ),
             'created_at'           => $this->created_at->toIso8601String(),
         ];
     }

@@ -13,6 +13,9 @@ import NewLeadsPage    from '@/pages/NewLeads';
 import StaffProfilePage   from '@/pages/StaffProfile';
 import SmallTreasuryPage   from '@/pages/SmallTreasury';
 import TrialBookingsPage   from '@/pages/TrialBookings';
+import ProcessOrdersPage   from '@/pages/ProcessOrders';
+import PaidStudentsPage    from '@/pages/PaidStudents';
+import InvoicePage         from '@/pages/InvoicePage';
 import NotFoundPage        from '@/pages/NotFound';
 
 const queryClient = new QueryClient({
@@ -29,8 +32,9 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <Routes>
-          {/* Public */}
-          <Route path="/login" element={<LoginPage />} />
+          {/* Public — no auth required */}
+          <Route path="/login"       element={<LoginPage />} />
+          <Route path="/pay/:uuid"   element={<InvoicePage />} />
 
           {/* Protected */}
           <Route element={<AppLayout />}>
@@ -43,7 +47,9 @@ export default function App() {
             <Route path="/open-sea"       element={<OpenSeaPage />} />
             <Route path="/employees"     element={<EmployeesPage />} />
             <Route path="/employees/:id" element={<StaffProfilePage />} />
-            <Route path="/bookings"     element={<TrialBookingsPage />} />
+            <Route path="/bookings"       element={<TrialBookingsPage />} />
+            <Route path="/process-orders" element={<ProcessOrdersPage />} />
+            <Route path="/paid-students"  element={<PaidStudentsPage />} />
             <Route path="/teachers"     element={<ComingSoon title="Teachers" />} />
             <Route path="/settings"     element={<ComingSoon title="Settings" />} />
           </Route>

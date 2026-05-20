@@ -28,6 +28,7 @@ class Lead extends Model
         'age',
         'status',
         'assigned_to',
+        'first_assigned_to',
         'is_small_treasure',
         'moved_to_open_sea_at',
         'converted_at',

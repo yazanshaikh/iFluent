@@ -54,6 +54,7 @@ export interface Lead {
   is_small_treasure:   boolean;
   moved_to_open_sea_at: string | null;
   converted_at:        string | null;
+  converted_by:        { id: number; name: string } | null;
   created_at:          string;
   updated_at:          string;
   /** الملاحظات تأتي مع الليد eager-loaded من GET /crm/leads/{id} */

@@ -138,8 +138,9 @@ class LeadController extends Controller
 
         $lead = Lead::create([
             ...$request->safe()->except('assigned_to'),
-            'status'      => $status,
-            'assigned_to' => $assignedTo,
+            'status'             => $status,
+            'assigned_to'        => $assignedTo,
+            'first_assigned_to'  => $assignedTo,
         ]);
 
         return new LeadResource($lead->load('assignedTo'));
@@ -150,7 +151,7 @@ class LeadController extends Controller
     {
         $this->authorize('view', $lead);
 
-        $lead->load(['assignedTo', 'remarks.staff', 'latestDemoSession']);
+        $lead->load(['assignedTo', 'remarks.staff', 'latestDemoSession', 'student.subscriptions.activatedBy']);
 
         return new LeadResource($lead);
     }
@@ -181,10 +182,15 @@ class LeadController extends Controller
         $this->authorize('assign', $lead);
 
         // الحالة تبقى 'new' — الليد ينتقل لقائمة الموظف ولا يُصنَّف حتى يبدأ العمل
-        $lead->update([
+        $updates = [
             'assigned_to' => $request->user_id,
             'status'      => Lead::STATUS_NEW,
-        ]);
+        ];
+        // first_assigned_to يتحفظ مرة وحدة فقط (أول تعيين)
+        if (is_null($lead->first_assigned_to)) {
+            $updates['first_assigned_to'] = $request->user_id;
+        }
+        $lead->update($updates);
 
         return new LeadResource($lead->load('assignedTo'));
     }

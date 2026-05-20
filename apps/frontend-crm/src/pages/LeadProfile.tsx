@@ -5,6 +5,9 @@ import {
 } from '@tanstack/react-query';
 import { leadsApi, type LeadStatus, type UpdateLeadPayload, type Remark } from '@/api/leads';
 import { staffApi } from '@/api/staff';
+import { checkoutApi, type InvoiceCreatedResponse } from '@/api/checkout';
+import { invoiceFullUrl } from '@/lib/appUrl';
+import client from '@/api/client';
 import { useAuthStore } from '@/stores/authStore';
 import { STATUS_LABELS, STATUS_VARIANT } from './Leads';
 import { Badge }    from '@/components/ui/badge';
@@ -21,7 +24,7 @@ import {
 } from '@/components/ui/dialog';
 import {
   ArrowRight, Loader2, Phone, Mail, Calendar, MessageSquarePlus, User, ChevronDown, ChevronLeft, Gem,
-  Pencil, Check, X, CalendarClock, UserRoundCog,
+  Pencil, Check, X, CalendarClock, UserRoundCog, ShoppingCart, Copy, ExternalLink, UserCheck,
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 
@@ -130,6 +133,14 @@ export default function LeadProfilePage() {
   const [statusError,  setStatusError]  = useState<string | null>(null);
   const [remarkError,  setRemarkError]  = useState<string | null>(null);
 
+  /* ── Purchase Course modal state ── */
+  const [purchaseOpen,        setPurchaseOpen]        = useState(false);
+  const [purchaseMonths,      setPurchaseMonths]      = useState(3);
+  const [purchaseActualPrice, setPurchaseActualPrice] = useState('');
+  const [purchaseResult,      setPurchaseResult]      = useState<InvoiceCreatedResponse | null>(null);
+  const [purchaseError,       setPurchaseError]       = useState('');
+  const [purchaseCopied,      setPurchaseCopied]      = useState(false);
+
   const [bookingOpen,    setBookingOpen]    = useState(false);
   const [bookStep,       setBookStep]       = useState<1 | 2 | 'success'>(1);
   const [bookDateMode,   setBookDateMode]   = useState<'today' | 'tomorrow' | 'custom'>('today');
@@ -152,6 +163,53 @@ export default function LeadProfilePage() {
     enabled:  !!leadId,
     staleTime: 30_000,
   });
+
+  /* ── Price per month (from site settings) ── */
+  const { data: siteSettingsData } = useQuery({
+    queryKey: ['site-settings-price'],
+    queryFn: () =>
+      client.get<{ settings: Record<string, unknown> }>('/settings').then((r) => r.data.settings),
+    staleTime: 300_000,
+  });
+  const pricePerMonth: number =
+    typeof siteSettingsData?.price_per_month === 'number' ? siteSettingsData.price_per_month : 50;
+
+  /* ── Purchase course mutation ── */
+  const purchaseMutation = useMutation({
+    mutationFn: () =>
+      checkoutApi.purchaseCourse(leadId, {
+        months_count: purchaseMonths,
+        amount_paid: Number(purchaseActualPrice) || purchaseMonths * pricePerMonth,
+      }),
+    onSuccess: (data) => {
+      setPurchaseResult(data);
+      setPurchaseError('');
+    },
+    onError: (err: unknown) => {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      setPurchaseError(msg || 'حدث خطأ أثناء توليد الفاتورة.');
+    },
+  });
+
+  const handlePurchaseOpen = () => {
+    setPurchaseOpen(true);
+    setPurchaseMonths(3);
+    setPurchaseActualPrice(String(3 * pricePerMonth));
+    setPurchaseResult(null);
+    setPurchaseError('');
+    setPurchaseCopied(false);
+  };
+
+  const handlePurchaseMonthsChange = (months: number) => {
+    setPurchaseMonths(months);
+    setPurchaseActualPrice(String(months * pricePerMonth));
+  };
+
+  const handleCopyAlias = (alias: string) => {
+    navigator.clipboard.writeText(alias);
+    setPurchaseCopied(true);
+    setTimeout(() => setPurchaseCopied(false), 2000);
+  };
 
   /* ── Update status ── */
   const statusMutation = useMutation({
@@ -468,9 +526,32 @@ export default function LeadProfilePage() {
           </div>
         </div>
         <div className="flex items-center gap-2 flex-wrap justify-end">
-          <Badge variant={STATUS_VARIANT[lead.status]} className="text-sm px-3 py-1">
-            {STATUS_LABELS[lead.status]}
-          </Badge>
+          {lead.status === 'subscriber' ? (
+            <div className="flex items-center gap-2 rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-1.5 dark:bg-emerald-950/30 dark:border-emerald-800">
+              <UserCheck className="h-4 w-4 text-emerald-600 shrink-0" />
+              <div className="text-sm leading-tight">
+                <span className="font-semibold text-emerald-700 dark:text-emerald-400">مشتري</span>
+                {lead.converted_by && (
+                  <span className="text-emerald-600/80 dark:text-emerald-500 mr-1.5">
+                    — بواسطة <span className="font-medium">{lead.converted_by.name}</span>
+                  </span>
+                )}
+              </div>
+            </div>
+          ) : (
+            <Badge variant={STATUS_VARIANT[lead.status]} className="text-sm px-3 py-1">
+              {STATUS_LABELS[lead.status]}
+            </Badge>
+          )}
+          <Button
+            size="sm"
+            variant="default"
+            className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white border-0"
+            onClick={handlePurchaseOpen}
+          >
+            <ShoppingCart className="h-3.5 w-3.5" />
+            Purchase Course
+          </Button>
           <Button
             size="sm"
             variant={lead.is_small_treasure ? 'default' : 'outline'}
@@ -993,6 +1074,156 @@ export default function LeadProfilePage() {
           </div>
         )}
 
+      </DialogContent>
+    </Dialog>
+
+    {/* ── Purchase Course Modal ── */}
+    <Dialog open={purchaseOpen} onOpenChange={(o) => { if (!o) { setPurchaseOpen(false); setPurchaseResult(null); } }}>
+      <DialogContent className="max-w-md" dir="rtl">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <ShoppingCart className="h-5 w-5 text-emerald-600" />
+            شراء كورس — {lead.name}
+          </DialogTitle>
+        </DialogHeader>
+
+        {!purchaseResult ? (
+          <>
+            {/* Info banner: package stages */}
+            <div className="rounded-lg bg-blue-50 border border-blue-200 p-3 text-xs text-blue-800 space-y-1">
+              <p className="font-semibold mb-1">تقسيم المراحل:</p>
+              {[
+                'مرحلة التأسيس: 3 شهور (9 دروس تمهيدية)',
+                'مرحلة البناء: 3 شهور',
+                'مرحلة الفهم والتوسع: 5 أشهر',
+                'مرحلة الطلاقة: 5 أشهر',
+                'مرحلة الطلاقة (فري توكينج): 5 أشهر',
+              ].map((s) => (
+                <p key={s} className="flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-blue-400 shrink-0" />
+                  {s}
+                </p>
+              ))}
+              <p className="text-blue-600 pt-1">كل شهر = 12 درس</p>
+            </div>
+
+            {/* Months selector */}
+            <div className="space-y-1.5">
+              <Label>عدد الشهور</Label>
+              <Select
+                value={String(purchaseMonths)}
+                onValueChange={(v) => handlePurchaseMonthsChange(Number(v))}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Array.from({ length: 24 }, (_, i) => i + 1).map((m) => (
+                    <SelectItem key={m} value={String(m)}>
+                      {m} {m === 1 ? 'شهر' : 'شهور'} ({m * 12} درس)
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Actual price */}
+            <div className="space-y-1.5">
+              <Label>السعر الفعلي (دينار)</Label>
+              <Input
+                type="number"
+                min={0}
+                dir="ltr"
+                value={purchaseActualPrice}
+                onChange={(e) => setPurchaseActualPrice(e.target.value)}
+                placeholder={String(purchaseMonths * pricePerMonth)}
+              />
+              <p className="text-xs text-muted-foreground">يمكنك تعديله للخصومات أو الأقساط</p>
+            </div>
+
+            {purchaseError && (
+              <p className="text-sm text-destructive bg-destructive/10 rounded-md px-3 py-2">
+                {purchaseError}
+              </p>
+            )}
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setPurchaseOpen(false)}>إلغاء</Button>
+              <Button
+                onClick={() => purchaseMutation.mutate()}
+                disabled={purchaseMutation.isPending || !purchaseActualPrice}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white"
+              >
+                {purchaseMutation.isPending && <Loader2 className="h-4 w-4 animate-spin ml-1" />}
+                تأكيد وتوليد الفاتورة
+              </Button>
+            </DialogFooter>
+          </>
+        ) : (
+          /* ── Invoice generated ── */
+          <div className="space-y-4">
+            <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-4 text-center space-y-1">
+              <p className="text-emerald-700 font-semibold">تم توليد الفاتورة بنجاح</p>
+              <p className="text-sm text-muted-foreground">
+                {purchaseResult.months_count} شهر — {purchaseResult.amount_paid} دينار
+              </p>
+            </div>
+
+            {/* Payment account + copy */}
+            <div className="space-y-2">
+              <p className="text-sm font-medium">حساب الدفع عبر CliQ:</p>
+              <div className="flex items-center gap-2 rounded-md border px-3 py-2 bg-muted/40">
+                <span className="flex-1 font-mono font-bold text-base">
+                  {purchaseResult.payment_account.alias}
+                </span>
+                <span className="text-xs text-muted-foreground">{purchaseResult.payment_account.cliq_name}</span>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-7 w-7 shrink-0"
+                  onClick={() => handleCopyAlias(purchaseResult!.payment_account.alias)}
+                  title="نسخ الاسم المستعار"
+                >
+                  {purchaseCopied ? <Check className="h-4 w-4 text-emerald-600" /> : <Copy className="h-4 w-4" />}
+                </Button>
+              </div>
+            </div>
+
+            {/* Invoice URL */}
+            <div className="space-y-1">
+              <p className="text-sm font-medium">رابط الفاتورة للعميل:</p>
+              <div className="flex items-center gap-2">
+                <code className="flex-1 text-xs bg-muted rounded px-2 py-1.5 break-all">
+                  {invoiceFullUrl(purchaseResult.invoice_url)}
+                </code>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-7 w-7 shrink-0"
+                  onClick={() => navigator.clipboard.writeText(invoiceFullUrl(purchaseResult!.invoice_url))}
+                  title="نسخ الرابط"
+                >
+                  <Copy className="h-4 w-4" />
+                </Button>
+                <a
+                  href={purchaseResult.invoice_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center justify-center h-7 w-7 rounded-md hover:bg-accent"
+                  title="فتح الفاتورة"
+                >
+                  <ExternalLink className="h-4 w-4" />
+                </a>
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button onClick={() => { setPurchaseOpen(false); setPurchaseResult(null); }}>
+                إغلاق
+              </Button>
+            </DialogFooter>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
     </>

@@ -4,72 +4,76 @@ namespace App\Http\Controllers\Api\V1\Crm;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\Crm\CheckoutRequest;
-use App\Http\Resources\Api\V1\SubscriptionResource;
 use App\Models\Lead;
+use App\Models\PaymentAccount;
 use App\Models\Student;
 use App\Models\Subscription;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class CheckoutController extends Controller
 {
     /**
-     * CC submits payment proof for a lead.
-     * Creates a student account placeholder + pending subscription.
-     * Levels stay LOCKED until admin approves.  (PRD 5.4.4 / 5.4.5)
+     * Generate a payment invoice for a lead.
+     * Picks the next payment account via global round-robin.
+     * Status starts as pending_screenshot until receipt is uploaded.
      */
-    public function store(CheckoutRequest $request, Lead $lead): SubscriptionResource|JsonResponse
+    public function store(CheckoutRequest $request, Lead $lead): JsonResponse
     {
         $this->authorize('activate-subscription');
 
-        // CC can only checkout their own lead
         if ($request->user()->isCC() && $lead->assigned_to !== $request->user()->id) {
             return response()->json(['message' => 'Forbidden.'], 403);
         }
 
-        // Prevent duplicate pending subscriptions for same lead
-        if ($lead->student?->subscriptions()->where('status', Subscription::STATUS_PENDING)->exists()) {
+        // Prevent duplicate open invoices for the same lead
+        if ($lead->student?->subscriptions()
+            ->whereIn('status', [
+                Subscription::STATUS_PENDING_SCREENSHOT,
+                Subscription::STATUS_PENDING,
+            ])->exists()) {
             return response()->json([
-                'message' => 'This lead already has a pending subscription awaiting approval.',
+                'message' => 'هذا الطالب لديه فاتورة مفتوحة بالفعل.',
             ], 422);
         }
 
-        $screenshotPath = $request->file('payment_screenshot')
-            ->store('payments/screenshots', 'private');
+        $paymentAccount = PaymentAccount::nextInRotation();
+        $invoiceUuid    = (string) Str::uuid();
 
-        $subscription = DB::transaction(function () use ($request, $lead, $screenshotPath) {
-
-            // Ensure student account exists (shell account, levels locked until approval)
+        $subscription = DB::transaction(function () use ($request, $lead, $paymentAccount, $invoiceUuid) {
             $student = $this->ensureStudentExists($lead);
 
             return Subscription::create([
+                'invoice_uuid'       => $invoiceUuid,
                 'student_id'         => $student->id,
-                'package_id'         => $request->package_id,
+                'payment_account_id' => $paymentAccount->id,
                 'activated_by'       => $request->user()->id,
-                'status'             => Subscription::STATUS_PENDING,
+                'status'             => Subscription::STATUS_PENDING_SCREENSHOT,
+                'months_count'       => $request->months_count,
                 'amount_paid'        => $request->amount_paid,
-                'payment_method'     => $request->payment_method,
-                'payment_reference'  => $request->payment_reference,
-                'payment_screenshot' => $screenshotPath,
             ]);
         });
 
-        return new SubscriptionResource(
-            $subscription->load(['package', 'student.user', 'activatedBy'])
-        );
+        return response()->json([
+            'invoice_uuid'    => $invoiceUuid,
+            'invoice_url'     => "/pay/{$invoiceUuid}",
+            'payment_account' => [
+                'alias'     => $paymentAccount->alias,
+                'cliq_name' => $paymentAccount->cliq_name,
+            ],
+            'months_count' => $subscription->months_count,
+            'amount_paid'  => $subscription->amount_paid,
+        ], 201);
     }
 
-    /**
-     * Creates a locked student account from the lead if one doesn't exist yet.
-     */
-    private function ensureStudentExists(Lead $lead): \App\Models\Student
+    private function ensureStudentExists(Lead $lead): Student
     {
         if ($lead->student) {
             return $lead->student;
         }
 
-        // Create a shell user (no password — student will login via OTP)
         $user = User::firstOrCreate(
             ['phone' => $lead->phone],
             [

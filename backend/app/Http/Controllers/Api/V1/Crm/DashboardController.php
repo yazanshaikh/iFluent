@@ -33,77 +33,78 @@ class DashboardController extends Controller
     // ─────────────────────────────────────────────────────────────────────────
     private function adminDashboard(): JsonResponse
     {
+        $start = now()->startOfMonth();
+        $end   = now()->endOfMonth();
+
         // ── Summary Cards ─────────────────────────────────────────────────────
+        $leadsThisMonth       = Lead::whereBetween('created_at', [$start, $end])->count();
+        $conversionsThisMonth = Lead::whereNotNull('converted_at')
+                                    ->whereBetween('converted_at', [$start, $end])
+                                    ->count();
+        $revenueThisMonth     = Subscription::whereIn('status', [
+                                        Subscription::STATUS_ACTIVE,
+                                        Subscription::STATUS_EXPIRED,
+                                    ])
+                                    ->whereBetween('activated_at', [$start, $end])
+                                    ->sum('amount_paid');
+
         $summary = [
-            'leads_today'        => Lead::whereDate('created_at', today())->count(),
-            'conversions_today'  => Lead::where('status', Lead::STATUS_SUBSCRIBER)
-                                        ->whereDate('converted_at', today())
-                                        ->count(),
-            'open_sea_count'     => Lead::where('status', Lead::STATUS_OPEN_SEA)->count(),
-            'active_subscribers' => Subscription::where('status', Subscription::STATUS_ACTIVE)->count(),
-            'pending_approvals'  => Subscription::where('status', Subscription::STATUS_PENDING)->count(),
-            'total_leads'        => Lead::count(),
+            'leads_this_month'        => $leadsThisMonth,
+            'conversions_this_month'  => $conversionsThisMonth,
+            'conversion_rate'         => $leadsThisMonth > 0
+                                            ? round(($conversionsThisMonth / $leadsThisMonth) * 100, 1)
+                                            : 0,
+            'revenue_this_month'      => (float) $revenueThisMonth,
+            'pending_approvals'       => Subscription::where('status', Subscription::STATUS_PENDING)->count(),
         ];
 
-        // ── Staff Leaderboard (CC only, ranked by conversions this month) ─────
-        $leaderboard = User::where('role', User::ROLE_CC)
-            ->withCount([
-                'assignedLeads as total_leads',
-                'assignedLeads as conversions_this_month' => fn($q) =>
-                    $q->where('status', Lead::STATUS_SUBSCRIBER)
-                      ->whereMonth('converted_at', now()->month)
-                      ->whereYear('converted_at', now()->year),
-                'assignedLeads as working_leads' => fn($q) =>
-                    $q->whereIn('status', [Lead::STATUS_ASSIGNED, Lead::STATUS_WORKING]),
-                'assignedLeads as open_sea_leads' => fn($q) =>
-                    $q->where('status', Lead::STATUS_OPEN_SEA),
-            ])
-            ->get()
-            ->map(fn($staff) => [
-                'id'                    => $staff->id,
-                'name'                  => $staff->name,
-                'total_leads'           => $staff->total_leads,
-                'conversions_this_month'=> $staff->conversions_this_month,
-                'working_leads'         => $staff->working_leads,
-                'open_sea_leads'        => $staff->open_sea_leads,
-                'conversion_rate'       => $staff->total_leads > 0
-                    ? round(($staff->conversions_this_month / $staff->total_leads) * 100, 1)
-                    : 0,
-                'last_remark_at'        => $this->staffLastRemarkDate($staff->id),
-            ])
-            ->sortByDesc('conversions_this_month')
-            ->values();
+        // ── Staff Performance (CC only) ───────────────────────────────────────
+        $ccUsers = User::where('role', User::ROLE_CC)->get();
+        $ccIds   = $ccUsers->pluck('id');
 
-        // ── Lead Pipeline (status breakdown) ──────────────────────────────────
-        $pipeline = Lead::select('status', DB::raw('count(*) as count'))
-            ->groupBy('status')
-            ->pluck('count', 'status');
+        // Leads entered this month per employee (via first_assigned_to — never changes on recall)
+        $leadsThisMonth = Lead::select('first_assigned_to', DB::raw('count(*) as cnt'))
+            ->whereIn('first_assigned_to', $ccIds)
+            ->whereBetween('created_at', [$start, $end])
+            ->groupBy('first_assigned_to')
+            ->pluck('cnt', 'first_assigned_to');
 
-        // ── Conversions trend (last 7 days) ───────────────────────────────────
-        $trend = Lead::where('status', Lead::STATUS_SUBSCRIBER)
-            ->where('converted_at', '>=', now()->subDays(6)->startOfDay())
-            ->select(
-                DB::raw("DATE(converted_at) as date"),
-                DB::raw('count(*) as conversions')
-            )
-            ->groupBy('date')
-            ->orderBy('date')
-            ->get()
-            ->mapWithKeys(fn($r) => [$r->date => $r->conversions]);
+        // Total leads ever first-assigned to each employee
+        $totalLeads = Lead::select('first_assigned_to', DB::raw('count(*) as cnt'))
+            ->whereIn('first_assigned_to', $ccIds)
+            ->groupBy('first_assigned_to')
+            ->pluck('cnt', 'first_assigned_to');
 
-        // Fill missing days with 0
-        $trendFilled = collect();
-        for ($i = 6; $i >= 0; $i--) {
-            $date = now()->subDays($i)->toDateString();
-            $trendFilled[$date] = $trend[$date] ?? 0;
-        }
+        // Conversions this month via subscriptions.activated_by (permanent, survives reassignment)
+        $conversionsThisMonth = Subscription::select('activated_by', DB::raw('count(*) as cnt'))
+            ->whereIn('activated_by', $ccIds)
+            ->whereIn('status', [Subscription::STATUS_ACTIVE, Subscription::STATUS_EXPIRED])
+            ->whereBetween('activated_at', [$start, $end])
+            ->groupBy('activated_by')
+            ->pluck('cnt', 'activated_by');
+
+        $leaderboard = $ccUsers->map(function ($staff) use ($leadsThisMonth, $totalLeads, $conversionsThisMonth) {
+            $leads       = $leadsThisMonth[$staff->id]       ?? 0;
+            $conversions = $conversionsThisMonth[$staff->id] ?? 0;
+            return [
+                'id'                     => $staff->id,
+                'name'                   => $staff->name,
+                'leads_this_month'       => $leads,
+                'conversions_this_month' => $conversions,
+                'total_leads'            => $totalLeads[$staff->id] ?? 0,
+                'conversion_rate'        => $leads > 0 ? round(($conversions / $leads) * 100, 1) : 0,
+            ];
+        })->sortByDesc('conversions_this_month')->values();
 
         return response()->json([
             'role'        => 'super_admin',
             'summary'     => $summary,
             'leaderboard' => $leaderboard,
-            'pipeline'    => $pipeline,
-            'trend'       => $trendFilled,
+            'period'      => [
+                'start' => $start->toDateString(),
+                'end'   => $end->toDateString(),
+                'label' => $start->locale('ar')->translatedFormat('F Y'),
+            ],
         ]);
     }
 

@@ -1,10 +1,10 @@
 import api from './client';
-import type { Lead, Remark } from './leads';
+import type { Lead } from './leads';
 
 export interface OpenSeaLead extends Lead {
+  lead_remarks: never[];
   moved_to_open_sea_at: string;
-  /** تُعاد كـ required (ليس optional) لتجنب استنتاج never[] عند الـ spread */
-  remarks: Remark[];
+  // remarks comes from Lead (Remark[] with content + staff fields)
 }
 
 export interface OpenSeaParams {

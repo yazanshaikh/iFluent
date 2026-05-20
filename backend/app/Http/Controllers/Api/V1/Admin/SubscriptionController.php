@@ -23,7 +23,7 @@ class SubscriptionController extends Controller
     public function pending(): AnonymousResourceCollection
     {
         $subscriptions = Subscription::where('status', Subscription::STATUS_PENDING)
-            ->with(['package', 'student.user', 'activatedBy'])
+            ->with(['student.user', 'paymentAccount', 'activatedBy'])
             ->latest()
             ->paginate(20);
 
@@ -36,7 +36,7 @@ class SubscriptionController extends Controller
      */
     public function index(Request $request): AnonymousResourceCollection
     {
-        $query = Subscription::with(['package', 'student.user', 'activatedBy', 'approvedBy'])
+        $query = Subscription::with(['student.user', 'paymentAccount', 'activatedBy', 'approvedBy'])
             ->latest();
 
         if ($request->filled('status')) {
@@ -66,7 +66,7 @@ class SubscriptionController extends Controller
                 'approved_by'  => $request->user()->id,
                 'approved_at'  => now(),
                 'activated_at' => now(),
-                'expires_at'   => now()->addYear(),   // default 1-year subscription
+                'expires_at'   => now()->addMonths($subscription->months_count),
             ]);
 
             // Update lead → subscriber
@@ -85,7 +85,7 @@ class SubscriptionController extends Controller
         });
 
         return new SubscriptionResource(
-            $subscription->fresh()->load(['package', 'student.user', 'activatedBy', 'approvedBy'])
+            $subscription->fresh()->load(['student.user', 'paymentAccount', 'activatedBy', 'approvedBy'])
         );
     }
 
@@ -126,7 +126,7 @@ class SubscriptionController extends Controller
         });
 
         return new SubscriptionResource(
-            $subscription->fresh()->load(['package', 'student.user', 'activatedBy', 'approvedBy'])
+            $subscription->fresh()->load(['student.user', 'paymentAccount', 'activatedBy', 'approvedBy'])
         );
     }
 

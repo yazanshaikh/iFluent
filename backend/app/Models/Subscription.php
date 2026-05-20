@@ -10,14 +10,18 @@ class Subscription extends Model
 {
     use HasFactory;
 
-    const STATUS_PENDING  = 'pending_approval';
-    const STATUS_ACTIVE   = 'active';
-    const STATUS_EXPIRED  = 'expired';
-    const STATUS_CANCELLED = 'cancelled';
+    const STATUS_PENDING_SCREENSHOT = 'pending_screenshot'; // invoice generated, awaiting receipt
+    const STATUS_PENDING            = 'pending_approval';   // receipt uploaded, awaiting admin
+    const STATUS_ACTIVE             = 'active';
+    const STATUS_EXPIRED            = 'expired';
+    const STATUS_CANCELLED          = 'cancelled';
 
     protected $fillable = [
+        'invoice_uuid',
         'student_id',
         'package_id',
+        'months_count',
+        'payment_account_id',
         'activated_by',
         'approved_by',
         'status',
@@ -52,6 +56,11 @@ class Subscription extends Model
         return $this->belongsTo(Package::class);
     }
 
+    public function paymentAccount(): BelongsTo
+    {
+        return $this->belongsTo(PaymentAccount::class);
+    }
+
     public function activatedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'activated_by');
@@ -63,6 +72,11 @@ class Subscription extends Model
     }
 
     // ─── Helpers ──────────────────────────────────────────────────────────────
+
+    public function isPendingScreenshot(): bool
+    {
+        return $this->status === self::STATUS_PENDING_SCREENSHOT;
+    }
 
     public function isPending(): bool
     {

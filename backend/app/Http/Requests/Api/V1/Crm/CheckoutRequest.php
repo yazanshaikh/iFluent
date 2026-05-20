@@ -11,11 +11,19 @@ class CheckoutRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'package_id'        => ['required', 'integer', 'exists:packages,id'],
-            'amount_paid'       => ['required', 'numeric', 'min:0'],
-            'payment_method'    => ['required', 'string', 'in:cash,efawateer,card,bank_transfer'],
-            'payment_reference' => ['required', 'string', 'max:100'],
-            'payment_screenshot'=> ['required', 'file', 'mimes:jpg,jpeg,png,pdf', 'max:5120'], // 5 MB
+            'months_count' => ['required', 'integer', 'min:1', 'max:24'],
+            'amount_paid'  => ['required', 'numeric', 'min:0'],
+        ];
+    }
+
+    public function messages(): array
+    {
+        return [
+            'months_count.required' => 'يجب تحديد عدد الشهور.',
+            'months_count.min'      => 'الحد الأدنى شهر واحد.',
+            'months_count.max'      => 'الحد الأقصى 24 شهراً.',
+            'amount_paid.required'  => 'يجب إدخال المبلغ الفعلي.',
+            'amount_paid.min'       => 'المبلغ لا يمكن أن يكون سالباً.',
         ];
     }
 }

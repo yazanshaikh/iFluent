@@ -1,0 +1,11 @@
+import axios from 'axios';
+
+// Separate client without auth interceptors — used by public invoice page
+const publicApi = axios.create({
+  baseURL: import.meta.env.VITE_API_URL ?? 'http://localhost:8000/api/v1',
+  headers: {
+    Accept: 'application/json',
+  },
+});
+
+export default publicApi;

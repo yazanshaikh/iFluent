@@ -12,10 +12,13 @@ use App\Http\Controllers\Api\V1\Auth\CrmAuthController;
 use App\Http\Controllers\Api\V1\Auth\StudentAuthController;
 use App\Http\Controllers\Api\V1\Crm\CheckoutController;
 use App\Http\Controllers\Api\V1\Crm\DashboardController;
+use App\Http\Controllers\Api\V1\Crm\PaidStudentController;
+use App\Http\Controllers\Api\V1\Crm\ProcessOrderController;
 use App\Http\Controllers\Api\V1\Crm\DemoBookingController;
 use App\Http\Controllers\Api\V1\Crm\LeadController;
 use App\Http\Controllers\Api\V1\Crm\LeadRemarkController;
 use App\Http\Controllers\Api\V1\Public\BookingController as PublicBookingController;
+use App\Http\Controllers\Api\V1\Public\InvoiceController as PublicInvoiceController;
 use App\Http\Controllers\Api\V1\Public\SiteSettingController as PublicSiteSettingController;
 use App\Http\Controllers\Api\V1\Student\BookingController as StudentBookingController;
 use App\Http\Controllers\Api\V1\Student\GroupClassController as StudentGroupClassController;
@@ -42,8 +45,10 @@ use Illuminate\Support\Facades\Route;
 */
 
 // ─── Public (no auth) ─────────────────────────────────────────────────────────
-Route::get ('settings',       [PublicSiteSettingController::class, 'index']);
-Route::post('public/booking', [PublicBookingController::class,     'store']);
+Route::get ('settings',                            [PublicSiteSettingController::class, 'index']);
+Route::post('public/booking',                      [PublicBookingController::class,     'store']);
+Route::get ('public/invoice/{uuid}',               [PublicInvoiceController::class,     'show']);
+Route::post('public/invoice/{uuid}/receipt',       [PublicInvoiceController::class,     'uploadReceipt']);
 
 // ─── CRM Auth ─────────────────────────────────────────────────────────────────
 Route::prefix('crm/auth')->group(function () {
@@ -95,8 +100,15 @@ Route::middleware(['auth:sanctum', 'role:super_admin,cc,ss'])
         Route::post('leads/{lead}/demo-requests',                      [DemoBookingController::class, 'store']);
         Route::post('demo-requests/{sessionRequest}/cancel',           [DemoBookingController::class, 'cancel']);
 
-        // ── Checkout (CC submits payment) ──────────────────────────────────────
+        // ── Checkout — generate invoice ────────────────────────────────────────
         Route::post('leads/{lead}/checkout', [CheckoutController::class, 'store']);
+
+        // ── Process Orders — upload receipt on behalf of customer ──────────────
+        Route::get ('process-orders',                               [ProcessOrderController::class,  'index']);
+        Route::post('process-orders/{subscription}/upload-receipt', [ProcessOrderController::class,  'uploadReceipt']);
+
+        // ── Paid Students ──────────────────────────────────────────────────────
+        Route::get('paid-students', [PaidStudentController::class, 'index']);
 
         // ── Assessment Lessons (view only for CC/SS) ───────────────────────────
         // CC/SS need to see them to pick one for demo bookings.
