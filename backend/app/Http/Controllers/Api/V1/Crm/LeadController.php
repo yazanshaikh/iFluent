@@ -38,6 +38,20 @@ class LeadController extends Controller
                 ? $request->status
                 : [$request->status];
             $query->whereIn('status', $statuses);
+
+            // قاعدة New Leads:
+            // الليدة تظهر فقط إذا:
+            //   أ) لم يُحجز لها أي حصة تقييمية سابقاً على الإطلاق (ليدة جديدة طازجة)
+            //   ب) عندها حجز حصة نشط حالياً (pending/confirmed)
+            // ليدة سبق وانتهت حصتها ولا يوجد حجز جديد → لا تظهر حتى تعيد الحجز
+            if ($statuses === ['new']) {
+                $query->where(function ($q) {
+                    $q->whereDoesntHave('sessionRequests', fn($sq) =>
+                        $sq->where('type', \App\Models\SessionRequest::TYPE_DEMO)
+                    )
+                    ->orWhereHas('latestDemoSession');
+                });
+            }
         }
         // unassigned=1 → فلتر بدون موظف (لعرض الـ pool غير المعيّن للمدير)
         if ($request->boolean('unassigned')) {
@@ -157,9 +171,16 @@ class LeadController extends Controller
     }
 
     // ─── Update Lead ──────────────────────────────────────────────────────────
-    public function update(UpdateLeadRequest $request, Lead $lead): LeadResource
+    public function update(UpdateLeadRequest $request, Lead $lead): LeadResource|JsonResponse
     {
         $this->authorize('update', $lead);
+
+        // المشترك محمي — حالته لا تتغير يدوياً أبداً (تتحكم بها الاشتراكات فقط)
+        if ($lead->status === Lead::STATUS_SUBSCRIBER && $request->has('status')) {
+            return response()->json([
+                'message' => 'لا يمكن تغيير حالة مشترك يدوياً.',
+            ], 422);
+        }
 
         $lead->update($request->validated());
 

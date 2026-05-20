@@ -70,12 +70,13 @@ class PaidStudentController extends Controller
                         ? ['id' => $lead->assignedTo->id, 'name' => $lead->assignedTo->name]
                         : null,
                     'subscription' => $sub ? [
-                        'id'           => $sub->id,
-                        'amount_paid'  => (float) $sub->amount_paid,
-                        'months_count' => $sub->months_count,
-                        'status'       => $sub->status,
-                        'activated_at' => $sub->activated_at?->toIso8601String(),
-                        'expires_at'   => $sub->expires_at?->toIso8601String(),
+                        'id'             => $sub->id,
+                        'amount_paid'    => (float) $sub->amount_paid,
+                        'lessons_count'  => $sub->lessons_count,
+                        'months_count'   => $sub->months_count,
+                        'status'         => $sub->status,
+                        'activated_at'   => $sub->activated_at?->toIso8601String(),
+                        'expires_at'     => $sub->expires_at?->toIso8601String(),
                     ] : null,
                 ];
             }),

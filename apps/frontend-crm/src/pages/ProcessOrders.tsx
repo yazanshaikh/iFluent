@@ -26,8 +26,8 @@ function PricingDialog({ open, onClose }: { open: boolean; onClose: () => void }
   const [success, setSuccess] = useState(false);
 
   const { data: currentPrice, isLoading } = useQuery({
-    queryKey: ['price-per-month'],
-    queryFn:  checkoutApi.getPricePerMonth,
+    queryKey: ['price-per-lesson'],
+    queryFn:  checkoutApi.getPricePerLesson,
     enabled:  open,
     staleTime: 60_000,
   });
@@ -36,10 +36,9 @@ function PricingDialog({ open, onClose }: { open: boolean; onClose: () => void }
   const priceDraft = draft !== '' ? draft : String(currentPrice ?? '');
 
   const saveMutation = useMutation({
-    mutationFn: (price: number) => checkoutApi.updatePricePerMonth(price),
+    mutationFn: (price: number) => checkoutApi.updatePricePerLesson(price),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['price-per-month'] });
-      qc.invalidateQueries({ queryKey: ['site-settings-price'] });
+      qc.invalidateQueries({ queryKey: ['price-per-lesson'] });
       setSuccess(true);
       setTimeout(() => { setSuccess(false); onClose(); setDraft(''); }, 1200);
     },
@@ -62,10 +61,10 @@ function PricingDialog({ open, onClose }: { open: boolean; onClose: () => void }
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Settings2 className="h-4 w-4 text-primary" />
-            تعديل سعر الشهر الافتراضي
+            تعديل سعر الدرس الواحد
           </DialogTitle>
           <DialogDescription>
-            هذا السعر يُعرض تلقائياً عند إنشاء فاتورة جديدة لأي طالب.
+            سعر الدرس يُستخدم لحساب تكلفة الباقة تلقائياً عند إنشاء فاتورة.
           </DialogDescription>
         </DialogHeader>
 
@@ -76,7 +75,7 @@ function PricingDialog({ open, onClose }: { open: boolean; onClose: () => void }
         ) : (
           <div className="space-y-3 py-2">
             <div className="space-y-1.5">
-              <Label>السعر الافتراضي للشهر الواحد (دينار أردني)</Label>
+              <Label>سعر الدرس الواحد (دينار أردني)</Label>
               <div className="flex items-center gap-2">
                 <Input
                   type="number"
@@ -257,7 +256,9 @@ function OrderCard({
           </div>
           <div className="flex items-center gap-1.5 text-muted-foreground">
             <span>المدة:</span>
-            <span className="font-semibold text-foreground">{order.months_count} شهر</span>
+            <span className="font-semibold text-foreground">
+              {order.lessons_count ? `${order.lessons_count} درس` : `${order.months_count} شهر`}
+            </span>
           </div>
           {order.payment_account && (
             <>
@@ -460,7 +461,7 @@ export default function ProcessOrdersPage() {
             onClick={() => setPricingOpen(true)}
           >
             <Settings2 className="h-4 w-4" />
-            تعديل سعر الشهر
+            تعديل سعر الدرس
           </Button>
         )}
       </div>

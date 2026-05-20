@@ -7,7 +7,6 @@ import { leadsApi, type LeadStatus, type UpdateLeadPayload, type Remark } from '
 import { staffApi } from '@/api/staff';
 import { checkoutApi, type InvoiceCreatedResponse } from '@/api/checkout';
 import { invoiceFullUrl } from '@/lib/appUrl';
-import client from '@/api/client';
 import { useAuthStore } from '@/stores/authStore';
 import { STATUS_LABELS, STATUS_VARIANT } from './Leads';
 import { Badge }    from '@/components/ui/badge';
@@ -29,6 +28,26 @@ import {
 import { Input } from '@/components/ui/input';
 
 const ROLE_LABELS: Record<string, string> = { cc: 'CC', ss: 'LP', super_admin: 'مدير' };
+
+// ─── Course stages & lessons ───────────────────────────────────────────────────
+const STAGES = [
+  { label: 'مرحلة التأسيس',              count: 36 },
+  { label: 'مرحلة البناء',                count: 36 },
+  { label: 'مرحلة الفهم والتوسع',         count: 60 },
+  { label: 'مرحلة الطلاقة',               count: 60 },
+  { label: 'مرحلة الطلاقة — فري توكينج',  count: 60 },
+] as const;
+
+interface LessonItem { global: number; local: number; stage: number; }
+
+const ALL_LESSONS: LessonItem[] = (() => {
+  const out: LessonItem[] = [];
+  let g = 1;
+  STAGES.forEach((s, si) => {
+    for (let l = 1; l <= s.count; l++) out.push({ global: g++, local: l, stage: si });
+  });
+  return out;
+})();
 
 /* ── Demo session status display ── */
 const SESSION_STATUS_LABEL: Record<string, string> = {
@@ -135,7 +154,8 @@ export default function LeadProfilePage() {
 
   /* ── Purchase Course modal state ── */
   const [purchaseOpen,        setPurchaseOpen]        = useState(false);
-  const [purchaseMonths,      setPurchaseMonths]      = useState(3);
+  const [purchaseLessonsFrom, setPurchaseLessonsFrom] = useState<number | null>(null);
+  const [purchaseLessonsTo,   setPurchaseLessonsTo]   = useState<number | null>(null);
   const [purchaseActualPrice, setPurchaseActualPrice] = useState('');
   const [purchaseResult,      setPurchaseResult]      = useState<InvoiceCreatedResponse | null>(null);
   const [purchaseError,       setPurchaseError]       = useState('');
@@ -164,22 +184,53 @@ export default function LeadProfilePage() {
     staleTime: 30_000,
   });
 
-  /* ── Price per month (from site settings) ── */
-  const { data: siteSettingsData } = useQuery({
-    queryKey: ['site-settings-price'],
-    queryFn: () =>
-      client.get<{ settings: Record<string, unknown> }>('/settings').then((r) => r.data.settings),
+  /* ── Price per lesson (from site settings) ── */
+  const { data: pricePerLesson = 5 } = useQuery({
+    queryKey: ['price-per-lesson'],
+    queryFn:  checkoutApi.getPricePerLesson,
     staleTime: 300_000,
   });
-  const pricePerMonth: number =
-    typeof siteSettingsData?.price_per_month === 'number' ? siteSettingsData.price_per_month : 50;
+
+  /* ── Lesson selector helpers ── */
+  const selectedLessonsCount =
+    purchaseLessonsFrom !== null && purchaseLessonsTo !== null
+      ? purchaseLessonsTo - purchaseLessonsFrom + 1
+      : purchaseLessonsFrom !== null ? 1 : 0;
+
+  const isLessonInRange = (g: number) => {
+    if (purchaseLessonsFrom === null) return false;
+    const to = purchaseLessonsTo ?? purchaseLessonsFrom;
+    return g >= purchaseLessonsFrom && g <= to;
+  };
+
+  const handleLessonClick = (g: number) => {
+    if (purchaseLessonsFrom === null) {
+      setPurchaseLessonsFrom(g);
+      setPurchaseLessonsTo(null);
+      setPurchaseActualPrice('');
+    } else if (purchaseLessonsTo === null) {
+      if (g === purchaseLessonsFrom) {
+        setPurchaseLessonsFrom(null);
+      } else if (g > purchaseLessonsFrom) {
+        setPurchaseLessonsTo(g);
+        const count = g - purchaseLessonsFrom + 1;
+        setPurchaseActualPrice(String(count * pricePerLesson));
+      } else {
+        setPurchaseLessonsFrom(g);
+      }
+    } else {
+      setPurchaseLessonsFrom(g);
+      setPurchaseLessonsTo(null);
+      setPurchaseActualPrice('');
+    }
+  };
 
   /* ── Purchase course mutation ── */
   const purchaseMutation = useMutation({
     mutationFn: () =>
       checkoutApi.purchaseCourse(leadId, {
-        months_count: purchaseMonths,
-        amount_paid: Number(purchaseActualPrice) || purchaseMonths * pricePerMonth,
+        lessons_count: selectedLessonsCount,
+        amount_paid:   Number(purchaseActualPrice) || selectedLessonsCount * pricePerLesson,
       }),
     onSuccess: (data) => {
       setPurchaseResult(data);
@@ -193,16 +244,12 @@ export default function LeadProfilePage() {
 
   const handlePurchaseOpen = () => {
     setPurchaseOpen(true);
-    setPurchaseMonths(3);
-    setPurchaseActualPrice(String(3 * pricePerMonth));
+    setPurchaseLessonsFrom(null);
+    setPurchaseLessonsTo(null);
+    setPurchaseActualPrice('');
     setPurchaseResult(null);
     setPurchaseError('');
     setPurchaseCopied(false);
-  };
-
-  const handlePurchaseMonthsChange = (months: number) => {
-    setPurchaseMonths(months);
-    setPurchaseActualPrice(String(months * pricePerMonth));
   };
 
   const handleCopyAlias = (alias: string) => {
@@ -1089,57 +1136,95 @@ export default function LeadProfilePage() {
 
         {!purchaseResult ? (
           <>
-            {/* Info banner: package stages */}
-            <div className="rounded-lg bg-blue-50 border border-blue-200 p-3 text-xs text-blue-800 space-y-1">
-              <p className="font-semibold mb-1">تقسيم المراحل:</p>
-              {[
-                'مرحلة التأسيس: 3 شهور (9 دروس تمهيدية)',
-                'مرحلة البناء: 3 شهور',
-                'مرحلة الفهم والتوسع: 5 أشهر',
-                'مرحلة الطلاقة: 5 أشهر',
-                'مرحلة الطلاقة (فري توكينج): 5 أشهر',
-              ].map((s) => (
-                <p key={s} className="flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-blue-400 shrink-0" />
-                  {s}
-                </p>
-              ))}
-              <p className="text-blue-600 pt-1">كل شهر = 12 درس</p>
+            {/* ── Lesson selector ── */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <Label>اختر نطاق الدروس</Label>
+                <span className="text-xs text-muted-foreground">
+                  {purchaseLessonsFrom === null
+                    ? 'انقر على درس لتحديد البداية'
+                    : purchaseLessonsTo === null
+                    ? `من الدرس ${purchaseLessonsFrom} — انقر على نهاية النطاق`
+                    : `الدرس ${purchaseLessonsFrom} ← ${purchaseLessonsTo} (${selectedLessonsCount} درس)`}
+                </span>
+              </div>
+
+              {/* Stage + lesson tree */}
+              <div className="border rounded-lg overflow-hidden">
+                <div className="overflow-y-auto max-h-64">
+                  {STAGES.map((stage, si) => {
+                    const stageLessons = ALL_LESSONS.filter((l) => l.stage === si);
+                    const stageStart   = stageLessons[0].global;
+                    const stageEnd     = stageLessons[stageLessons.length - 1].global;
+                    const stageActive  = purchaseLessonsFrom !== null &&
+                      stageStart <= (purchaseLessonsTo ?? purchaseLessonsFrom) &&
+                      stageEnd   >= purchaseLessonsFrom;
+
+                    return (
+                      <div key={si}>
+                        {/* Stage header */}
+                        <div className={`px-3 py-1.5 text-xs font-semibold flex items-center justify-between border-b
+                          ${stageActive
+                            ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400'
+                            : 'bg-muted/60 text-muted-foreground'}`}>
+                          <span>{stage.label}</span>
+                          <span className="font-mono opacity-60">{stageStart}–{stageEnd}</span>
+                        </div>
+                        {/* Lessons grid */}
+                        <div className="grid grid-cols-6 gap-px bg-border p-px">
+                          {stageLessons.map((lesson) => {
+                            const sel = isLessonInRange(lesson.global);
+                            const isFrom = lesson.global === purchaseLessonsFrom;
+                            const isTo   = lesson.global === purchaseLessonsTo;
+                            return (
+                              <button
+                                key={lesson.global}
+                                type="button"
+                                onClick={() => handleLessonClick(lesson.global)}
+                                className={`py-1.5 text-xs font-mono transition-colors
+                                  ${sel
+                                    ? isFrom || isTo
+                                      ? 'bg-emerald-600 text-white font-bold'
+                                      : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300'
+                                    : 'bg-background hover:bg-muted text-muted-foreground'}`}
+                                title={`الدرس ${lesson.global}`}
+                              >
+                                {lesson.global}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
 
-            {/* Months selector */}
-            <div className="space-y-1.5">
-              <Label>عدد الشهور</Label>
-              <Select
-                value={String(purchaseMonths)}
-                onValueChange={(v) => handlePurchaseMonthsChange(Number(v))}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {Array.from({ length: 24 }, (_, i) => i + 1).map((m) => (
-                    <SelectItem key={m} value={String(m)}>
-                      {m} {m === 1 ? 'شهر' : 'شهور'} ({m * 12} درس)
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Actual price */}
-            <div className="space-y-1.5">
-              <Label>السعر الفعلي (دينار)</Label>
-              <Input
-                type="number"
-                min={0}
-                dir="ltr"
-                value={purchaseActualPrice}
-                onChange={(e) => setPurchaseActualPrice(e.target.value)}
-                placeholder={String(purchaseMonths * pricePerMonth)}
-              />
-              <p className="text-xs text-muted-foreground">يمكنك تعديله للخصومات أو الأقساط</p>
-            </div>
+            {/* ── Price bar ── */}
+            {selectedLessonsCount > 0 && (
+              <div className="rounded-lg border bg-muted/30 px-3 py-2.5 space-y-2">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">
+                    {selectedLessonsCount} درس × {pricePerLesson} د.أ
+                  </span>
+                  <span className="font-bold text-emerald-700">
+                    = {selectedLessonsCount * pricePerLesson} د.أ
+                  </span>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">السعر الفعلي (دينار) — قابل للتعديل</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    dir="ltr"
+                    value={purchaseActualPrice}
+                    onChange={(e) => setPurchaseActualPrice(e.target.value)}
+                    placeholder={String(selectedLessonsCount * pricePerLesson)}
+                  />
+                </div>
+              </div>
+            )}
 
             {purchaseError && (
               <p className="text-sm text-destructive bg-destructive/10 rounded-md px-3 py-2">
@@ -1151,7 +1236,12 @@ export default function LeadProfilePage() {
               <Button variant="outline" onClick={() => setPurchaseOpen(false)}>إلغاء</Button>
               <Button
                 onClick={() => purchaseMutation.mutate()}
-                disabled={purchaseMutation.isPending || !purchaseActualPrice}
+                disabled={
+                  purchaseMutation.isPending ||
+                  selectedLessonsCount === 0 ||
+                  purchaseLessonsTo === null ||
+                  !purchaseActualPrice
+                }
                 className="bg-emerald-600 hover:bg-emerald-700 text-white"
               >
                 {purchaseMutation.isPending && <Loader2 className="h-4 w-4 animate-spin ml-1" />}
@@ -1165,7 +1255,7 @@ export default function LeadProfilePage() {
             <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-4 text-center space-y-1">
               <p className="text-emerald-700 font-semibold">تم توليد الفاتورة بنجاح</p>
               <p className="text-sm text-muted-foreground">
-                {purchaseResult.months_count} شهر — {purchaseResult.amount_paid} دينار
+                {purchaseResult.lessons_count} درس ({purchaseResult.months_count} شهر) — {purchaseResult.amount_paid} دينار
               </p>
             </div>
 

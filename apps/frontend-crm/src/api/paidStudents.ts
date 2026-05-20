@@ -7,12 +7,13 @@ export interface PaidStudent {
   converted_at: string | null;
   assigned_to: { id: number; name: string } | null;
   subscription: {
-    id: number;
-    amount_paid: number;
-    months_count: number;
-    status: string;
-    activated_at: string | null;
-    expires_at: string | null;
+    id:            number;
+    amount_paid:   number;
+    lessons_count: number | null;
+    months_count:  number;
+    status:        string;
+    activated_at:  string | null;
+    expires_at:    string | null;
   } | null;
 }
 

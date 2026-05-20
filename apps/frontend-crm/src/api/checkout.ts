@@ -4,46 +4,49 @@ import publicApi from './publicClient';
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface PurchaseCoursePayload {
-  months_count: number;
-  amount_paid: number;
+  lessons_count: number;
+  amount_paid:   number;
 }
 
 export interface InvoiceCreatedResponse {
   invoice_uuid: string;
-  invoice_url: string;
+  invoice_url:  string;
   payment_account: {
-    alias: string;
-    cliq_name: string;
+    alias:      string;
+    cliq_name:  string;
   };
-  months_count: number;
-  amount_paid: number;
+  lessons_count: number;
+  months_count:  number;
+  amount_paid:   number;
 }
 
 export interface PendingOrder {
-  id: number;
-  invoice_uuid: string | null;
-  invoice_url: string | null;
-  status: string;
-  months_count: number;
-  amount_paid: number;
+  id:            number;
+  invoice_uuid:  string | null;
+  invoice_url:   string | null;
+  status:        string;
+  lessons_count: number | null;
+  months_count:  number;
+  amount_paid:   number;
   payment_account: {
-    alias: string;
+    alias:     string;
     cliq_name: string;
   } | null;
-  student: { id: number; name: string } | null;
+  student:      { id: number; name: string } | null;
   submitted_by: { id: number; name: string } | null;
   payment_screenshot_url: string | null;
-  created_at: string;
+  created_at:   string;
 }
 
 export interface PublicInvoice {
-  invoice_uuid: string;
-  student_name: string;
-  months_count: number;
-  amount_due: number;
-  status: string;
+  invoice_uuid:  string;
+  student_name:  string;
+  lessons_count: number | null;
+  months_count:  number;
+  amount_due:    number;
+  status:        string;
   payment_account: {
-    alias: string;
+    alias:     string;
     cliq_name: string;
   };
   created_at: string;
@@ -95,19 +98,19 @@ export const checkoutApi = {
   rejectOrder: (id: number, reason?: string) =>
     client.post(`/admin/subscriptions/${id}/reject`, { reason }).then((r) => r.data),
 
-  /** Get current price_per_month from public settings */
-  getPricePerMonth: () =>
+  /** Get current price_per_lesson from public settings */
+  getPricePerLesson: () =>
     client
       .get<{ settings: Record<string, unknown> }>('/settings')
       .then((r) => {
-        const val = r.data.settings?.price_per_month;
-        return typeof val === 'number' ? val : 50;
+        const val = r.data.settings?.price_per_lesson;
+        return typeof val === 'number' ? val : 5;
       }),
 
-  /** Admin: update price_per_month setting */
-  updatePricePerMonth: (price: number) =>
+  /** Admin: update price_per_lesson setting */
+  updatePricePerLesson: (price: number) =>
     client
-      .patch('/admin/settings', { settings: { price_per_month: price } })
+      .patch('/admin/settings', { settings: { price_per_lesson: price } })
       .then((r) => r.data),
 };
 

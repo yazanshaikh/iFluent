@@ -45,13 +45,17 @@ class CheckoutController extends Controller
         $subscription = DB::transaction(function () use ($request, $lead, $paymentAccount, $invoiceUuid) {
             $student = $this->ensureStudentExists($lead);
 
+            $lessonsCount = $request->lessons_count;
+            $monthsCount  = (int) ceil($lessonsCount / 12); // for subscription duration
+
             return Subscription::create([
                 'invoice_uuid'       => $invoiceUuid,
                 'student_id'         => $student->id,
                 'payment_account_id' => $paymentAccount->id,
                 'activated_by'       => $request->user()->id,
                 'status'             => Subscription::STATUS_PENDING_SCREENSHOT,
-                'months_count'       => $request->months_count,
+                'lessons_count'      => $lessonsCount,
+                'months_count'       => $monthsCount,
                 'amount_paid'        => $request->amount_paid,
             ]);
         });
@@ -63,8 +67,9 @@ class CheckoutController extends Controller
                 'alias'     => $paymentAccount->alias,
                 'cliq_name' => $paymentAccount->cliq_name,
             ],
-            'months_count' => $subscription->months_count,
-            'amount_paid'  => $subscription->amount_paid,
+            'lessons_count' => $subscription->lessons_count,
+            'months_count'  => $subscription->months_count,
+            'amount_paid'   => $subscription->amount_paid,
         ], 201);
     }
 

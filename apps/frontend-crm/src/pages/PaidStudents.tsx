@@ -202,7 +202,9 @@ export default function PaidStudentsPage() {
                           {s.subscription.amount_paid} د.أ
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          {s.subscription.months_count} شهر
+                          {s.subscription.lessons_count
+                            ? `${s.subscription.lessons_count} درس`
+                            : `${s.subscription.months_count} شهر`}
                         </p>
                       </div>
 

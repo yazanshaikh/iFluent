@@ -27,6 +27,7 @@ class MoveLeadsToOpenSea extends Command
 
         $moved = Lead::query()
             ->whereIn('status', $poolStatuses)
+            ->where('status', '!=', Lead::STATUS_SUBSCRIBER) // المشترك لا يذهب للبحر أبداً
             ->where(fn($q) => $q->where('is_small_treasure', false)
                                 ->orWhereNull('is_small_treasure'))
             ->whereNotNull('assigned_to')   // لا تنقل الليدات غير المعيّنة

@@ -21,6 +21,7 @@ class Subscription extends Model
         'student_id',
         'package_id',
         'months_count',
+        'lessons_count',
         'payment_account_id',
         'activated_by',
         'approved_by',
