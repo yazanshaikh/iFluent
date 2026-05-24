@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "856056302811",
+    "project_id": "ifluent-58302",
+    "storage_bucket": "ifluent-58302.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:856056302811:android:37b12253db39d576e310fe",
+        "android_client_info": {
+          "package_name": "io.ifluent.student"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDjYJF--9LOqJJhQFkMLj-WwNk6-NUH_pM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -62,8 +62,14 @@ Route::prefix('crm/auth')->group(function () {
 
 // ─── Student Auth ─────────────────────────────────────────────────────────────
 Route::prefix('auth')->group(function () {
+    // Legacy OTP (kept for local dev / fallback)
     Route::post('send-otp',   [StudentAuthController::class, 'sendOtp']);
     Route::post('verify-otp', [StudentAuthController::class, 'verifyOtp']);
+
+    // Firebase Phone Auth flow
+    Route::post('check-phone',      [StudentAuthController::class, 'checkPhone']);
+    Route::post('register',         [StudentAuthController::class, 'register']);
+    Route::post('firebase-verify',  [StudentAuthController::class, 'firebaseVerify']);
 
     Route::middleware('auth:sanctum')->group(function () {
         Route::post('logout', [StudentAuthController::class, 'logout']);

@@ -47,4 +47,9 @@ return [
         'server_key' => env('FCM_SERVER_KEY'),
     ],
 
+    // ── Firebase (Phone Auth token verification) ──────────────────────────────
+    'firebase' => [
+        'project_id' => env('FIREBASE_PROJECT_ID', 'ifluent-58302'),
+    ],
+
 ];

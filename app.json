@@ -1,0 +1,13 @@
+{
+  "expo": {
+    "extra": {
+      "eas": {
+        "projectId": "238e8333-d49a-476a-a3b5-881e07d545c8"
+      }
+    },
+    "owner": "yazanshaikh",
+    "android": {
+      "package": "io.ifluent.student"
+    }
+  }
+}
