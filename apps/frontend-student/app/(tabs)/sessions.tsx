@@ -1,78 +1,112 @@
 /**
  * Sessions tab — active, upcoming and past sessions.
- * Tapping an active session opens the classroom (session room).
+ * Brand theme: Yellow header / Navy text / Cream background.
  */
 import {
   View, Text, ScrollView, TouchableOpacity,
-  StyleSheet, ActivityIndicator, RefreshControl,
+  StyleSheet, ActivityIndicator, RefreshControl, Animated,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { sessionsApi, type SessionListItem } from '@/api/sessions';
+import { C, shadow }          from '@/theme';
+import { useAnimatedHeader }  from '@/hooks/useAnimatedHeader';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const STATUS_LABEL: Record<string, string> = {
   waiting:   'قريباً',
-  active:    'نشطة الآن ●',
+  active:    'نشطة الآن',
   completed: 'مكتملة',
   cancelled: 'ملغاة',
 };
 
 const STATUS_COLOR: Record<string, string> = {
-  waiting:   '#f59e0b',
-  active:    '#10b981',
-  completed: '#6b7280',
-  cancelled: '#ef4444',
+  waiting:   C.warning,
+  active:    C.success,
+  completed: C.gray,
+  cancelled: C.error,
 };
 
 function fmt(iso: string | null) {
   if (!iso) return '—';
   return new Date(iso).toLocaleString('ar-SA', {
-    day:    'numeric',
-    month:  'short',
-    hour:   '2-digit',
-    minute: '2-digit',
+    day: 'numeric', month: 'short',
+    hour: '2-digit', minute: '2-digit',
     timeZone: 'Asia/Amman',
   });
 }
 
-// ─── Session Card ─────────────────────────────────────────────────────────────
+// ─── Active hero card ─────────────────────────────────────────────────────────
 
-function SessionCard({ session, onJoin }: { session: SessionListItem; onJoin: () => void }) {
-  const isActive = session.status === 'active';
-
+function ActiveCard({ session, onJoin }: { session: SessionListItem; onJoin: () => void }) {
   return (
-    <View style={[styles.card, isActive && styles.cardActive]}>
-      {/* Status pill */}
-      <View style={styles.cardTop}>
-        <View style={[styles.pill, { backgroundColor: STATUS_COLOR[session.status] + '20' }]}>
-          <Text style={[styles.pillText, { color: STATUS_COLOR[session.status] }]}>
-            {STATUS_LABEL[session.status] ?? session.status}
+    <View style={styles.activeCard}>
+      {/* Pulsing dot + label */}
+      <View style={styles.activeTop}>
+        <View style={styles.liveDot} />
+        <Text style={styles.liveLabel}>🟢 نشطة الآن</Text>
+        <Text style={styles.activeDate}>{fmt(session.started_at)}</Text>
+      </View>
+
+      <Text style={styles.activeLesson} numberOfLines={2}>
+        {session.lesson?.title ?? 'حصة'}
+      </Text>
+
+      {session.lesson?.unit && (
+        <Text style={styles.activeLevel}>
+          {session.lesson.level?.name}  ·  {session.lesson.unit.name}
+        </Text>
+      )}
+
+      <View style={styles.teacherRow}>
+        <View style={styles.teacherAvatar}>
+          <Text style={styles.teacherInitial}>
+            {(session.teacher?.name ?? 'م').charAt(0)}
           </Text>
         </View>
-        <Text style={styles.cardDate}>{fmt(session.scheduled_at ?? session.started_at)}</Text>
+        <Text style={styles.teacherName}>{session.teacher?.name}</Text>
       </View>
 
-      {/* Lesson & teacher */}
-      <Text style={styles.cardLesson}>{session.lesson?.title ?? 'حصة'}</Text>
-      <Text style={styles.cardLevel}>
-        {session.lesson?.level?.name}
-        {session.lesson?.unit ? ` · ${session.lesson.unit.name}` : ''}
-      </Text>
-      <View style={styles.cardRow}>
-        <Ionicons name="person-outline" size={13} color="#9ca3af" />
-        <Text style={styles.cardTeacher}>{session.teacher?.name}</Text>
-      </View>
+      <TouchableOpacity style={styles.joinBtn} onPress={onJoin} activeOpacity={0.85}>
+        <Ionicons name="videocam" size={18} color={C.navy} />
+        <Text style={styles.joinBtnTxt}>دخول الفصل الآن</Text>
+        <Ionicons name="arrow-back" size={16} color={C.navy} />
+      </TouchableOpacity>
+    </View>
+  );
+}
 
-      {/* Join button for active sessions */}
-      {isActive && (
-        <TouchableOpacity style={styles.joinBtn} onPress={onJoin} activeOpacity={0.85}>
-          <Ionicons name="videocam" size={16} color="#fff" />
-          <Text style={styles.joinBtnText}>دخول الفصل الآن</Text>
-        </TouchableOpacity>
-      )}
+// ─── Regular session card ─────────────────────────────────────────────────────
+
+function SessionCard({ session }: { session: SessionListItem }) {
+  const color  = STATUS_COLOR[session.status] ?? C.gray;
+  const isWait = session.status === 'waiting';
+
+  return (
+    <View style={[styles.card, isWait && styles.cardWaiting]}>
+      <View style={styles.cardLeft}>
+        <View style={[styles.statusDot, { backgroundColor: color }]} />
+      </View>
+      <View style={styles.cardBody}>
+        <View style={styles.cardTopRow}>
+          <View style={[styles.pill, { backgroundColor: color + '20' }]}>
+            <Text style={[styles.pillTxt, { color }]}>{STATUS_LABEL[session.status] ?? session.status}</Text>
+          </View>
+          <Text style={styles.cardDate}>{fmt(session.scheduled_at ?? session.started_at)}</Text>
+        </View>
+        <Text style={styles.cardLesson} numberOfLines={1}>
+          {session.lesson?.title ?? 'حصة'}
+        </Text>
+        {session.teacher?.name && (
+          <View style={styles.cardTeacherRow}>
+            <Ionicons name="person-outline" size={12} color={C.gray} />
+            <Text style={styles.cardTeacher}>{session.teacher.name}</Text>
+          </View>
+        )}
+      </View>
     </View>
   );
 }
@@ -80,46 +114,77 @@ function SessionCard({ session, onJoin }: { session: SessionListItem; onJoin: ()
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function SessionsScreen() {
-  const router = useRouter();
+  const router      = useRouter();
+  const insets      = useSafeAreaInsets();
+
+  const { headerHeight, onHeaderLayout, onScroll, headerStyle } = useAnimatedHeader();
 
   const { data, isLoading, refetch, isFetching } = useQuery({
     queryKey: ['sessions'],
     queryFn:  () => sessionsApi.listSessions(),
-    refetchInterval: 15_000, // poll every 15s to catch newly-activated sessions
+    refetchInterval: 15_000,
   });
 
   if (isLoading) {
     return (
-      <View style={styles.centered}>
-        <ActivityIndicator size="large" color="#10b981" />
+      <View style={[styles.centered, { backgroundColor: C.cream }]}>
+        <ActivityIndicator size="large" color={C.yellow} />
       </View>
     );
   }
 
-  const sessions    = data ?? [];
-  const active      = sessions.filter((s) => s.status === 'active');
-  const upcoming    = sessions.filter((s) => s.status === 'waiting');
-  const past        = sessions.filter((s) => ['completed', 'cancelled'].includes(s.status));
+  const sessions = data ?? [];
+  const active   = sessions.filter((s) => s.status === 'active');
+  const upcoming = sessions.filter((s) => s.status === 'waiting');
+  const past     = sessions.filter((s) => ['completed', 'cancelled'].includes(s.status));
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#f9fafb' }}>
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>حصصي</Text>
-        <Text style={styles.headerSub}>جميع الجلسات الخاصة بك</Text>
-      </View>
+    <View style={{ flex: 1, backgroundColor: C.cream }}>
 
+      {/* ── Yellow curved header (absolute, animates on scroll) ───────────── */}
+      <Animated.View
+        style={[styles.header, { paddingTop: insets.top + 14 }, headerStyle]}
+        onLayout={onHeaderLayout}
+      >
+        <View style={[styles.dot, { width: 90, height: 90, top: -25, left: -25 }]} />
+        <View style={[styles.dot, { width: 40, height: 40, bottom: 8, right: 30 }]} />
+
+        <View style={styles.headerContent}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.headerTitle}>حصصي</Text>
+            <Text style={styles.headerSub}>جلساتك مع المعلم</Text>
+          </View>
+          <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 8 }}>
+            <View style={styles.countPill}>
+              <Ionicons name="videocam" size={14} color={C.navy} />
+              <Text style={styles.countTxt}>{sessions.length} جلسة</Text>
+            </View>
+          </View>
+        </View>
+      </Animated.View>
+
+      {/* ── Content (padded so it starts below the header) ────────────────── */}
       <ScrollView
-        contentContainerStyle={styles.scroll}
-        refreshControl={<RefreshControl refreshing={isFetching} onRefresh={refetch} tintColor="#10b981" />}
+        contentContainerStyle={[styles.scroll, { paddingTop: headerHeight }]}
+        onScroll={onScroll}
+        scrollEventThrottle={16}
+        refreshControl={
+          <RefreshControl
+            refreshing={isFetching}
+            onRefresh={refetch}
+            tintColor={C.yellow}
+            colors={[C.yellow]}
+          />
+        }
         showsVerticalScrollIndicator={false}
       >
-        {/* Active sessions — shown prominently */}
+
+        {/* Active sessions — hero cards */}
         {active.length > 0 && (
           <>
-            <Text style={styles.section}>🟢 نشطة الآن</Text>
+            <Text style={styles.sectionLabel}>🔴 نشطة الآن</Text>
             {active.map((s) => (
-              <SessionCard
+              <ActiveCard
                 key={s.id}
                 session={s}
                 onJoin={() => router.push({ pathname: '/session/[id]', params: { id: String(s.id) } })}
@@ -131,32 +196,33 @@ export default function SessionsScreen() {
         {/* Upcoming */}
         {upcoming.length > 0 && (
           <>
-            <Text style={styles.section}>⏰ القادمة</Text>
-            {upcoming.map((s) => (
-              <SessionCard key={s.id} session={s} onJoin={() => {}} />
-            ))}
+            <Text style={styles.sectionLabel}>⏰ القادمة</Text>
+            {upcoming.map((s) => <SessionCard key={s.id} session={s} />)}
           </>
         )}
 
         {/* Past */}
         {past.length > 0 && (
           <>
-            <Text style={styles.section}>السابقة</Text>
-            {past.map((s) => (
-              <SessionCard key={s.id} session={s} onJoin={() => {}} />
-            ))}
+            <Text style={styles.sectionLabel}>السابقة</Text>
+            {past.map((s) => <SessionCard key={s.id} session={s} />)}
           </>
         )}
 
+        {/* Empty */}
         {sessions.length === 0 && (
-          <View style={styles.empty}>
-            <Ionicons name="videocam-outline" size={48} color="#d1d5db" />
+          <View style={styles.emptyCard}>
+            <View style={styles.emptyIconWrap}>
+              <Ionicons name="videocam-outline" size={36} color={C.yellow} />
+            </View>
             <Text style={styles.emptyTitle}>لا توجد حصص بعد</Text>
             <Text style={styles.emptySub}>
               ستظهر حصصك هنا بعد أن يقوم معلمك بإنشاء الجلسة
             </Text>
           </View>
         )}
+
+        <View style={{ height: 20 }} />
       </ScrollView>
     </View>
   );
@@ -164,54 +230,161 @@ export default function SessionsScreen() {
 
 const styles = StyleSheet.create({
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  header: {
-    backgroundColor: '#10b981',
-    paddingTop: 56,
-    paddingBottom: 20,
-    paddingHorizontal: 20,
-  },
-  headerTitle: { fontSize: 24, fontWeight: '800', color: '#fff' },
-  headerSub:   { fontSize: 13, color: '#d1fae5', marginTop: 2 },
-  scroll: { padding: 16, paddingBottom: 32 },
-  section: { fontSize: 14, fontWeight: '700', color: '#374151', marginBottom: 10, textAlign: 'right' },
 
-  card: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
+  // ── Header ──────────────────────────────────────────────────────────────────
+  header: {
+    position: 'absolute',
+    top: 0, left: 0, right: 0,
+    zIndex: 10,
+    backgroundColor: C.yellow,
+    paddingHorizontal: 22,
+    paddingBottom: 28,
+    borderBottomLeftRadius: 40,
+    borderBottomRightRadius: 40,
+    overflow: 'hidden',
+    shadowColor: C.amber,
+    shadowOpacity: 0.30,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 8,
   },
-  cardActive: {
-    borderWidth: 1.5,
-    borderColor: '#10b981',
-    shadowColor: '#10b981',
-    shadowOpacity: 0.12,
+  dot: {
+    position: 'absolute',
+    borderRadius: 999,
+    backgroundColor: C.white,
+    opacity: 0.18,
   },
-  cardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
-  pill: { borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 },
-  pillText: { fontSize: 12, fontWeight: '700' },
-  cardDate: { fontSize: 12, color: '#6b7280' },
-  cardLesson: { fontSize: 16, fontWeight: '700', color: '#111827', textAlign: 'right', marginBottom: 4 },
-  cardLevel:  { fontSize: 13, color: '#6b7280', textAlign: 'right', marginBottom: 8 },
-  cardRow: { flexDirection: 'row', alignItems: 'center', gap: 4, justifyContent: 'flex-end' },
-  cardTeacher: { fontSize: 12, color: '#9ca3af' },
+  headerContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-end',
+    marginTop: 8,
+  },
+  headerTitle: { fontSize: 26, fontWeight: '900', color: C.navy },
+  headerSub:   { fontSize: 12, color: C.navyMid, marginTop: 2, fontWeight: '600' },
+  menuBtn: {
+    width: 40, height: 40, borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.42)',
+    justifyContent: 'center', alignItems: 'center',
+  },
+  countPill: {
+    backgroundColor: 'rgba(255,255,255,0.45)',
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  countTxt: { fontSize: 13, fontWeight: '800', color: C.navy },
+
+  // ── Scroll ────────────────────────────────────────────────────────────────
+  scroll: { padding: 16, paddingBottom: 32 },
+  sectionLabel: {
+    fontSize: 13, fontWeight: '800', color: C.navy,
+    textAlign: 'right', marginBottom: 10, marginTop: 4,
+  },
+
+  // ── Active hero card ──────────────────────────────────────────────────────
+  activeCard: {
+    backgroundColor: C.navy,
+    borderRadius: 22,
+    padding: 20,
+    marginBottom: 14,
+    ...shadow.navy,
+  },
+  activeTop: { flexDirection: 'row', alignItems: 'center', marginBottom: 12, gap: 6 },
+  liveDot:   { width: 8, height: 8, borderRadius: 4, backgroundColor: C.success },
+  liveLabel: { fontSize: 12, fontWeight: '800', color: C.success, flex: 1 },
+  activeDate:  { fontSize: 11, color: 'rgba(255,255,255,0.55)' },
+
+  activeLesson: {
+    fontSize: 18, fontWeight: '900', color: C.white,
+    textAlign: 'right', marginBottom: 6,
+  },
+  activeLevel: {
+    fontSize: 12, color: 'rgba(255,255,255,0.65)',
+    textAlign: 'right', marginBottom: 14,
+  },
+  teacherRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    justifyContent: 'flex-end',
+    marginBottom: 16,
+  },
+  teacherAvatar: {
+    width: 30, height: 30, borderRadius: 15,
+    backgroundColor: C.yellow,
+    justifyContent: 'center', alignItems: 'center',
+  },
+  teacherInitial: { fontSize: 13, fontWeight: '900', color: C.navy },
+  teacherName:    { fontSize: 13, fontWeight: '700', color: 'rgba(255,255,255,0.85)' },
+
   joinBtn: {
-    backgroundColor: '#10b981',
-    borderRadius: 10,
-    paddingVertical: 12,
+    backgroundColor: C.yellow,
+    borderRadius: 14,
+    paddingVertical: 14,
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
     gap: 8,
-    marginTop: 14,
   },
-  joinBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  joinBtnTxt: { fontSize: 15, fontWeight: '900', color: C.navy },
 
-  empty: { alignItems: 'center', paddingTop: 60 },
-  emptyTitle: { fontSize: 16, fontWeight: '700', color: '#374151', marginTop: 16, textAlign: 'center' },
-  emptySub:   { fontSize: 13, color: '#9ca3af', marginTop: 8, textAlign: 'center', lineHeight: 20, paddingHorizontal: 32 },
+  // ── Regular session card ───────────────────────────────────────────────────
+  card: {
+    backgroundColor: C.white,
+    borderRadius: 16,
+    marginBottom: 10,
+    flexDirection: 'row',
+    overflow: 'hidden',
+    ...shadow.sm,
+  },
+  cardWaiting: {
+    borderWidth: 1.5,
+    borderColor: C.border,
+  },
+  cardLeft: {
+    width: 4,
+    backgroundColor: 'transparent',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  statusDot: {
+    width: 4,
+    alignSelf: 'stretch',
+  },
+  cardBody: { flex: 1, padding: 14 },
+  cardTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  pill:    { borderRadius: 20, paddingHorizontal: 10, paddingVertical: 3 },
+  pillTxt: { fontSize: 11, fontWeight: '800' },
+  cardDate:   { fontSize: 11, color: C.gray },
+  cardLesson: { fontSize: 15, fontWeight: '800', color: C.navy, textAlign: 'right', marginBottom: 6 },
+  cardTeacherRow: {
+    flexDirection: 'row', alignItems: 'center',
+    gap: 4, justifyContent: 'flex-end',
+  },
+  cardTeacher: { fontSize: 12, color: C.gray },
+
+  // ── Empty ─────────────────────────────────────────────────────────────────
+  emptyCard: {
+    backgroundColor: C.white, borderRadius: 20,
+    padding: 40, alignItems: 'center', ...shadow.sm,
+  },
+  emptyIconWrap: {
+    width: 72, height: 72, borderRadius: 36,
+    backgroundColor: C.cream,
+    justifyContent: 'center', alignItems: 'center', marginBottom: 16,
+  },
+  emptyTitle: { fontSize: 15, fontWeight: '800', color: C.navy, textAlign: 'center' },
+  emptySub:   {
+    fontSize: 13, color: C.gray, marginTop: 8,
+    textAlign: 'center', lineHeight: 20, paddingHorizontal: 20,
+  },
 });

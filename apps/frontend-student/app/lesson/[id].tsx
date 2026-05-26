@@ -1,17 +1,21 @@
 /**
- * Lesson detail — shows lesson info, quiz result, and lets student book a session.
+ * Lesson detail — lesson info, quiz result, book a session.
+ * Brand theme: Yellow header / Navy text / Cream background.
  */
 import { useState } from 'react';
 import {
-  View, Text, ScrollView, TouchableOpacity,
+  View, Text, ScrollView, TouchableOpacity, Animated,
   StyleSheet, ActivityIndicator, Alert, Modal,
-  Platform, TextInput,
+  Platform, TextInput, KeyboardAvoidingView,
 } from 'react-native';
-import { useRouter, useLocalSearchParams, Stack } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
-import { levelsApi } from '@/api/levels';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { levelsApi, type StudentProgress } from '@/api/levels';
 import { sessionsApi } from '@/api/sessions';
+import { C, shadow }         from '@/theme';
+import { useAnimatedHeader } from '@/hooks/useAnimatedHeader';
 
 // ─── Book Session Modal ────────────────────────────────────────────────────────
 
@@ -23,13 +27,14 @@ interface BookModalProps {
 
 function BookSessionModal({ lessonId, visible, onClose }: BookModalProps) {
   const qc = useQueryClient();
+  const insets = useSafeAreaInsets();
   const [date,        setDate]        = useState('');
   const [time,        setTime]        = useState('');
   const [teacherCode, setTeacherCode] = useState('');
 
   const { mutate, isPending } = useMutation({
     mutationFn: () => {
-      const dt = new Date(`${date}T${time || '10:00'}:00+03:00`); // Jordan time
+      const dt = new Date(`${date}T${time || '10:00'}:00+03:00`);
       return sessionsApi.book({
         lesson_id:        lessonId,
         requested_at_utc: dt.toISOString(),
@@ -38,9 +43,8 @@ function BookSessionModal({ lessonId, visible, onClose }: BookModalProps) {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['sessions'] });
-      qc.invalidateQueries({ queryKey: ['bookings'] });
       onClose();
-      Alert.alert('تم الحجز ✓', 'طلب حجز الحصة أُرسل إلى المعلم. ستُعلَم عند التأكيد.');
+      Alert.alert('تم الحجز ✅', 'طلب حجز الحصة أُرسل إلى المعلم. ستُعلَم عند التأكيد.');
     },
     onError: (err: any) => {
       Alert.alert('خطأ', err?.response?.data?.message ?? 'تعذر الحجز. حاول مجدداً.');
@@ -49,17 +53,26 @@ function BookSessionModal({ lessonId, visible, onClose }: BookModalProps) {
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
-      <View style={modal.container}>
-        <View style={modal.header}>
-          <TouchableOpacity onPress={onClose}>
-            <Ionicons name="close" size={24} color="#6b7280" />
+      <KeyboardAvoidingView
+        style={{ flex: 1, backgroundColor: C.white }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 24}
+      >
+        {/* Modal header */}
+        <View style={[modal.header, { paddingTop: insets.top + 12 }]}>
+          <TouchableOpacity onPress={onClose} style={modal.closeBtn}>
+            <Ionicons name="close" size={20} color={C.navy} />
           </TouchableOpacity>
-          <Text style={modal.title}>حجز حصة</Text>
-          <View style={{ width: 24 }} />
+          <Text style={modal.title}>📅 حجز حصة</Text>
+          <View style={{ width: 36 }} />
         </View>
 
-        <ScrollView contentContainerStyle={modal.body}>
-          {/* Date */}
+        <ScrollView
+          contentContainerStyle={modal.body}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+
           <Text style={modal.label}>تاريخ الحصة</Text>
           <TextInput
             style={modal.input}
@@ -67,10 +80,9 @@ function BookSessionModal({ lessonId, visible, onClose }: BookModalProps) {
             onChangeText={setDate}
             placeholder="YYYY-MM-DD"
             keyboardType="numbers-and-punctuation"
-            placeholderTextColor="#9ca3af"
+            placeholderTextColor={C.gray}
           />
 
-          {/* Time */}
           <Text style={modal.label}>الوقت (توقيت الأردن)</Text>
           <TextInput
             style={modal.input}
@@ -78,12 +90,12 @@ function BookSessionModal({ lessonId, visible, onClose }: BookModalProps) {
             onChangeText={setTime}
             placeholder="HH:MM  (مثال: 17:00)"
             keyboardType="numbers-and-punctuation"
-            placeholderTextColor="#9ca3af"
+            placeholderTextColor={C.gray}
           />
 
-          {/* Teacher code (optional) */}
           <Text style={modal.label}>
-            كود المعلم <Text style={{ color: '#9ca3af', fontWeight: '400' }}>(اختياري)</Text>
+            كود المعلم{' '}
+            <Text style={{ color: C.gray, fontWeight: '400' }}>(اختياري)</Text>
           </Text>
           <TextInput
             style={modal.input}
@@ -91,24 +103,26 @@ function BookSessionModal({ lessonId, visible, onClose }: BookModalProps) {
             onChangeText={setTeacherCode}
             placeholder="اتركه فارغاً لتعيين معلم عشوائي"
             autoCapitalize="characters"
-            placeholderTextColor="#9ca3af"
+            placeholderTextColor={C.gray}
           />
-          <Text style={modal.hint}>
-            إدخال كود معلم محدد يحوّل الطلب إلى حصة خاصة
-          </Text>
+          <Text style={modal.hint}>إدخال كود معلم محدد يحوّل الطلب إلى حصة خاصة</Text>
 
           <TouchableOpacity
-            style={[modal.btn, isPending && { opacity: 0.6 }]}
+            style={[modal.btn, (!date || isPending) && modal.btnOff]}
             onPress={() => mutate()}
             disabled={isPending || !date}
+            activeOpacity={0.85}
           >
             {isPending
-              ? <ActivityIndicator color="#fff" />
-              : <Text style={modal.btnText}>إرسال طلب الحجز</Text>
+              ? <ActivityIndicator color={C.navy} />
+              : <>
+                  <Ionicons name="checkmark-circle" size={18} color={C.navy} />
+                  <Text style={modal.btnText}>إرسال طلب الحجز</Text>
+                </>
             }
           </TouchableOpacity>
         </ScrollView>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -116,114 +130,145 @@ function BookSessionModal({ lessonId, visible, onClose }: BookModalProps) {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function LessonScreen() {
-  const router = useRouter();
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const router  = useRouter();
+  const insets  = useSafeAreaInsets();
+  const { id }  = useLocalSearchParams<{ id: string }>();
   const [bookVisible, setBookVisible] = useState(false);
+  const { headerHeight, onHeaderLayout, onScroll, headerStyle } =
+    useAnimatedHeader({ animateTabBar: false });
 
   const { data: lesson, isLoading } = useQuery({
     queryKey: ['lesson', id],
     queryFn:  () => levelsApi.getLesson(Number(id)),
   });
 
-  const { data: progress = [] } = useQuery({
+  const { data: progress = [] } = useQuery<StudentProgress[]>({
     queryKey: ['progress'],
-    queryFn:  () =>
-      import('@/api/client').then((m) =>
-        m.default
-          .get<{ data: { lesson_id: number; quiz_score: number | null; completed_at: string | null }[] }>(
-            '/student/progress',
-          )
-          .then((r) => r.data.data),
-      ),
+    queryFn:  levelsApi.getProgress,
   });
 
   const myProgress = progress.find((p) => p.lesson_id === Number(id));
-  const passed     = (myProgress?.quiz_score ?? -1) >= 60;
+  const passed     = myProgress?.passed === true;
 
   if (isLoading) {
-    return <View style={styles.centered}><ActivityIndicator size="large" color="#10b981" /></View>;
+    return (
+      <View style={[styles.centered, { backgroundColor: C.cream }]}>
+        <ActivityIndicator size="large" color={C.yellow} />
+      </View>
+    );
   }
 
   if (!lesson) {
-    return <View style={styles.centered}><Text style={{ color: '#6b7280' }}>الدرس غير موجود</Text></View>;
+    return (
+      <View style={[styles.centered, { backgroundColor: C.cream }]}>
+        <Text style={{ color: C.gray, fontWeight: '600' }}>الدرس غير موجود</Text>
+      </View>
+    );
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#f9fafb' }}>
-      <Stack.Screen
-        options={{
-          headerShown:     true,
-          headerTitle:     lesson.title,
-          headerBackTitle: 'رجوع',
-          headerStyle:     { backgroundColor: '#10b981' },
-          headerTintColor: '#fff',
-          headerTitleStyle: { fontWeight: '800', fontSize: 16 },
-        }}
-      />
+    <View style={{ flex: 1, backgroundColor: C.cream }}>
 
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        {/* Lesson header card */}
-        <View style={styles.card}>
-          <Text style={styles.lessonTitle}>{lesson.title}</Text>
+      {/* ── Yellow curved header ─────────────────────────────────────────── */}
+      <Animated.View
+        style={[styles.header, { paddingTop: insets.top + 8 }, headerStyle]}
+        onLayout={onHeaderLayout}
+      >
+        <View style={[styles.dot, { width: 70, height: 70, top: -18, right: -18 }]} />
+        <View style={[styles.dot, { width: 35, height: 35, bottom: 8, left: 16 }]} />
 
-          {/* Quiz result badge */}
-          {myProgress?.quiz_score !== null && myProgress?.quiz_score !== undefined && (
-            <View style={[styles.scoreBadge, passed ? styles.scorePassed : styles.scoreFailed]}>
-              <Ionicons
-                name={passed ? 'checkmark-circle' : 'close-circle'}
-                size={16}
-                color={passed ? '#10b981' : '#ef4444'}
-              />
-              <Text style={[styles.scoreText, { color: passed ? '#10b981' : '#ef4444' }]}>
-                {passed ? 'اجتزت الاختبار' : 'لم تجتز الاختبار'} — {myProgress.quiz_score}%
-              </Text>
-            </View>
-          )}
+        {/* Back button */}
+        <TouchableOpacity
+          style={styles.backBtn}
+          onPress={() => router.back()}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <Ionicons name="arrow-forward" size={20} color={C.navy} />
+        </TouchableOpacity>
 
-          {/* Book session button */}
-          <TouchableOpacity style={styles.bookBtn} onPress={() => setBookVisible(true)} activeOpacity={0.85}>
-            <Ionicons name="calendar-outline" size={18} color="#fff" />
-            <Text style={styles.bookBtnText}>احجز حصة لهذا الدرس</Text>
-          </TouchableOpacity>
-        </View>
+        <Text style={styles.headerTitle} numberOfLines={3}>{lesson.title}</Text>
+
+        {/* Pass badge if graded */}
+        {myProgress?.best_score !== null && myProgress?.best_score !== undefined && (
+          <View style={[styles.gradeChip, passed ? styles.gradePass : styles.gradeFail]}>
+            <Ionicons
+              name={passed ? 'checkmark-circle' : 'close-circle'}
+              size={14}
+              color={passed ? C.success : C.error}
+            />
+            <Text style={[styles.gradeChipTxt, { color: passed ? C.success : C.error }]}>
+              {passed ? 'اجتزت الاختبار' : 'لم تجتز'} — {myProgress.best_score}%
+            </Text>
+          </View>
+        )}
+      </Animated.View>
+
+      <ScrollView
+        contentContainerStyle={[styles.scroll, { paddingTop: headerHeight }]}
+        onScroll={onScroll}
+        scrollEventThrottle={16}
+        showsVerticalScrollIndicator={false}
+      >
+
+        {/* Book session */}
+        <TouchableOpacity
+          style={styles.bookBtn}
+          onPress={() => setBookVisible(true)}
+          activeOpacity={0.85}
+        >
+          <View style={styles.bookIcon}>
+            <Ionicons name="calendar" size={22} color={C.yellow} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.bookTitle}>احجز حصة مع معلمك</Text>
+            <Text style={styles.bookSub}>اختر وقتاً مناسباً وانتظر التأكيد</Text>
+          </View>
+          <Ionicons name="chevron-back" size={18} color={C.navy} />
+        </TouchableOpacity>
 
         {/* Quiz section */}
         <View style={styles.quizCard}>
-          <View style={styles.quizHeader}>
-            <Ionicons name="help-circle-outline" size={22} color="#8b5cf6" />
-            <Text style={styles.quizTitle}>اختبار الدرس</Text>
+          <View style={styles.quizTop}>
+            <View style={styles.quizIconWrap}>
+              <Ionicons name="help-circle" size={22} color={C.white} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.quizTitle}>اختبار الدرس</Text>
+              <Text style={styles.quizSub}>
+                {passed
+                  ? 'أحسنت! يمكنك المراجعة أو الانتقال للدرس التالي.'
+                  : 'اجتز بنسبة 60% أو أعلى لفتح الدرس التالي.'}
+              </Text>
+            </View>
           </View>
-          <Text style={styles.quizSub}>
-            {passed
-              ? 'أحسنت! يمكنك المراجعة أو الانتقال للدرس التالي.'
-              : 'اجتز الاختبار بدرجة 60% أو أعلى لفتح الدرس التالي.'}
-          </Text>
+
           <TouchableOpacity
             style={[styles.quizBtn, passed && styles.quizBtnReview]}
             onPress={() => router.push({ pathname: '/quiz/[lessonId]', params: { lessonId: String(id) } })}
             activeOpacity={0.85}
           >
             <Ionicons
-              name={passed ? 'refresh-outline' : 'pencil-outline'}
+              name={passed ? 'refresh' : 'pencil'}
               size={16}
-              color={passed ? '#8b5cf6' : '#fff'}
+              color={passed ? C.navy : C.white}
             />
-            <Text style={[styles.quizBtnText, passed && { color: '#8b5cf6' }]}>
-              {passed ? 'مراجعة الاختبار' : 'ابدأ الاختبار'}
+            <Text style={[styles.quizBtnTxt, passed && { color: C.navy }]}>
+              {passed ? 'مراجعة الاختبار' : 'ابدأ الاختبار الآن'}
             </Text>
           </TouchableOpacity>
         </View>
 
-        {/* Info block */}
+        {/* Info card */}
         <View style={styles.infoCard}>
-          <Ionicons name="information-circle-outline" size={20} color="#3b82f6" />
-          <Text style={styles.infoText}>
-            الدرس يُقدَّم مباشرة مع معلمك عبر منصة Nearpod التفاعلية داخل الحصة الحية.
+          <Ionicons name="information-circle" size={18} color={C.info} />
+          <Text style={styles.infoTxt}>
+            الدرس يُقدَّم مع معلمك عبر منصة Nearpod التفاعلية خلال الحصة الحية.
           </Text>
         </View>
+
+        <View style={{ height: 32 }} />
       </ScrollView>
 
-      {/* Book modal */}
       <BookSessionModal
         lessonId={Number(id)}
         visible={bookVisible}
@@ -235,72 +280,137 @@ export default function LessonScreen() {
 
 const styles = StyleSheet.create({
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  scroll: { padding: 16, paddingBottom: 40 },
 
-  card: {
-    backgroundColor: '#fff', borderRadius: 18, padding: 20, marginBottom: 12,
-    shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 8, elevation: 2,
+  // ── Header ──────────────────────────────────────────────────────────────────
+  header: {
+    position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10,
+    backgroundColor: C.yellow,
+    paddingHorizontal: 22,
+    paddingBottom: 24,
+    borderBottomLeftRadius: 36,
+    borderBottomRightRadius: 36,
+    overflow: 'hidden',
+    shadowColor: C.amber,
+    shadowOpacity: 0.28,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 7,
   },
-  lessonTitle: { fontSize: 18, fontWeight: '800', color: '#111827', textAlign: 'right', marginBottom: 14 },
-
-  scoreBadge: {
+  dot: {
+    position: 'absolute',
+    borderRadius: 999,
+    backgroundColor: C.white,
+    opacity: 0.18,
+  },
+  backBtn: {
+    alignSelf: 'flex-end',
+    backgroundColor: 'rgba(255,255,255,0.4)',
+    borderRadius: 10,
+    padding: 7,
+    marginBottom: 10,
+  },
+  headerTitle: {
+    fontSize: 20, fontWeight: '900', color: C.navy,
+    textAlign: 'right', marginBottom: 12, lineHeight: 28,
+  },
+  gradeChip: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
-    borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8,
-    justifyContent: 'flex-end', marginBottom: 14,
+    borderRadius: 12, paddingHorizontal: 12, paddingVertical: 7,
+    alignSelf: 'flex-end',
   },
-  scorePassed: { backgroundColor: '#f0fdf4' },
-  scoreFailed: { backgroundColor: '#fef2f2' },
-  scoreText: { fontSize: 13, fontWeight: '700' },
+  gradePass: { backgroundColor: '#DCFCE7' },
+  gradeFail: { backgroundColor: '#FEF2F2' },
+  gradeChipTxt: { fontSize: 12, fontWeight: '700' },
 
+  // ── Content ───────────────────────────────────────────────────────────────
+  scroll: { padding: 16, paddingBottom: 32 },
+
+  // ── Book button ───────────────────────────────────────────────────────────
   bookBtn: {
-    backgroundColor: '#10b981', borderRadius: 12,
-    paddingVertical: 14, flexDirection: 'row',
-    justifyContent: 'center', alignItems: 'center', gap: 8,
+    backgroundColor: C.navy,
+    borderRadius: 18,
+    padding: 18,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    marginBottom: 14,
+    ...shadow.navy,
   },
-  bookBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  bookIcon: {
+    width: 44, height: 44, borderRadius: 14,
+    backgroundColor: 'rgba(255,179,0,0.15)',
+    justifyContent: 'center', alignItems: 'center',
+  },
+  bookTitle: { fontSize: 15, fontWeight: '800', color: C.white, textAlign: 'right' },
+  bookSub:   { fontSize: 12, color: 'rgba(255,255,255,0.65)', marginTop: 2, textAlign: 'right' },
 
+  // ── Quiz card ─────────────────────────────────────────────────────────────
   quizCard: {
-    backgroundColor: '#faf5ff', borderRadius: 18, padding: 20, marginBottom: 12,
-    borderWidth: 1, borderColor: '#e9d5ff',
+    backgroundColor: C.white,
+    borderRadius: 18,
+    padding: 18,
+    marginBottom: 14,
+    ...shadow.sm,
   },
-  quizHeader:  { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8, justifyContent: 'flex-end' },
-  quizTitle:   { fontSize: 16, fontWeight: '800', color: '#7c3aed' },
-  quizSub:     { fontSize: 13, color: '#6b7280', textAlign: 'right', lineHeight: 20, marginBottom: 14 },
+  quizTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginBottom: 16 },
+  quizIconWrap: {
+    width: 44, height: 44, borderRadius: 14,
+    backgroundColor: C.navyMid,
+    justifyContent: 'center', alignItems: 'center',
+  },
+  quizTitle: { fontSize: 16, fontWeight: '900', color: C.navy, textAlign: 'right' },
+  quizSub:   { fontSize: 12, color: C.gray, marginTop: 4, textAlign: 'right', lineHeight: 18 },
   quizBtn: {
-    backgroundColor: '#8b5cf6', borderRadius: 12,
-    paddingVertical: 12, flexDirection: 'row',
-    justifyContent: 'center', alignItems: 'center', gap: 8,
+    backgroundColor: C.navy,
+    borderRadius: 12, paddingVertical: 13,
+    flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8,
   },
-  quizBtnReview: { backgroundColor: '#f3e8ff' },
-  quizBtnText:   { color: '#fff', fontSize: 14, fontWeight: '700' },
+  quizBtnReview: {
+    backgroundColor: C.cream,
+    borderWidth: 1.5, borderColor: C.border,
+  },
+  quizBtnTxt: { fontSize: 14, fontWeight: '800', color: C.white },
 
+  // ── Info card ─────────────────────────────────────────────────────────────
   infoCard: {
-    backgroundColor: '#eff6ff', borderRadius: 14, padding: 16,
+    backgroundColor: '#EFF6FF',
+    borderRadius: 14, padding: 14,
     flexDirection: 'row', alignItems: 'flex-start', gap: 10,
-    borderWidth: 1, borderColor: '#bfdbfe',
+    borderWidth: 1, borderColor: '#BFDBFE',
   },
-  infoText: { flex: 1, fontSize: 13, color: '#1d4ed8', lineHeight: 20, textAlign: 'right' },
+  infoTxt: { flex: 1, fontSize: 13, color: '#1D4ED8', lineHeight: 20, textAlign: 'right' },
 });
 
 const modal = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff' },
   header: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    padding: 16, paddingTop: Platform.OS === 'ios' ? 56 : 20,
-    borderBottomWidth: 1, borderBottomColor: '#f3f4f6',
+    paddingHorizontal: 16, paddingBottom: 16,
+    borderBottomWidth: 1, borderBottomColor: '#F3F4F6',
+    backgroundColor: C.white,
   },
-  title: { fontSize: 18, fontWeight: '800', color: '#111827' },
+  closeBtn: {
+    width: 36, height: 36, borderRadius: 10,
+    backgroundColor: C.cream,
+    justifyContent: 'center', alignItems: 'center',
+  },
+  title: { fontSize: 17, fontWeight: '900', color: C.navy },
   body:  { padding: 20, paddingBottom: 40 },
-  label: { fontSize: 13, fontWeight: '600', color: '#374151', marginBottom: 8, textAlign: 'right' },
+  label: {
+    fontSize: 13, fontWeight: '700', color: C.navy,
+    marginBottom: 8, textAlign: 'right',
+  },
   input: {
-    borderWidth: 1.5, borderColor: '#e5e7eb', borderRadius: 12,
-    paddingHorizontal: 16, paddingVertical: 13, fontSize: 16,
-    color: '#111827', textAlign: 'right', backgroundColor: '#f9fafb', marginBottom: 16,
+    borderWidth: 1.5, borderColor: C.border, borderRadius: 14,
+    paddingHorizontal: 16, paddingVertical: 13, fontSize: 15,
+    color: C.navy, textAlign: 'right', backgroundColor: C.cream, marginBottom: 16,
   },
-  hint: { fontSize: 12, color: '#9ca3af', marginTop: -8, marginBottom: 20, textAlign: 'right' },
+  hint: { fontSize: 12, color: C.gray, marginTop: -8, marginBottom: 20, textAlign: 'right' },
   btn: {
-    backgroundColor: '#10b981', borderRadius: 12,
+    backgroundColor: C.yellow, borderRadius: 14,
     paddingVertical: 16, alignItems: 'center', marginTop: 8,
+    flexDirection: 'row', justifyContent: 'center', gap: 8,
+    ...shadow.amber,
   },
-  btnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  btnOff: { opacity: 0.50 },
+  btnText: { color: C.navy, fontSize: 16, fontWeight: '900' },
 });

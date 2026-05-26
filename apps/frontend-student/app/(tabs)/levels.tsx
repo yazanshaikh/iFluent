@@ -1,159 +1,217 @@
 /**
- * Levels tab — shows the student's enrolled units, grouped by level.
- * Locked levels appear as dimmed cards with a lock icon.
+ * Levels tab — student's enrolled units + full curriculum roadmap.
+ * Brand theme: Yellow header / Navy text / Cream background.
  */
 import {
   View, Text, ScrollView, TouchableOpacity,
-  StyleSheet, ActivityIndicator, RefreshControl,
+  StyleSheet, ActivityIndicator, RefreshControl, Animated,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
-import { levelsApi, type Unit } from '@/api/levels';
-
-// ─── Level colour map ─────────────────────────────────────────────────────────
-const LEVEL_COLORS: Record<string, string> = {
-  A1: '#10b981',
-  A2: '#3b82f6',
-  B1: '#8b5cf6',
-  B2: '#f59e0b',
-  FT: '#ef4444',
-};
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { levelsApi, type Unit, type Level } from '@/api/levels';
+import { C, LEVEL_COLORS, shadow } from '@/theme';
+import { useSidebarStore }        from '@/stores/sidebarStore';
+import { useAnimatedHeader }      from '@/hooks/useAnimatedHeader';
 
 // ─── Unit card ────────────────────────────────────────────────────────────────
 
 function UnitCard({ unit, onPress }: { unit: Unit; onPress: () => void }) {
-  const isLocked  = !unit.enrollment;
-  const isDone    = unit.enrollment?.status === 'completed';
-  const color     = LEVEL_COLORS[unit.level_id?.toString()] ?? '#10b981';
+  const isLocked = !unit.enrollment;
+  const isDone   = unit.enrollment?.status === 'completed';
+  const pct      = isDone ? 100 : unit.enrollment ? 35 : 0;
 
   return (
     <TouchableOpacity
       style={[styles.unitCard, isLocked && styles.unitCardLocked]}
       onPress={isLocked ? undefined : onPress}
-      activeOpacity={isLocked ? 1 : 0.8}
+      activeOpacity={isLocked ? 1 : 0.82}
     >
-      {/* Left accent */}
-      <View style={[styles.unitAccent, { backgroundColor: isLocked ? '#e5e7eb' : color }]} />
+      {/* Yellow accent bar */}
+      <View style={[styles.unitAccent, isLocked && styles.unitAccentLocked]} />
 
       <View style={styles.unitBody}>
+        {/* Top row */}
         <View style={styles.unitTop}>
-          <Text style={[styles.unitName, isLocked && styles.textMuted]}>
+          <Text style={[styles.unitName, isLocked && styles.textMuted]} numberOfLines={1}>
             {unit.name}
           </Text>
           {isLocked ? (
-            <Ionicons name="lock-closed" size={16} color="#d1d5db" />
+            <Ionicons name="lock-closed" size={15} color={C.border} />
           ) : isDone ? (
-            <Ionicons name="checkmark-circle" size={18} color="#10b981" />
-          ) : null}
+            <View style={styles.doneBadge}>
+              <Ionicons name="checkmark" size={11} color={C.white} />
+            </View>
+          ) : (
+            <View style={styles.activeBadge}>
+              <Text style={styles.activeBadgeTxt}>نشطة</Text>
+            </View>
+          )}
         </View>
+
+        {/* Meta */}
         <Text style={styles.unitMeta}>
-          {unit.lesson_count} درس
-          {unit.has_end_test ? ' · اختبار وحدة' : ''}
+          {unit.lesson_count} درس{unit.has_end_test ? ' · اختبار وحدة' : ''}
         </Text>
+
+        {/* Progress bar */}
         {!isLocked && (
-          <View style={styles.progressBarBg}>
-            <View
-              style={[
-                styles.progressBarFill,
-                { width: `${isDone ? 100 : 30}%`, backgroundColor: color },
-              ]}
-            />
+          <View style={styles.progressBg}>
+            <View style={[styles.progressFill, { width: `${pct}%` }]} />
           </View>
         )}
       </View>
 
       {!isLocked && (
-        <Ionicons name="chevron-forward" size={18} color="#9ca3af" />
+        <Ionicons name="chevron-back" size={18} color={C.navy} style={{ marginLeft: -4 }} />
       )}
     </TouchableOpacity>
+  );
+}
+
+// ─── Level roadmap row ────────────────────────────────────────────────────────
+
+function LevelRow({ level }: { level: Level }) {
+  const color = LEVEL_COLORS[level.code] ?? C.navy;
+  return (
+    <View style={styles.levelRow}>
+      <View style={[styles.levelBadge, { backgroundColor: color }]}>
+        <Text style={styles.levelBadgeTxt}>{level.code}</Text>
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.levelName}>{level.name}</Text>
+        <Text style={styles.levelMeta}>
+          {level.total_units} وحدة · {level.total_lessons} درس
+        </Text>
+      </View>
+      <View style={[styles.levelDot, { backgroundColor: color + '22' }]}>
+        <Text style={[styles.levelDotTxt, { color }]}>{level.total_units}</Text>
+      </View>
+    </View>
   );
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function LevelsScreen() {
-  const router = useRouter();
+  const router  = useRouter();
+  const insets  = useSafeAreaInsets();
+  const openSidebar = useSidebarStore((s) => s.open);
+  const { headerHeight, onHeaderLayout, onScroll, headerStyle } = useAnimatedHeader();
 
-  const { data: myUnits, isLoading, refetch, isFetching } = useQuery({
+  const { data: myUnits,   isLoading: loadingUnits,  refetch, isFetching } = useQuery({
     queryKey: ['my-units'],
     queryFn:  levelsApi.myUnits,
   });
 
-  const { data: allLevels } = useQuery({
+  const { data: allLevels, isLoading: loadingLevels } = useQuery({
     queryKey: ['all-levels'],
     queryFn:  levelsApi.listLevels,
   });
 
+  const isLoading = loadingUnits || loadingLevels;
+
   if (isLoading) {
     return (
-      <View style={styles.centered}>
-        <ActivityIndicator size="large" color="#10b981" />
+      <View style={[styles.centered, { backgroundColor: C.cream }]}>
+        <ActivityIndicator size="large" color={C.yellow} />
       </View>
     );
   }
 
-  // Group enrolled units by level name
-  const enrolledByLevel: Record<string, Unit[]> = {};
-  (myUnits ?? []).forEach((unit) => {
-    const key = unit.name; // grouping by first word (level name)
-    if (!enrolledByLevel[key]) enrolledByLevel[key] = [];
-    enrolledByLevel[key].push(unit);
-  });
-
-  const hasEnrolled = (myUnits?.length ?? 0) > 0;
+  const enrolled   = myUnits ?? [];
+  const hasEnrolled = enrolled.length > 0;
+  const doneCount  = enrolled.filter((u) => u.enrollment?.status === 'completed').length;
+  const pct        = enrolled.length > 0 ? Math.round((doneCount / enrolled.length) * 100) : 0;
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#f9fafb' }}>
-      {/* Header */}
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.headerTitle}>مستوياتي</Text>
-          <Text style={styles.headerSub}>مسار التعلم الخاص بك</Text>
-        </View>
-        <View style={styles.headerBadge}>
-          <Text style={styles.headerBadgeText}>{myUnits?.length ?? 0} وحدة</Text>
-        </View>
-      </View>
+    <View style={{ flex: 1, backgroundColor: C.cream }}>
 
+      {/* ── Yellow curved header (absolute, animates on scroll) ───────────── */}
+      <Animated.View
+        style={[styles.header, { paddingTop: insets.top + 8 }, headerStyle]}
+        onLayout={onHeaderLayout}
+      >
+        {/* Decorative circles */}
+        <View style={[styles.dot, { width: 90, height: 90, top: -24, left: -24 }]} />
+        <View style={[styles.dot, { width: 44, height: 44, bottom: 12, right: 16 }]} />
+
+        {/* ── Row 1: hamburger ───────────────────────────────────────────── */}
+        <TouchableOpacity style={styles.menuBtn} onPress={openSidebar}>
+          <Ionicons name="menu" size={22} color={C.navy} />
+        </TouchableOpacity>
+
+        {/* ── Row 2: title ──────────────────────────────────────────────── */}
+        <Text style={styles.headerTitle}>الرئيسية</Text>
+
+        {/* ── Row 3: progress label + count ─────────────────────────────── */}
+        <View style={styles.hMidRow}>
+          <Text style={styles.progressSub}>
+            {enrolled.length > 0
+              ? `${doneCount}/${enrolled.length} وحدة · ${pct}%`
+              : 'سجّل للبدء'}
+          </Text>
+          <Text style={styles.progressLbl}>التقدم الكلي</Text>
+        </View>
+
+        {/* ── Row 4: slim progress bar ───────────────────────────────────── */}
+        <View style={styles.hProgressTrack}>
+          <View style={[styles.hProgressFill, { width: `${pct}%` as any }]} />
+        </View>
+      </Animated.View>
+
+      {/* ── Scrollable content (padded so it starts below the header) ─────── */}
       <ScrollView
-        contentContainerStyle={styles.scroll}
-        refreshControl={<RefreshControl refreshing={isFetching} onRefresh={refetch} tintColor="#10b981" />}
+        contentContainerStyle={[styles.scroll, { paddingTop: headerHeight }]}
+        onScroll={onScroll}
+        scrollEventThrottle={16}
+        refreshControl={
+          <RefreshControl
+            refreshing={isFetching}
+            onRefresh={refetch}
+            tintColor={C.yellow}
+            colors={[C.yellow]}
+          />
+        }
         showsVerticalScrollIndicator={false}
       >
+
+        {/* My enrolled units */}
+        <Text style={styles.sectionLabel}>📚 وحداتي المفعّلة</Text>
+
         {hasEnrolled ? (
-          myUnits?.map((unit) => (
+          enrolled.map((unit) => (
             <UnitCard
               key={unit.id}
               unit={unit}
-              onPress={() => router.push({ pathname: '/unit/[id]', params: { id: String(unit.id) } })}
+              onPress={() =>
+                router.push({ pathname: '/unit/[id]', params: { id: String(unit.id) } })
+              }
             />
           ))
         ) : (
           <View style={styles.emptyCard}>
-            <Ionicons name="school-outline" size={48} color="#d1d5db" />
-            <Text style={styles.emptyTitle}>لا توجد وحدات مفعّلة</Text>
+            <View style={styles.emptyIconWrap}>
+              <Ionicons name="school-outline" size={36} color={C.yellow} />
+            </View>
+            <Text style={styles.emptyTitle}>لا توجد وحدات مفعّلة بعد</Text>
             <Text style={styles.emptySub}>
-              بمجرد اشتراكك وموافقة الإدارة، ستظهر وحداتك هنا
+              بمجرد اشتراكك وموافقة الإدارة ستظهر وحداتك هنا
             </Text>
           </View>
         )}
 
-        {/* All levels roadmap */}
-        <Text style={styles.sectionTitle}>خريطة المسار الكاملة</Text>
+        {/* Full curriculum roadmap */}
+        <Text style={[styles.sectionLabel, { marginTop: 8 }]}>🗺️ خريطة المسار الكاملة</Text>
+
         {(allLevels ?? []).map((level) => (
-          <View key={level.id} style={styles.levelRow}>
-            <View style={[styles.levelBadge, { backgroundColor: LEVEL_COLORS[level.code] ?? '#10b981' }]}>
-              <Text style={styles.levelBadgeText}>{level.code}</Text>
-            </View>
-            <View>
-              <Text style={styles.levelName}>{level.name}</Text>
-              <Text style={styles.levelMeta}>
-                {level.total_units} وحدات · {level.total_lessons} درس
-              </Text>
-            </View>
+          <View key={level.id} style={styles.levelCard}>
+            <LevelRow level={level} />
           </View>
         ))}
+
+        <View style={{ height: 20 }} />
       </ScrollView>
     </View>
   );
@@ -161,76 +219,155 @@ export default function LevelsScreen() {
 
 const styles = StyleSheet.create({
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+
+  // ── Header ──────────────────────────────────────────────────────────────────
   header: {
-    backgroundColor: '#10b981',
-    paddingTop: 56,
-    paddingBottom: 20,
-    paddingHorizontal: 20,
+    position: 'absolute',
+    top: 0, left: 0, right: 0,
+    zIndex: 10,
+    backgroundColor: C.yellow,
+    paddingHorizontal: 22,
+    paddingBottom: 16,
+    borderBottomLeftRadius: 36,
+    borderBottomRightRadius: 36,
+    overflow: 'hidden',
+    ...shadow.amber,
+  },
+  dot: {
+    position: 'absolute',
+    borderRadius: 999,
+    backgroundColor: C.white,
+    opacity: 0.15,
+  },
+
+  // Row 1 — hamburger
+  menuBtn: {
+    width: 38, height: 38, borderRadius: 11,
+    backgroundColor: 'rgba(255,255,255,0.42)',
+    justifyContent: 'center', alignItems: 'center',
+  },
+
+  // Row 2 — title
+  headerTitle: { fontSize: 22, fontWeight: '900', color: C.navy, textAlign: 'right', marginBottom: 10 },
+
+  // Row 3 — progress label + count
+  hMidRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-end',
+    alignItems: 'center',
+    marginBottom: 6,
   },
-  headerTitle: { fontSize: 24, fontWeight: '800', color: '#fff' },
-  headerSub:   { fontSize: 13, color: '#d1fae5', marginTop: 2 },
-  headerBadge: {
-    backgroundColor: 'rgba(255,255,255,0.25)',
-    borderRadius: 20,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+  progressLbl: { fontSize: 12, fontWeight: '800', color: C.navy },
+  progressSub: { fontSize: 11, fontWeight: '600', color: C.navyMid },
+
+  // Row 3 — slim horizontal progress bar
+  hProgressTrack: {
+    height: 6,
+    backgroundColor: 'rgba(255,255,255,0.55)',
+    borderRadius: 3,
+    overflow: 'hidden',
   },
-  headerBadgeText: { fontSize: 13, fontWeight: '700', color: '#fff' },
+  hProgressFill: {
+    height: 6,
+    backgroundColor: C.navy,
+    borderRadius: 3,
+  },
 
-  scroll: { padding: 16, paddingBottom: 32 },
+  // ── Scroll / sections ────────────────────────────────────────────────────────
+  scroll:       { padding: 16, paddingBottom: 32 },
+  sectionLabel: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: C.navy,
+    textAlign: 'right',
+    marginBottom: 10,
+    marginTop: 4,
+  },
 
+  // ── Unit card ────────────────────────────────────────────────────────────────
   unitCard: {
-    backgroundColor: '#fff',
-    borderRadius: 14,
+    backgroundColor: C.white,
+    borderRadius: 16,
     marginBottom: 10,
     flexDirection: 'row',
     alignItems: 'center',
     overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
+    ...shadow.md,
   },
-  unitCardLocked: { opacity: 0.55 },
-  unitAccent: { width: 5, alignSelf: 'stretch' },
-  unitBody: { flex: 1, padding: 14 },
-  unitTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
-  unitName: { fontSize: 15, fontWeight: '700', color: '#111827', flex: 1, marginRight: 8 },
-  unitMeta: { fontSize: 12, color: '#6b7280', marginBottom: 8 },
-  progressBarBg: { height: 4, backgroundColor: '#f3f4f6', borderRadius: 2 },
-  progressBarFill: { height: 4, borderRadius: 2 },
-  textMuted: { color: '#9ca3af' },
+  unitCardLocked: { opacity: 0.52 },
+  unitAccent:       { width: 5, alignSelf: 'stretch', backgroundColor: C.yellow },
+  unitAccentLocked: { backgroundColor: '#E5E7EB' },
+  unitBody: { flex: 1, paddingVertical: 14, paddingHorizontal: 14 },
+  unitTop:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
+  unitName: { fontSize: 15, fontWeight: '800', color: C.navy, flex: 1, marginRight: 8, textAlign: 'right' },
+  unitMeta: { fontSize: 12, color: C.gray, marginBottom: 8, textAlign: 'right' },
+  textMuted: { color: C.gray },
 
+  doneBadge: {
+    width: 20, height: 20, borderRadius: 10,
+    backgroundColor: C.success,
+    justifyContent: 'center', alignItems: 'center',
+  },
+  activeBadge: {
+    backgroundColor: C.yellow + '25',
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderWidth: 1,
+    borderColor: C.yellow,
+  },
+  activeBadgeTxt: { fontSize: 10, fontWeight: '800', color: C.amber },
+
+  progressBg: {
+    height: 5, backgroundColor: '#F3F4F6', borderRadius: 3,
+  },
+  progressFill: {
+    height: 5, borderRadius: 3, backgroundColor: C.yellow,
+  },
+
+  // ── Empty state ───────────────────────────────────────────────────────────────
   emptyCard: {
-    backgroundColor: '#fff',
+    backgroundColor: C.white,
     borderRadius: 20,
-    padding: 40,
+    padding: 36,
     alignItems: 'center',
-    marginBottom: 24,
-    shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 10, elevation: 2,
+    marginBottom: 16,
+    ...shadow.sm,
   },
-  emptyTitle: { fontSize: 16, fontWeight: '700', color: '#374151', marginTop: 16, textAlign: 'center' },
-  emptySub:   { fontSize: 13, color: '#9ca3af', marginTop: 8, textAlign: 'center', lineHeight: 20 },
+  emptyIconWrap: {
+    width: 72, height: 72, borderRadius: 36,
+    backgroundColor: C.cream,
+    justifyContent: 'center', alignItems: 'center',
+    marginBottom: 16,
+  },
+  emptyTitle: { fontSize: 15, fontWeight: '800', color: C.navy, textAlign: 'center' },
+  emptySub:   { fontSize: 13, color: C.gray, marginTop: 8, textAlign: 'center', lineHeight: 20 },
 
-  sectionTitle: {
-    fontSize: 14, fontWeight: '700', color: '#374151',
-    marginTop: 8, marginBottom: 12, textAlign: 'right',
+  // ── Roadmap ───────────────────────────────────────────────────────────────────
+  levelCard: {
+    backgroundColor: C.white,
+    borderRadius: 16,
+    marginBottom: 8,
+    ...shadow.sm,
   },
   levelRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 8,
+    padding: 16,
     gap: 12,
-    shadowColor: '#000', shadowOpacity: 0.03, shadowRadius: 6, elevation: 1,
   },
-  levelBadge: { width: 44, height: 44, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
-  levelBadgeText: { fontSize: 13, fontWeight: '800', color: '#fff' },
-  levelName: { fontSize: 14, fontWeight: '700', color: '#111827' },
-  levelMeta: { fontSize: 12, color: '#6b7280', marginTop: 2 },
+  levelBadge: {
+    width: 46, height: 46, borderRadius: 14,
+    justifyContent: 'center', alignItems: 'center',
+  },
+  levelBadgeTxt: { fontSize: 13, fontWeight: '900', color: C.white },
+  levelName:     { fontSize: 14, fontWeight: '800', color: C.navy, textAlign: 'right' },
+  levelMeta:     { fontSize: 11, color: C.gray, marginTop: 2, textAlign: 'right' },
+  levelDot: {
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    justifyContent: 'center', alignItems: 'center',
+  },
+  levelDotTxt: { fontSize: 14, fontWeight: '900' },
 });

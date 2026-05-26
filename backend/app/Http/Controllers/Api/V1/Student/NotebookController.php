@@ -41,6 +41,7 @@ class NotebookController extends Controller
         $validated = $request->validate([
             'title'     => ['sometimes', 'nullable', 'string', 'max:200'],
             'content'   => ['required', 'string', 'max:5000'],
+            'category'  => ['sometimes', 'string', 'in:general,grammar,examples,observations'],
             'lesson_id' => ['sometimes', 'nullable', 'integer', 'exists:lessons,id'],
             'is_pinned' => ['sometimes', 'boolean'],
         ]);
@@ -78,6 +79,7 @@ class NotebookController extends Controller
         $validated = $request->validate([
             'title'     => ['sometimes', 'nullable', 'string', 'max:200'],
             'content'   => ['sometimes', 'string', 'max:5000'],
+            'category'  => ['sometimes', 'string', 'in:general,grammar,examples,observations'],
             'lesson_id' => ['sometimes', 'nullable', 'integer', 'exists:lessons,id'],
             'is_pinned' => ['sometimes', 'boolean'],
         ]);
@@ -127,6 +129,7 @@ class NotebookController extends Controller
             'id'         => $e->id,
             'title'      => $e->title,
             'content'    => $e->content,
+            'category'   => $e->category ?? 'general',
             'is_pinned'  => $e->is_pinned,
             'lesson'     => $e->lesson ? ['id' => $e->lesson->id, 'title' => $e->lesson->title] : null,
             'created_at' => $e->created_at?->toIso8601String(),

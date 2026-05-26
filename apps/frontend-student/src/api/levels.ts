@@ -44,9 +44,13 @@ export interface Lesson {
 }
 
 export interface StudentProgress {
-  lesson_id:    number;
-  quiz_score:   number | null;
-  completed_at: string | null;
+  lesson_id:        number;
+  lesson_title:     string | null;
+  best_score:       number | null;
+  passed:           boolean;
+  total_attempts:   number;
+  lesson_completed: boolean;
+  completed_at:     string | null;
 }
 
 // ─── API calls ────────────────────────────────────────────────────────────────
@@ -85,6 +89,6 @@ export const levelsApi = {
   /** Overall student progress */
   getProgress: () =>
     client
-      .get<{ data: StudentProgress[] }>('/student/progress')
-      .then((r) => r.data.data),
+      .get<{ progress: StudentProgress[] }>('/student/progress')
+      .then((r) => r.data.progress ?? []),
 };

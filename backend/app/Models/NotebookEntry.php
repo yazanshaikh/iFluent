@@ -10,7 +10,7 @@ class NotebookEntry extends Model
 {
     use SoftDeletes;
 
-    protected $fillable = ['student_id', 'title', 'content', 'lesson_id', 'is_pinned'];
+    protected $fillable = ['student_id', 'title', 'content', 'category', 'lesson_id', 'is_pinned'];
 
     protected $casts = ['is_pinned' => 'boolean'];
 
