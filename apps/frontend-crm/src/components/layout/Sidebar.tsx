@@ -13,6 +13,7 @@ import {
   Gem,
   ClipboardList,
   UserCheck,
+  MessageSquare,
 } from 'lucide-react';
 import { cn }          from '@/lib/utils';
 import { Button }      from '@/components/ui/button';
@@ -38,6 +39,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Process Orders', to: '/process-orders', icon: ClipboardList },
   { label: 'Paid Students',  to: '/paid-students',   icon: UserCheck },
   { label: 'Employee Mg',   to: '/employees',        icon: GraduationCap, adminOnly: true },
+  { label: 'الرسائل',       to: '/messages',         icon: MessageSquare, adminOnly: true },
 ];
 
 export function Sidebar() {

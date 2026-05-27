@@ -11,6 +11,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { levelsApi, type Unit, type Level } from '@/api/levels';
+import { studentMessagesApi } from '@/api/messages';
 import { C, LEVEL_COLORS, shadow } from '@/theme';
 import { useSidebarStore }        from '@/stores/sidebarStore';
 import { useAnimatedHeader }      from '@/hooks/useAnimatedHeader';
@@ -110,6 +111,12 @@ export default function LevelsScreen() {
     queryFn:  levelsApi.listLevels,
   });
 
+  const { data: unread = 0 } = useQuery({
+    queryKey: ['messages-unread'],
+    queryFn:  studentMessagesApi.unreadCount,
+    refetchInterval: 60_000,   // poll every 60 s
+  });
+
   const isLoading = loadingUnits || loadingLevels;
 
   if (isLoading) {
@@ -137,10 +144,28 @@ export default function LevelsScreen() {
         <View style={[styles.dot, { width: 90, height: 90, top: -24, left: -24 }]} />
         <View style={[styles.dot, { width: 44, height: 44, bottom: 12, right: 16 }]} />
 
-        {/* ── Row 1: hamburger ───────────────────────────────────────────── */}
-        <TouchableOpacity style={styles.menuBtn} onPress={openSidebar}>
-          <Ionicons name="menu" size={22} color={C.navy} />
-        </TouchableOpacity>
+        {/* ── Row 1: bell (left) + hamburger (right) ─────────────────────── */}
+        <View style={styles.hTopRow}>
+          {/* Bell — navigates to messages */}
+          <TouchableOpacity
+            style={styles.menuBtn}
+            onPress={() => router.push('/messages')}
+          >
+            <Ionicons name="notifications" size={22} color={C.navy} />
+            {unread > 0 && (
+              <View style={styles.bellBadge}>
+                <Text style={styles.bellBadgeTxt}>
+                  {unread > 9 ? '9+' : unread}
+                </Text>
+              </View>
+            )}
+          </TouchableOpacity>
+
+          {/* Hamburger */}
+          <TouchableOpacity style={styles.menuBtn} onPress={openSidebar}>
+            <Ionicons name="menu" size={22} color={C.navy} />
+          </TouchableOpacity>
+        </View>
 
         {/* ── Row 2: title ──────────────────────────────────────────────── */}
         <Text style={styles.headerTitle}>الرئيسية</Text>
@@ -240,12 +265,28 @@ const styles = StyleSheet.create({
     opacity: 0.15,
   },
 
-  // Row 1 — hamburger
+  // Row 1 — bell + hamburger
+  hTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
   menuBtn: {
     width: 38, height: 38, borderRadius: 11,
     backgroundColor: 'rgba(255,255,255,0.42)',
     justifyContent: 'center', alignItems: 'center',
   },
+  bellBadge: {
+    position: 'absolute',
+    top: -4, right: -4,
+    minWidth: 17, height: 17, borderRadius: 9,
+    backgroundColor: '#EF4444',
+    justifyContent: 'center', alignItems: 'center',
+    paddingHorizontal: 3,
+    borderWidth: 1.5, borderColor: C.yellow,
+  },
+  bellBadgeTxt: { fontSize: 9, fontWeight: '900', color: C.white },
 
   // Row 2 — title
   headerTitle: { fontSize: 22, fontWeight: '900', color: C.navy, textAlign: 'right', marginBottom: 10 },

@@ -16,6 +16,7 @@ import TrialBookingsPage   from '@/pages/TrialBookings';
 import ProcessOrdersPage   from '@/pages/ProcessOrders';
 import PaidStudentsPage    from '@/pages/PaidStudents';
 import InvoicePage         from '@/pages/InvoicePage';
+import MessagesPage        from '@/pages/Messages';
 import NotFoundPage        from '@/pages/NotFound';
 
 const queryClient = new QueryClient({
@@ -50,6 +51,7 @@ export default function App() {
             <Route path="/bookings"       element={<TrialBookingsPage />} />
             <Route path="/process-orders" element={<ProcessOrdersPage />} />
             <Route path="/paid-students"  element={<PaidStudentsPage />} />
+            <Route path="/messages"       element={<MessagesPage />} />
             <Route path="/teachers"     element={<ComingSoon title="Teachers" />} />
             <Route path="/settings"     element={<ComingSoon title="Settings" />} />
           </Route>

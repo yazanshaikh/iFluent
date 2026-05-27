@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\V1\Admin\AdminMessageController;
 use App\Http\Controllers\Api\V1\Admin\EarningsController as AdminEarningsController;
 use App\Http\Controllers\Api\V1\Admin\LessonController as AdminLessonController;
 use App\Http\Controllers\Api\V1\Admin\QuizController as AdminQuizController;
@@ -21,6 +22,7 @@ use App\Http\Controllers\Api\V1\Public\BookingController as PublicBookingControl
 use App\Http\Controllers\Api\V1\Public\InvoiceController as PublicInvoiceController;
 use App\Http\Controllers\Api\V1\Public\SiteSettingController as PublicSiteSettingController;
 use App\Http\Controllers\Api\V1\Student\BookingController as StudentBookingController;
+use App\Http\Controllers\Api\V1\Student\MessageController as StudentMessageController;
 use App\Http\Controllers\Api\V1\Student\GroupClassController as StudentGroupClassController;
 use App\Http\Controllers\Api\V1\Student\LessonController as StudentLessonController;
 use App\Http\Controllers\Api\V1\Student\NotebookController;
@@ -179,6 +181,10 @@ Route::middleware(['auth:sanctum', 'role:super_admin'])
         Route::get('teacher-ratings',                         [AdminRatingController::class, 'teacherSummary']);
         Route::get('teacher-ratings/{id}',                    [AdminRatingController::class, 'teacherRatings']);
 
+        // ── Admin Messages ─────────────────────────────────────────────────────
+        Route::get ('messages',       [AdminMessageController::class, 'index']);
+        Route::post('messages',       [AdminMessageController::class, 'store']);
+
         // ── Landing Page CMS ───────────────────────────────────────────────────
         Route::get  ('settings',                  [AdminSiteSettingController::class, 'index']);
         Route::patch('settings',                  [AdminSiteSettingController::class, 'bulkUpdate']);
@@ -227,6 +233,11 @@ Route::middleware(['auth:sanctum', 'role:student'])
         Route::post('group-classes/{groupClass}/register',  [StudentGroupClassController::class, 'register']);
         Route::post('group-classes/{groupClass}/leave',     [StudentGroupClassController::class, 'leave']);
         Route::get ('group-classes/{groupClass}/join',      [StudentGroupClassController::class, 'join']);
+
+        // ── Messages (from admin) ──────────────────────────────────────────────
+        Route::get ('messages',                  [StudentMessageController::class, 'index']);
+        Route::get ('messages/unread-count',     [StudentMessageController::class, 'unreadCount']);
+        Route::post('messages/{id}/read',        [StudentMessageController::class, 'markRead']);
 
         // ── Notebook ───────────────────────────────────────────────────────────
         Route::get   ('notebook',                     [NotebookController::class, 'index']);
