@@ -12,14 +12,15 @@ use Illuminate\Http\Request;
 /**
  * Student Session Booking
  *
- * Two booking modes:
- *   1. Core (random pool) → no teacher specified → goes to all teachers
- *   2. Private            → teacher_code provided → directed to that teacher
+ * Three booking modes:
+ *   1. Core (random pool, no lesson)  → quick booking from app home screen
+ *   2. Core (specific lesson)         → lesson_id provided, goes to teacher pool
+ *   3. Private                        → teacher_code provided, directed to that teacher
  *
  * Guards:
- *   - Student must be enrolled in the lesson's unit
- *   - Student must have passed the previous lesson's quiz (lesson gating)
- *   - No duplicate pending request for same lesson
+ *   - Student must have lesson credits (lesson_credits > 0)
+ *   - If lesson_id provided: student must be enrolled in the lesson's unit
+ *   - No duplicate pending request for the same time window
  */
 class BookingController extends Controller
 {
@@ -28,40 +29,63 @@ class BookingController extends Controller
         $student = $request->user();
 
         $validated = $request->validate([
-            'lesson_id'      => ['required', 'integer', 'exists:lessons,id'],
-            'scheduled_at'   => ['required', 'date', 'after:now'],
-            'teacher_code'   => ['sometimes', 'nullable', 'string'], // for private sessions
+            'lesson_id'    => ['sometimes', 'nullable', 'integer', 'exists:lessons,id'],
+            'scheduled_at' => ['required', 'date', 'after:now'],
+            'teacher_code' => ['sometimes', 'nullable', 'string'],
+            'notes'        => ['sometimes', 'nullable', 'string', 'max:300'],
         ]);
 
-        $lesson = Lesson::findOrFail($validated['lesson_id']);
-
-        if (!$lesson->is_active) {
-            return response()->json(['message' => 'This lesson is not available.'], 422);
+        // Guard: student must have available lesson credits
+        if ($student->lesson_credits < 1) {
+            return response()->json([
+                'message' => 'لا يوجد رصيد حصص متاح. يرجى التواصل مع الإدارة لتجديد اشتراكك.',
+            ], 403);
         }
 
-        // Gate: enrollment check (assessment lessons bypass enrollment check)
-        if (!$lesson->is_assessment) {
-            $enrolled = $student->enrolledUnits()
-                ->where('unit_id', $lesson->unit_id)
-                ->where('status', 'active')
+        // ── Lesson-specific booking ───────────────────────────────────────────
+        $lesson = null;
+        if (!empty($validated['lesson_id'])) {
+            $lesson = Lesson::findOrFail($validated['lesson_id']);
+
+            if (!$lesson->is_active) {
+                return response()->json(['message' => 'This lesson is not available.'], 422);
+            }
+
+            if (!$lesson->is_assessment) {
+                $enrolled = $student->enrolledUnits()
+                    ->where('unit_id', $lesson->unit_id)
+                    ->where('status', 'active')
+                    ->exists();
+
+                if (!$enrolled) {
+                    return response()->json(['message' => 'You are not enrolled in this unit.'], 403);
+                }
+            }
+
+            $alreadyPending = SessionRequest::where('student_id', $student->id)
+                ->where('lesson_id', $lesson->id)
+                ->where('status', SessionRequest::STATUS_PENDING)
                 ->exists();
 
-            if (!$enrolled) {
-                return response()->json(['message' => 'You are not enrolled in this unit.'], 403);
+            if ($alreadyPending) {
+                return response()->json(['message' => 'You already have a pending booking for this lesson.'], 422);
+            }
+        } else {
+            // Quick booking: block if already has a pending core session soon
+            $alreadyPending = SessionRequest::where('student_id', $student->id)
+                ->whereIn('type', [SessionRequest::TYPE_CORE, SessionRequest::TYPE_PRIVATE])
+                ->where('status', SessionRequest::STATUS_PENDING)
+                ->where('requested_at_utc', '>', now())
+                ->exists();
+
+            if ($alreadyPending) {
+                return response()->json([
+                    'message' => 'لديك حجز حصة نشط بالفعل. يرجى انتظار تأكيد الموعد الحالي.',
+                ], 422);
             }
         }
 
-        // Gate: no duplicate pending request for this lesson
-        $alreadyPending = SessionRequest::where('student_id', $student->id)
-            ->where('lesson_id', $lesson->id)
-            ->where('status', SessionRequest::STATUS_PENDING)
-            ->exists();
-
-        if ($alreadyPending) {
-            return response()->json(['message' => 'You already have a pending booking for this lesson.'], 422);
-        }
-
-        // Resolve teacher (private mode)
+        // ── Resolve teacher (private mode) ────────────────────────────────────
         $targetTeacherId = null;
         $type = SessionRequest::TYPE_CORE;
 
@@ -83,7 +107,7 @@ class BookingController extends Controller
             'type'              => $type,
             'requested_by'      => $student->id,
             'student_id'        => $student->id,
-            'lesson_id'         => $lesson->id,
+            'lesson_id'         => $lesson?->id,
             'target_teacher_id' => $targetTeacherId,
             'requested_at_utc'  => $validated['scheduled_at'],
             'status'            => SessionRequest::STATUS_PENDING,
@@ -91,8 +115,8 @@ class BookingController extends Controller
 
         return response()->json([
             'message' => $type === SessionRequest::TYPE_PRIVATE
-                ? 'Private session request sent to the teacher.'
-                : 'Session request sent to the teacher pool.',
+                ? 'تم إرسال طلب الحصة الخاصة للمعلم.'
+                : 'تم إرسال طلب الحصة. سيصلك تأكيد من المعلم قريباً.',
             'request' => [
                 'id'           => $sessionRequest->id,
                 'type'         => $sessionRequest->type,

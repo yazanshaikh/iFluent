@@ -5,7 +5,7 @@
  *   State B (credits = 0)  → encouragement / no-credits UI
  *   State C (credits > 0)  → credits widget + enrolled units + roadmap
  */
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -28,7 +28,9 @@ import { studentMessagesApi }  from '@/api/messages';
 import { C, LEVEL_COLORS, shadow } from '@/theme';
 import { useSidebarStore }        from '@/stores/sidebarStore';
 import { useAnimatedHeader }      from '@/hooks/useAnimatedHeader';
-import { EvalBookingModal }       from '@/components/EvalBookingModal';
+import { EvalBookingModal }        from '@/components/EvalBookingModal';
+import { SessionBookingModal }    from '@/components/SessionBookingModal';
+import { MascotGreeting }         from '@/components/MascotGreeting';
 
 const WHATSAPP = 'https://wa.me/962787621715';
 
@@ -234,18 +236,17 @@ function NoCreditsBody({ allLevels, router, onBook }: { allLevels: Level[]; rout
 function CreditsBody({
   credits,
   myUnits,
-  allLevels,
   router,
   onBook,
+  onBookSession,
 }: {
-  credits:   number;
-  myUnits:   Unit[];
-  allLevels: Level[];
-  router:    ReturnType<typeof useRouter>;
-  onBook:    () => void;
+  credits:       number;
+  myUnits:       Unit[];
+  router:        ReturnType<typeof useRouter>;
+  onBook:        () => void;
+  onBookSession: () => void;
 }) {
-  const hasEnrolled = myUnits.length > 0;
-  const doneCount   = myUnits.filter((u) => u.enrollment?.status === 'completed').length;
+  const doneCount = myUnits.filter((u) => u.enrollment?.status === 'completed').length;
 
   return (
     <>
@@ -253,67 +254,40 @@ function CreditsBody({
       <View style={styles.credWidget}>
         <View style={styles.credLeft}>
           <Text style={styles.credCount}>{credits}</Text>
-          <Text style={styles.credLabel}>حصة متاحة</Text>
+          <Text style={styles.credLabel}>رصيد الحصص المتبقية</Text>
         </View>
         <View style={styles.credDivider} />
         <View style={styles.credRight}>
           <Ionicons name="school-outline" size={18} color={C.navy} />
-          <Text style={styles.credDone}>{doneCount} مكتملة</Text>
+          <Text style={styles.credDone}>مكتمل منها {doneCount}</Text>
         </View>
-        <TouchableOpacity
-          style={styles.bookNowBtn}
-          onPress={() => Linking.openURL(WHATSAPP)}
-          activeOpacity={0.85}
-        >
-          <Ionicons name="calendar-outline" size={16} color={C.navy} />
-          <Text style={styles.bookNowTxt}>احجز حصة</Text>
-        </TouchableOpacity>
       </View>
 
-      {/* Enrolled units */}
-      <Text style={styles.sectionLabel}>📚 وحداتي المفعّلة</Text>
-
-      {hasEnrolled ? (
-        myUnits.map((unit) => (
-          <UnitCard
-            key={unit.id}
-            unit={unit}
-            onPress={() =>
-              router.push({ pathname: '/unit/[id]', params: { id: String(unit.id) } })
-            }
-          />
-        ))
-      ) : (
-        <View style={styles.emptyCard}>
-          <View style={styles.emptyIconWrap}>
-            <Ionicons name="school-outline" size={36} color={C.yellow} />
-          </View>
-          <Text style={styles.emptyTitle}>لا توجد وحدات مفعّلة بعد</Text>
-          <Text style={styles.emptySub}>
-            بمجرد موافقة الإدارة على اشتراكك ستظهر وحداتك هنا
-          </Text>
-        </View>
-      )}
-
-      {/* Evaluation session booking */}
+      {/* Book individual session */}
       <TouchableOpacity
-        style={styles.evalBtn}
-        onPress={onBook}
+        style={styles.bookSessionBtn}
+        onPress={onBookSession}
         activeOpacity={0.85}
       >
-        <View style={styles.evalBtnIcon}>
-          <Ionicons name="calendar-outline" size={22} color={C.yellow} />
+        <View style={styles.bookSessionIcon}>
+          <Ionicons name="person-outline" size={22} color={C.white} />
         </View>
-        <Text style={styles.evalBtnTitle}>احجز حصة تقييمية</Text>
+        <Text style={styles.bookSessionTxt}>احجز حصة فردية</Text>
+        <Ionicons name="chevron-back" size={18} color="rgba(255,255,255,0.6)" />
       </TouchableOpacity>
 
-      {/* Roadmap */}
-      <Text style={[styles.sectionLabel, { marginTop: 8 }]}>🗺️ خريطة المسار الكاملة</Text>
-      {allLevels.map((level) => (
-        <View key={level.id} style={styles.levelCard}>
-          <LevelRow level={level} />
+      {/* Book group session */}
+      <TouchableOpacity
+        style={[styles.bookSessionBtn, styles.bookGroupBtn]}
+        onPress={() => router.push('/group-classes' as any)}
+        activeOpacity={0.85}
+      >
+        <View style={[styles.bookSessionIcon, styles.bookGroupIcon]}>
+          <Ionicons name="people-outline" size={22} color={C.navy} />
         </View>
-      ))}
+        <Text style={[styles.bookSessionTxt, styles.bookGroupTxt]}>احجز حصة جماعية</Text>
+        <Ionicons name="chevron-back" size={18} color="rgba(26,41,128,0.45)" />
+      </TouchableOpacity>
 
       <View style={{ height: 20 }} />
     </>
@@ -328,7 +302,10 @@ export default function LevelsScreen() {
   const openSidebar = useSidebarStore((s) => s.open);
   const { headerHeight, onHeaderLayout, onScroll, headerStyle } = useAnimatedHeader();
 
-  const [bookingVisible, setBookingVisible] = useState(false);
+  const [bookingVisible,        setBookingVisible]        = useState(false);
+  const [sessionBookingVisible, setSessionBookingVisible] = useState(false);
+  const [mascotVisible,         setMascotVisible]         = useState(false);
+  const mascotLaunchedRef = useRef(false);
 
   const { data: profile, isLoading: loadingProfile, refetch: refetchProfile } = useQuery({
     queryKey: ['profile'],
@@ -359,6 +336,14 @@ export default function LevelsScreen() {
   const units      = myUnits   ?? [];
   const levels     = allLevels ?? [];
   const hasCredits = credits > 0;
+
+  // Show mascot greeting once per session when subscribed student's data loads
+  useEffect(() => {
+    if (hasCredits && !isBodyLoading && !mascotLaunchedRef.current) {
+      mascotLaunchedRef.current = true;
+      setMascotVisible(true);
+    }
+  }, [hasCredits, isBodyLoading]);
 
   // Progress stats (only relevant for State C)
   const doneCount = units.filter((u) => u.enrollment?.status === 'completed').length;
@@ -391,22 +376,32 @@ export default function LevelsScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Row 2: title */}
-        <Text style={styles.headerTitle}>الرئيسية</Text>
+        {/* Row 2: title + credit counter pill */}
+        <View style={styles.hTitleRow}>
+          {/* Credit counter — only visible when subscribed */}
+          {!isBodyLoading && hasCredits ? (
+            <View style={styles.creditPill}>
+              <Ionicons name="bookmark" size={13} color={C.navy} />
+              <Text style={styles.creditPillNum}>{credits}</Text>
+              <Text style={styles.creditPillLbl}>حصة</Text>
+            </View>
+          ) : <View style={{ width: 72 }} />}
+          <Text style={styles.headerTitle}>الرئيسية</Text>
+        </View>
 
         {!isBodyLoading && (hasCredits ? (
-          /* State C — show progress stats */
-          <>
-            <View style={styles.hMidRow}>
-              <Text style={styles.progressSub}>
-                {units.length > 0 ? `${doneCount}/${units.length} وحدة · ${pct}%` : 'سجّل للبدء'}
-              </Text>
-              <Text style={styles.progressLbl}>التقدم الكلي</Text>
-            </View>
-            <View style={styles.hProgressTrack}>
-              <View style={[styles.hProgressFill, { width: `${pct}%` as any }]} />
-            </View>
-          </>
+          /* State C — show progress stats (only when units enrolled) */
+          units.length > 0 ? (
+            <>
+              <View style={styles.hMidRow}>
+                <Text style={styles.progressSub}>{doneCount}/{units.length} وحدة · {pct}%</Text>
+                <Text style={styles.progressLbl}>التقدم الكلي</Text>
+              </View>
+              <View style={styles.hProgressTrack}>
+                <View style={[styles.hProgressFill, { width: `${pct}%` as any }]} />
+              </View>
+            </>
+          ) : null
         ) : (
           /* State B — show friendly prompt */
           <Text style={styles.noCredHeader}>اشترك وابدأ رحلتك الآن 🚀</Text>
@@ -436,18 +431,27 @@ export default function LevelsScreen() {
           <CreditsBody
             credits={credits}
             myUnits={units}
-            allLevels={levels}
             router={router}
             onBook={() => setBookingVisible(true)}
+            onBookSession={() => setSessionBookingVisible(true)}
           />
         ) : (
           <NoCreditsBody allLevels={levels} router={router} onBook={() => setBookingVisible(true)} />
         )}
       </ScrollView>
 
+      {/* Mascot greeting — mounted once, unmounted after animation via onHide */}
+      {mascotVisible && <MascotGreeting onHide={() => setMascotVisible(false)} />}
+
       <EvalBookingModal
         visible={bookingVisible}
         onClose={() => setBookingVisible(false)}
+      />
+      <SessionBookingModal
+        visible={sessionBookingVisible}
+        credits={credits}
+        onClose={() => setSessionBookingVisible(false)}
+        onBooked={() => { refetch(); refetchProfile(); }}
       />
     </View>
   );
@@ -503,7 +507,25 @@ const styles = StyleSheet.create({
     borderWidth: 1.5, borderColor: C.yellow,
   },
   bellBadgeTxt: { fontSize: 9, fontWeight: '900', color: C.white },
-  headerTitle:  { fontSize: 22, fontWeight: '900', color: C.navy, textAlign: 'right', marginBottom: 10 },
+  hTitleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  headerTitle:  { fontSize: 22, fontWeight: '900', color: C.navy },
+  // Credit counter pill — always visible in header when subscribed
+  creditPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: C.navy,
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  creditPillNum: { fontSize: 16, fontWeight: '900', color: C.yellow, lineHeight: 20 },
+  creditPillLbl: { fontSize: 11, fontWeight: '700', color: 'rgba(255,255,255,0.75)' },
 
   // State C — progress row
   hMidRow: {
@@ -635,9 +657,9 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: C.border,
   },
-  credLeft: { alignItems: 'center', minWidth: 48 },
+  credLeft: { alignItems: 'center' },
   credCount: { fontSize: 28, fontWeight: '900', color: C.amber, lineHeight: 30 },
-  credLabel: { fontSize: 10, fontWeight: '700', color: C.navy, marginTop: 2 },
+  credLabel: { fontSize: 9, fontWeight: '700', color: C.navy, marginTop: 2, textAlign: 'center' },
   credDivider: {
     width: 1,
     height: 36,
@@ -645,16 +667,37 @@ const styles = StyleSheet.create({
   },
   credRight: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6 },
   credDone: { fontSize: 13, fontWeight: '700', color: C.navy },
-  bookNowBtn: {
+
+  // ── Book session standalone button ────────────────────────────────────────────
+  bookSessionBtn: {
+    backgroundColor: C.navy,
+    borderRadius: 18,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
-    backgroundColor: C.yellow,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 12,
+    padding: 16,
+    marginBottom: 14,
+    gap: 12,
+    ...shadow.navy,
   },
-  bookNowTxt: { fontSize: 12, fontWeight: '800', color: C.navy },
+  bookSessionIcon: {
+    width: 40, height: 40, borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    justifyContent: 'center', alignItems: 'center',
+  },
+  bookSessionTxt: {
+    flex: 1,
+    fontSize: 16, fontWeight: '900', color: C.white, textAlign: 'right',
+  },
+  bookGroupBtn: {
+    backgroundColor: C.yellow,
+    ...shadow.amber,
+  },
+  bookGroupIcon: {
+    backgroundColor: 'rgba(26,41,128,0.10)',
+  },
+  bookGroupTxt: {
+    color: C.navy,
+  },
 
   // ── No-credits card (State B) ─────────────────────────────────────────────────
   noCredCard: {

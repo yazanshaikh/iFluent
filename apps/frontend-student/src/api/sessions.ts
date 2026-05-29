@@ -38,9 +38,10 @@ export interface JoinSessionResponse {
 }
 
 export interface BookingRequest {
-  lesson_id:          number;
-  requested_at_utc:   string;       // ISO 8601 UTC
-  teacher_code?:      string;       // optional — private session
+  lesson_id?:         number | null; // optional — null for quick booking
+  scheduled_at:       string;        // "YYYY-MM-DD HH:MM:00"
+  teacher_code?:      string;        // optional — private session
+  notes?:             string;
 }
 
 export interface SessionRequest {
@@ -76,11 +77,11 @@ export const sessionsApi = {
       .get<{ data: SessionRequest[] }>('/student/bookings')
       .then((r) => r.data.data),
 
-  /** Book a session for a lesson */
+  /** Book a session (lesson_id optional for quick booking) */
   book: (payload: BookingRequest) =>
     client
-      .post<{ data: SessionRequest }>('/student/bookings', payload)
-      .then((r) => r.data.data),
+      .post<{ message: string; request: SessionRequest }>('/student/bookings', payload)
+      .then((r) => r.data),
 
   /** Cancel a booking */
   cancelBooking: (requestId: number) =>

@@ -11,7 +11,7 @@ import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { sessionsApi, type SessionListItem } from '@/api/sessions';
+import { sessionsApi, type SessionListItem, type SessionRequest } from '@/api/sessions';
 import { C, shadow }          from '@/theme';
 import { useAnimatedHeader }  from '@/hooks/useAnimatedHeader';
 
@@ -117,6 +117,45 @@ function SessionCard({ session }: { session: SessionListItem }) {
   );
 }
 
+// ─── Booking request card (pending — no teacher yet) ─────────────────────────
+
+function BookingRequestCard({ req }: { req: SessionRequest }) {
+  const isPending   = req.status === 'pending';
+  const isConfirmed = req.status === 'confirmed';
+  const color = isPending ? C.warning : isConfirmed ? C.success : C.gray;
+  const label = isPending ? 'في الانتظار' : isConfirmed ? 'مؤكدة' : req.status;
+
+  return (
+    <View style={[styles.card, styles.cardWaiting]}>
+      <View style={[styles.statusBar, { backgroundColor: color }]} />
+      <View style={styles.cardBody}>
+        <View style={styles.cardTopRow}>
+          <View style={[styles.pill, { backgroundColor: color + '22' }]}>
+            <Text style={[styles.pillTxt, { color }]}>{label}</Text>
+          </View>
+          <Text style={styles.cardDate}>{fmt(req.scheduled_at)}</Text>
+        </View>
+        <Text style={styles.cardLesson} numberOfLines={1}>
+          {req.lesson?.title ?? (req.type === 'private' ? 'حصة خاصة' : 'حصة فردية')}
+        </Text>
+        {req.teacher?.name ? (
+          <View style={styles.cardTeacherRow}>
+            <Ionicons name="person-outline" size={12} color={C.gray} />
+            <Text style={styles.cardTeacher}>{req.teacher.name}</Text>
+          </View>
+        ) : (
+          <View style={styles.cardTeacherRow}>
+            <Ionicons name="hourglass-outline" size={12} color={C.warning} />
+            <Text style={[styles.cardTeacher, { color: C.warning }]}>
+              بانتظار قبول معلم
+            </Text>
+          </View>
+        )}
+      </View>
+    </View>
+  );
+}
+
 // ─── Filter pills ─────────────────────────────────────────────────────────────
 
 function FilterPills({
@@ -194,18 +233,35 @@ export default function SessionsScreen() {
     refetchInterval: 15_000,
   });
 
-  const sessions  = data ?? [];
-  const active    = sessions.filter((s) => s.status === 'active');
-  const upcoming  = sessions.filter((s) => s.status === 'waiting');
-  const past      = sessions.filter((s) => ['completed', 'cancelled'].includes(s.status));
+  const { data: bookingsData, refetch: refetchBookings } = useQuery({
+    queryKey: ['bookings'],
+    queryFn:  () => sessionsApi.listBookings(),
+    refetchInterval: 15_000,
+  });
 
-  const upcomingCount = active.length + upcoming.length;
-  const doneCount     = past.length;
+  const sessions = data ?? [];
+  const bookings = (bookingsData ?? []) as SessionRequest[];
 
-  // Visible sessions based on current filter
-  const visible = filter === 'upcoming'
-    ? [...active, ...upcoming]
-    : past;
+  const active   = sessions.filter((s) => s.status === 'active');
+  const upcoming = sessions.filter((s) => s.status === 'waiting');
+  const past     = sessions.filter((s) => ['completed', 'cancelled'].includes(s.status));
+
+  // Pending/confirmed requests that don't have a session yet
+  const pendingRequests = bookings.filter(
+    (b) => ['pending', 'confirmed'].includes(b.status) && !b.session_id,
+  );
+  // Done requests (rejected, cancelled, expired)
+  const doneRequests = bookings.filter(
+    (b) => ['rejected', 'cancelled', 'expired'].includes(b.status),
+  );
+
+  const upcomingCount = active.length + upcoming.length + pendingRequests.length;
+  const doneCount     = past.length + doneRequests.length;
+
+  const handleRefresh = () => { refetch(); refetchBookings(); };
+
+  const hasUpcoming = active.length + upcoming.length + pendingRequests.length > 0;
+  const hasDone     = past.length + doneRequests.length > 0;
 
   return (
     <View style={{ flex: 1, backgroundColor: C.cream }}>
@@ -247,7 +303,7 @@ export default function SessionsScreen() {
         refreshControl={
           <RefreshControl
             refreshing={isFetching}
-            onRefresh={refetch}
+            onRefresh={handleRefresh}
             tintColor={C.yellow}
             colors={[C.yellow]}
           />
@@ -259,57 +315,80 @@ export default function SessionsScreen() {
             <ActivityIndicator size="large" color={C.yellow} />
           </View>
 
-        ) : visible.length === 0 ? (
-          /* Empty state per filter */
+        ) : filter === 'upcoming' && !hasUpcoming ? (
           <View style={styles.emptyCard}>
             <View style={styles.emptyIconWrap}>
-              <Ionicons
-                name={filter === 'upcoming' ? 'time-outline' : 'checkmark-done-outline'}
-                size={36}
-                color={C.yellow}
-              />
+              <Ionicons name="time-outline" size={36} color={C.yellow} />
             </View>
-            <Text style={styles.emptyTitle}>
-              {filter === 'upcoming' ? 'لا توجد حصص قادمة' : 'لا توجد حصص مكتملة'}
-            </Text>
-            <Text style={styles.emptySub}>
-              {filter === 'upcoming'
-                ? 'ستظهر حصصك القادمة هنا بعد الحجز مع معلمك'
-                : 'حصصك المنتهية ستظهر هنا بعد اكتمالها'}
-            </Text>
+            <Text style={styles.emptyTitle}>لا توجد حصص قادمة</Text>
+            <Text style={styles.emptySub}>ستظهر حصصك القادمة هنا فور الحجز</Text>
+          </View>
+
+        ) : filter === 'done' && !hasDone ? (
+          <View style={styles.emptyCard}>
+            <View style={styles.emptyIconWrap}>
+              <Ionicons name="checkmark-done-outline" size={36} color={C.yellow} />
+            </View>
+            <Text style={styles.emptyTitle}>لا توجد حصص مكتملة</Text>
+            <Text style={styles.emptySub}>حصصك المنتهية ستظهر هنا بعد اكتمالها</Text>
           </View>
 
         ) : (
           <>
-            {/* Active sessions (only in upcoming filter) */}
-            {filter === 'upcoming' && active.length > 0 && (
+            {filter === 'upcoming' && (
               <>
-                <Text style={styles.sectionLabel}>🔴 نشطة الآن</Text>
-                {active.map((s) => (
-                  <ActiveCard
-                    key={s.id}
-                    session={s}
-                    onJoin={() =>
-                      router.push({ pathname: '/session/[id]', params: { id: String(s.id) } })
-                    }
-                  />
-                ))}
+                {/* Pending booking requests — appear immediately after booking */}
+                {pendingRequests.length > 0 && (
+                  <>
+                    <Text style={styles.sectionLabel}>⏳ بانتظار التأكيد</Text>
+                    {pendingRequests.map((r) => (
+                      <BookingRequestCard key={`req-${r.id}`} req={r} />
+                    ))}
+                  </>
+                )}
+
+                {/* Active now */}
+                {active.length > 0 && (
+                  <>
+                    <Text style={styles.sectionLabel}>🔴 نشطة الآن</Text>
+                    {active.map((s) => (
+                      <ActiveCard
+                        key={s.id}
+                        session={s}
+                        onJoin={() =>
+                          router.push({ pathname: '/session/[id]', params: { id: String(s.id) } })
+                        }
+                      />
+                    ))}
+                  </>
+                )}
+
+                {/* Confirmed sessions */}
+                {upcoming.length > 0 && (
+                  <>
+                    <Text style={styles.sectionLabel}>⏰ المجدولة</Text>
+                    {upcoming.map((s) => <SessionCard key={s.id} session={s} />)}
+                  </>
+                )}
               </>
             )}
 
-            {/* Upcoming waiting */}
-            {filter === 'upcoming' && upcoming.length > 0 && (
-              <>
-                <Text style={styles.sectionLabel}>⏰ المجدولة</Text>
-                {upcoming.map((s) => <SessionCard key={s.id} session={s} />)}
-              </>
-            )}
-
-            {/* Done / cancelled */}
             {filter === 'done' && (
               <>
-                <Text style={styles.sectionLabel}>السابقة</Text>
-                {past.map((s) => <SessionCard key={s.id} session={s} />)}
+                {past.length > 0 && (
+                  <>
+                    <Text style={styles.sectionLabel}>✅ المكتملة والملغاة</Text>
+                    {past.map((s) => <SessionCard key={s.id} session={s} />)}
+                  </>
+                )}
+                {doneRequests.length > 0 && (
+                  <>
+                    <Text style={[styles.sectionLabel, { marginTop: 8 }]}>طلبات مرفوضة / منتهية</Text>
+                    {doneRequests.map((r) => (
+                      <BookingRequestCard key={`req-${r.id}`} req={r} />
+                    ))}
+                  </>
+                )}
               </>
             )}
           </>

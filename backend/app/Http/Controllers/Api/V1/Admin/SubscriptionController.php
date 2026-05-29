@@ -69,6 +69,11 @@ class SubscriptionController extends Controller
                 'expires_at'   => now()->addMonths($subscription->months_count),
             ]);
 
+            // ── Credit the student's lesson balance ───────────────────────────
+            // lesson_credits drives the app screen (subscribed vs non-subscribed)
+            // and is decremented each time a session is completed.
+            $subscription->student->user->increment('lesson_credits', $subscription->lessons_count);
+
             // Update lead → subscriber
             $lead = $subscription->student->lead;
             if ($lead) {
