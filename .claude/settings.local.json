@@ -59,7 +59,9 @@
       "Bash(which adb *)",
       "Read(//Users/yazan/Library/**)",
       "Bash(npx eas *)",
-      "Bash(eas --version)"
+      "Bash(eas --version)",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); [print\\(k,v\\) for k,v in {**d.get\\('dependencies',{}\\), **d.get\\('devDependencies',{}\\)}.items\\(\\) if any\\(x in k for x in ['moti','lottie','reanimated','svg','linear','expo-blur','expo-haptic']\\)]\")",
+      "Bash(ls /var/folders/7l/vtn309yx6bsgr564rstzn78h0000gn/T/net.whatsapp.WhatsApp/documents/ 2>/dev/null | head -20)"
     ]
   }
 }

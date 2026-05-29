@@ -20,6 +20,7 @@ use App\Http\Controllers\Api\V1\Crm\LeadController;
 use App\Http\Controllers\Api\V1\Crm\LeadRemarkController;
 use App\Http\Controllers\Api\V1\Public\BookingController as PublicBookingController;
 use App\Http\Controllers\Api\V1\Public\InvoiceController as PublicInvoiceController;
+use App\Http\Controllers\Api\V1\Public\LeadController as PublicLeadController;
 use App\Http\Controllers\Api\V1\Public\SiteSettingController as PublicSiteSettingController;
 use App\Http\Controllers\Api\V1\Student\BookingController as StudentBookingController;
 use App\Http\Controllers\Api\V1\Student\MessageController as StudentMessageController;
@@ -51,6 +52,7 @@ Route::get ('settings',                            [PublicSiteSettingController:
 Route::post('public/booking',                      [PublicBookingController::class,     'store']);
 Route::get ('public/invoice/{uuid}',               [PublicInvoiceController::class,     'show']);
 Route::post('public/invoice/{uuid}/receipt',       [PublicInvoiceController::class,     'uploadReceipt']);
+Route::post('public/leads',                        [PublicLeadController::class,        'store']);    // app landing → CRM
 
 // ─── CRM Auth ─────────────────────────────────────────────────────────────────
 Route::prefix('crm/auth')->group(function () {

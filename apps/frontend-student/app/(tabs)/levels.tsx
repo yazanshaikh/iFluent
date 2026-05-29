@@ -1,20 +1,36 @@
 /**
- * Levels tab — student's enrolled units + full curriculum roadmap.
- * Brand theme: Yellow header / Navy text / Cream background.
+ * Levels tab — main home screen for logged-in students.
+ *
+ * Renders one of two states depending on lesson_credits:
+ *   State B (credits = 0)  → encouragement / no-credits UI
+ *   State C (credits > 0)  → credits widget + enrolled units + roadmap
  */
+import { useState } from 'react';
 import {
-  View, Text, ScrollView, TouchableOpacity,
-  StyleSheet, ActivityIndicator, RefreshControl, Animated,
+  View,
+  Text,
+  ScrollView,
+  TouchableOpacity,
+  StyleSheet,
+  ActivityIndicator,
+  RefreshControl,
+  Animated,
+  Linking,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, type Router } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, Feather, MaterialCommunityIcons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { levelsApi, type Unit, type Level } from '@/api/levels';
-import { studentMessagesApi } from '@/api/messages';
+import { profileApi }          from '@/api/profile';
+import { studentMessagesApi }  from '@/api/messages';
 import { C, LEVEL_COLORS, shadow } from '@/theme';
 import { useSidebarStore }        from '@/stores/sidebarStore';
 import { useAnimatedHeader }      from '@/hooks/useAnimatedHeader';
+import { EvalBookingModal }       from '@/components/EvalBookingModal';
+
+const WHATSAPP = 'https://wa.me/962787621715';
 
 // ─── Unit card ────────────────────────────────────────────────────────────────
 
@@ -29,11 +45,9 @@ function UnitCard({ unit, onPress }: { unit: Unit; onPress: () => void }) {
       onPress={isLocked ? undefined : onPress}
       activeOpacity={isLocked ? 1 : 0.82}
     >
-      {/* Yellow accent bar */}
       <View style={[styles.unitAccent, isLocked && styles.unitAccentLocked]} />
 
       <View style={styles.unitBody}>
-        {/* Top row */}
         <View style={styles.unitTop}>
           <Text style={[styles.unitName, isLocked && styles.textMuted]} numberOfLines={1}>
             {unit.name}
@@ -51,12 +65,10 @@ function UnitCard({ unit, onPress }: { unit: Unit; onPress: () => void }) {
           )}
         </View>
 
-        {/* Meta */}
         <Text style={styles.unitMeta}>
           {unit.lesson_count} درس{unit.has_end_test ? ' · اختبار وحدة' : ''}
         </Text>
 
-        {/* Progress bar */}
         {!isLocked && (
           <View style={styles.progressBg}>
             <View style={[styles.progressFill, { width: `${pct}%` }]} />
@@ -93,6 +105,221 @@ function LevelRow({ level }: { level: Level }) {
   );
 }
 
+// ─── Premium shortcut cards ───────────────────────────────────────────────────
+
+/** Card 1 — Navy gradient · "خِذ فكرة عنّا" */
+function AboutCard({ onPress }: { onPress: () => void }) {
+  return (
+    <TouchableOpacity style={styles.scWrapper} onPress={onPress} activeOpacity={0.86}>
+      <LinearGradient
+        colors={['#1A2980', '#2D3DA8', '#26367B']}
+        start={{ x: 0.0, y: 0.0 }}
+        end={{ x: 1.0, y: 1.0 }}
+        style={styles.scCard}
+      >
+        {/* Decorative soft circles */}
+        <View style={[styles.scCircle, { width: 90, height: 90, top: -28, right: -22, opacity: 0.13 }]} />
+        <View style={[styles.scCircle, { width: 46, height: 46, bottom: -14, left: 14, opacity: 0.10 }]} />
+
+        {/* Icon pill */}
+        <View style={styles.scIconPillNavy}>
+          <Feather name="compass" size={22} color={C.yellow} />
+        </View>
+
+        {/* Text */}
+        <Text style={styles.scLabelLight}>خِذ فكرة عنّا</Text>
+        <Text style={styles.scSubLight}>من نحن · رؤيتنا</Text>
+
+        {/* Arrow hint */}
+        <View style={styles.scArrowWrap}>
+          <Ionicons name="arrow-back" size={13} color="rgba(255,255,255,0.40)" />
+        </View>
+      </LinearGradient>
+    </TouchableOpacity>
+  );
+}
+
+/** Card 2 — Gold gradient · "اعرف طريق الطلاقة" */
+function HowCard({ onPress }: { onPress: () => void }) {
+  return (
+    <TouchableOpacity style={styles.scWrapper} onPress={onPress} activeOpacity={0.86}>
+      <LinearGradient
+        colors={['#FFD54F', '#FFB300', '#FFA000']}
+        start={{ x: 0.0, y: 0.0 }}
+        end={{ x: 1.0, y: 1.0 }}
+        style={styles.scCard}
+      >
+        {/* Decorative soft circles */}
+        <View style={[styles.scCircleDark, { width: 90, height: 90, top: -28, right: -22, opacity: 0.09 }]} />
+        <View style={[styles.scCircleDark, { width: 46, height: 46, bottom: -14, left: 14, opacity: 0.07 }]} />
+
+        {/* Icon pill */}
+        <View style={styles.scIconPillGold}>
+          <MaterialCommunityIcons name="rocket-launch-outline" size={23} color={C.navy} />
+        </View>
+
+        {/* Text */}
+        <Text style={styles.scLabelDark}>اعرف طريق الطلاقة</Text>
+        <Text style={styles.scSubDark}>كيف تبدأ رحلتك</Text>
+
+        {/* Arrow hint */}
+        <View style={styles.scArrowWrap}>
+          <Ionicons name="arrow-back" size={13} color="rgba(26,41,128,0.35)" />
+        </View>
+      </LinearGradient>
+    </TouchableOpacity>
+  );
+}
+
+// ─── No-credits body (State B) ────────────────────────────────────────────────
+
+function NoCreditsBody({ allLevels, router, onBook }: { allLevels: Level[]; router: Router; onBook: () => void }) {
+  return (
+    <>
+      {/* Encouragement card */}
+      <View style={styles.noCredCard}>
+        <View style={styles.noCredIconWrap}>
+          <Text style={{ fontSize: 44 }}>🌟</Text>
+        </View>
+        <Text style={styles.noCredTitle}>رحلتك تبدأ هنا!</Text>
+        <Text style={styles.noCredSub}>
+          اشترك الآن واحصل على حصصك للبدء في تعلّم الإنجليزية مع معلمين
+          متخصصين. تواصل معنا على واتساب لمعرفة الباقات المتاحة.
+        </Text>
+
+        <TouchableOpacity
+          style={styles.waBtn}
+          onPress={() => Linking.openURL(WHATSAPP)}
+          activeOpacity={0.85}
+        >
+          <Ionicons name="logo-whatsapp" size={20} color="#fff" />
+          <Text style={styles.waBtnTxt}>تواصل معنا الآن</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Premium shortcut cards */}
+      <Text style={styles.sectionLabel}>اكتشف المزيد</Text>
+      <View style={styles.shortcutsRow}>
+        <AboutCard onPress={() => router.push('/about' as any)} />
+        <HowCard   onPress={() => router.push('/how-to-use' as any)} />
+      </View>
+
+      {/* Evaluation session booking */}
+      <TouchableOpacity
+        style={styles.evalBtn}
+        onPress={onBook}
+        activeOpacity={0.85}
+      >
+        <View style={styles.evalBtnIcon}>
+          <Ionicons name="calendar-outline" size={22} color={C.yellow} />
+        </View>
+        <Text style={styles.evalBtnTitle}>احجز حصة تقييمية</Text>
+      </TouchableOpacity>
+
+      {/* Roadmap preview (read-only) */}
+      <Text style={[styles.sectionLabel, { marginTop: 4 }]}>🗺️ خريطة المسار</Text>
+      {allLevels.map((level) => (
+        <View key={level.id} style={styles.levelCard}>
+          <LevelRow level={level} />
+        </View>
+      ))}
+
+      <View style={{ height: 20 }} />
+    </>
+  );
+}
+
+// ─── Credits body (State C) ───────────────────────────────────────────────────
+
+function CreditsBody({
+  credits,
+  myUnits,
+  allLevels,
+  router,
+  onBook,
+}: {
+  credits:   number;
+  myUnits:   Unit[];
+  allLevels: Level[];
+  router:    ReturnType<typeof useRouter>;
+  onBook:    () => void;
+}) {
+  const hasEnrolled = myUnits.length > 0;
+  const doneCount   = myUnits.filter((u) => u.enrollment?.status === 'completed').length;
+
+  return (
+    <>
+      {/* Credits widget */}
+      <View style={styles.credWidget}>
+        <View style={styles.credLeft}>
+          <Text style={styles.credCount}>{credits}</Text>
+          <Text style={styles.credLabel}>حصة متاحة</Text>
+        </View>
+        <View style={styles.credDivider} />
+        <View style={styles.credRight}>
+          <Ionicons name="school-outline" size={18} color={C.navy} />
+          <Text style={styles.credDone}>{doneCount} مكتملة</Text>
+        </View>
+        <TouchableOpacity
+          style={styles.bookNowBtn}
+          onPress={() => Linking.openURL(WHATSAPP)}
+          activeOpacity={0.85}
+        >
+          <Ionicons name="calendar-outline" size={16} color={C.navy} />
+          <Text style={styles.bookNowTxt}>احجز حصة</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Enrolled units */}
+      <Text style={styles.sectionLabel}>📚 وحداتي المفعّلة</Text>
+
+      {hasEnrolled ? (
+        myUnits.map((unit) => (
+          <UnitCard
+            key={unit.id}
+            unit={unit}
+            onPress={() =>
+              router.push({ pathname: '/unit/[id]', params: { id: String(unit.id) } })
+            }
+          />
+        ))
+      ) : (
+        <View style={styles.emptyCard}>
+          <View style={styles.emptyIconWrap}>
+            <Ionicons name="school-outline" size={36} color={C.yellow} />
+          </View>
+          <Text style={styles.emptyTitle}>لا توجد وحدات مفعّلة بعد</Text>
+          <Text style={styles.emptySub}>
+            بمجرد موافقة الإدارة على اشتراكك ستظهر وحداتك هنا
+          </Text>
+        </View>
+      )}
+
+      {/* Evaluation session booking */}
+      <TouchableOpacity
+        style={styles.evalBtn}
+        onPress={onBook}
+        activeOpacity={0.85}
+      >
+        <View style={styles.evalBtnIcon}>
+          <Ionicons name="calendar-outline" size={22} color={C.yellow} />
+        </View>
+        <Text style={styles.evalBtnTitle}>احجز حصة تقييمية</Text>
+      </TouchableOpacity>
+
+      {/* Roadmap */}
+      <Text style={[styles.sectionLabel, { marginTop: 8 }]}>🗺️ خريطة المسار الكاملة</Text>
+      {allLevels.map((level) => (
+        <View key={level.id} style={styles.levelCard}>
+          <LevelRow level={level} />
+        </View>
+      ))}
+
+      <View style={{ height: 20 }} />
+    </>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function LevelsScreen() {
@@ -100,6 +327,13 @@ export default function LevelsScreen() {
   const insets  = useSafeAreaInsets();
   const openSidebar = useSidebarStore((s) => s.open);
   const { headerHeight, onHeaderLayout, onScroll, headerStyle } = useAnimatedHeader();
+
+  const [bookingVisible, setBookingVisible] = useState(false);
+
+  const { data: profile, isLoading: loadingProfile, refetch: refetchProfile } = useQuery({
+    queryKey: ['profile'],
+    queryFn:  profileApi.get,
+  });
 
   const { data: myUnits,   isLoading: loadingUnits,  refetch, isFetching } = useQuery({
     queryKey: ['my-units'],
@@ -114,28 +348,26 @@ export default function LevelsScreen() {
   const { data: unread = 0 } = useQuery({
     queryKey: ['messages-unread'],
     queryFn:  studentMessagesApi.unreadCount,
-    refetchInterval: 60_000,   // poll every 60 s
+    refetchInterval: 60_000,
   });
 
-  const isLoading = loadingUnits || loadingLevels;
+  // Never block the entire screen — header renders immediately.
+  // Body shows an inline spinner until all queries resolve.
+  const isBodyLoading = loadingProfile || loadingUnits || loadingLevels;
 
-  if (isLoading) {
-    return (
-      <View style={[styles.centered, { backgroundColor: C.cream }]}>
-        <ActivityIndicator size="large" color={C.yellow} />
-      </View>
-    );
-  }
+  const credits    = profile?.lesson_credits ?? 0;
+  const units      = myUnits   ?? [];
+  const levels     = allLevels ?? [];
+  const hasCredits = credits > 0;
 
-  const enrolled   = myUnits ?? [];
-  const hasEnrolled = enrolled.length > 0;
-  const doneCount  = enrolled.filter((u) => u.enrollment?.status === 'completed').length;
-  const pct        = enrolled.length > 0 ? Math.round((doneCount / enrolled.length) * 100) : 0;
+  // Progress stats (only relevant for State C)
+  const doneCount = units.filter((u) => u.enrollment?.status === 'completed').length;
+  const pct       = units.length > 0 ? Math.round((doneCount / units.length) * 100) : 0;
 
   return (
     <View style={{ flex: 1, backgroundColor: C.cream }}>
 
-      {/* ── Yellow curved header (absolute, animates on scroll) ───────────── */}
+      {/* ── Yellow curved header ───────────────────────────────────────────────── */}
       <Animated.View
         style={[styles.header, { paddingTop: insets.top + 8 }, headerStyle]}
         onLayout={onHeaderLayout}
@@ -144,49 +376,44 @@ export default function LevelsScreen() {
         <View style={[styles.dot, { width: 90, height: 90, top: -24, left: -24 }]} />
         <View style={[styles.dot, { width: 44, height: 44, bottom: 12, right: 16 }]} />
 
-        {/* ── Row 1: bell (left) + hamburger (right) ─────────────────────── */}
+        {/* Row 1: bell + hamburger */}
         <View style={styles.hTopRow}>
-          {/* Bell — navigates to messages */}
-          <TouchableOpacity
-            style={styles.menuBtn}
-            onPress={() => router.push('/messages')}
-          >
+          <TouchableOpacity style={styles.menuBtn} onPress={() => router.push('/messages')}>
             <Ionicons name="notifications" size={22} color={C.navy} />
             {unread > 0 && (
               <View style={styles.bellBadge}>
-                <Text style={styles.bellBadgeTxt}>
-                  {unread > 9 ? '9+' : unread}
-                </Text>
+                <Text style={styles.bellBadgeTxt}>{unread > 9 ? '9+' : unread}</Text>
               </View>
             )}
           </TouchableOpacity>
-
-          {/* Hamburger */}
           <TouchableOpacity style={styles.menuBtn} onPress={openSidebar}>
             <Ionicons name="menu" size={22} color={C.navy} />
           </TouchableOpacity>
         </View>
 
-        {/* ── Row 2: title ──────────────────────────────────────────────── */}
+        {/* Row 2: title */}
         <Text style={styles.headerTitle}>الرئيسية</Text>
 
-        {/* ── Row 3: progress label + count ─────────────────────────────── */}
-        <View style={styles.hMidRow}>
-          <Text style={styles.progressSub}>
-            {enrolled.length > 0
-              ? `${doneCount}/${enrolled.length} وحدة · ${pct}%`
-              : 'سجّل للبدء'}
-          </Text>
-          <Text style={styles.progressLbl}>التقدم الكلي</Text>
-        </View>
-
-        {/* ── Row 4: slim progress bar ───────────────────────────────────── */}
-        <View style={styles.hProgressTrack}>
-          <View style={[styles.hProgressFill, { width: `${pct}%` as any }]} />
-        </View>
+        {!isBodyLoading && (hasCredits ? (
+          /* State C — show progress stats */
+          <>
+            <View style={styles.hMidRow}>
+              <Text style={styles.progressSub}>
+                {units.length > 0 ? `${doneCount}/${units.length} وحدة · ${pct}%` : 'سجّل للبدء'}
+              </Text>
+              <Text style={styles.progressLbl}>التقدم الكلي</Text>
+            </View>
+            <View style={styles.hProgressTrack}>
+              <View style={[styles.hProgressFill, { width: `${pct}%` as any }]} />
+            </View>
+          </>
+        ) : (
+          /* State B — show friendly prompt */
+          <Text style={styles.noCredHeader}>اشترك وابدأ رحلتك الآن 🚀</Text>
+        ))}
       </Animated.View>
 
-      {/* ── Scrollable content (padded so it starts below the header) ─────── */}
+      {/* ── Scrollable content ─────────────────────────────────────────────────── */}
       <ScrollView
         contentContainerStyle={[styles.scroll, { paddingTop: headerHeight }]}
         onScroll={onScroll}
@@ -194,56 +421,47 @@ export default function LevelsScreen() {
         refreshControl={
           <RefreshControl
             refreshing={isFetching}
-            onRefresh={refetch}
+            onRefresh={() => { refetch(); refetchProfile(); }}
             tintColor={C.yellow}
             colors={[C.yellow]}
           />
         }
         showsVerticalScrollIndicator={false}
       >
-
-        {/* My enrolled units */}
-        <Text style={styles.sectionLabel}>📚 وحداتي المفعّلة</Text>
-
-        {hasEnrolled ? (
-          enrolled.map((unit) => (
-            <UnitCard
-              key={unit.id}
-              unit={unit}
-              onPress={() =>
-                router.push({ pathname: '/unit/[id]', params: { id: String(unit.id) } })
-              }
-            />
-          ))
+        {isBodyLoading ? (
+          <View style={styles.bodySpinner}>
+            <ActivityIndicator size="large" color={C.yellow} />
+          </View>
+        ) : hasCredits ? (
+          <CreditsBody
+            credits={credits}
+            myUnits={units}
+            allLevels={levels}
+            router={router}
+            onBook={() => setBookingVisible(true)}
+          />
         ) : (
-          <View style={styles.emptyCard}>
-            <View style={styles.emptyIconWrap}>
-              <Ionicons name="school-outline" size={36} color={C.yellow} />
-            </View>
-            <Text style={styles.emptyTitle}>لا توجد وحدات مفعّلة بعد</Text>
-            <Text style={styles.emptySub}>
-              بمجرد اشتراكك وموافقة الإدارة ستظهر وحداتك هنا
-            </Text>
-          </View>
+          <NoCreditsBody allLevels={levels} router={router} onBook={() => setBookingVisible(true)} />
         )}
-
-        {/* Full curriculum roadmap */}
-        <Text style={[styles.sectionLabel, { marginTop: 8 }]}>🗺️ خريطة المسار الكاملة</Text>
-
-        {(allLevels ?? []).map((level) => (
-          <View key={level.id} style={styles.levelCard}>
-            <LevelRow level={level} />
-          </View>
-        ))}
-
-        <View style={{ height: 20 }} />
       </ScrollView>
+
+      <EvalBookingModal
+        visible={bookingVisible}
+        onClose={() => setBookingVisible(false)}
+      />
     </View>
   );
 }
 
+// ─── Styles ───────────────────────────────────────────────────────────────────
+
 const styles = StyleSheet.create({
-  centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  // ── Body loading (inline — header always visible) ───────────────────────────
+  bodySpinner: {
+    marginTop: 80,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 
   // ── Header ──────────────────────────────────────────────────────────────────
   header: {
@@ -264,8 +482,6 @@ const styles = StyleSheet.create({
     backgroundColor: C.white,
     opacity: 0.15,
   },
-
-  // Row 1 — bell + hamburger
   hTopRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -287,11 +503,9 @@ const styles = StyleSheet.create({
     borderWidth: 1.5, borderColor: C.yellow,
   },
   bellBadgeTxt: { fontSize: 9, fontWeight: '900', color: C.white },
+  headerTitle:  { fontSize: 22, fontWeight: '900', color: C.navy, textAlign: 'right', marginBottom: 10 },
 
-  // Row 2 — title
-  headerTitle: { fontSize: 22, fontWeight: '900', color: C.navy, textAlign: 'right', marginBottom: 10 },
-
-  // Row 3 — progress label + count
+  // State C — progress row
   hMidRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -300,8 +514,6 @@ const styles = StyleSheet.create({
   },
   progressLbl: { fontSize: 12, fontWeight: '800', color: C.navy },
   progressSub: { fontSize: 11, fontWeight: '600', color: C.navyMid },
-
-  // Row 3 — slim horizontal progress bar
   hProgressTrack: {
     height: 6,
     backgroundColor: 'rgba(255,255,255,0.55)',
@@ -314,7 +526,16 @@ const styles = StyleSheet.create({
     borderRadius: 3,
   },
 
-  // ── Scroll / sections ────────────────────────────────────────────────────────
+  // State B — header text
+  noCredHeader: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: C.navyMid,
+    textAlign: 'right',
+    marginBottom: 4,
+  },
+
+  // ── Scroll ───────────────────────────────────────────────────────────────────
   scroll:       { padding: 16, paddingBottom: 32 },
   sectionLabel: {
     fontSize: 13,
@@ -324,6 +545,152 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     marginTop: 4,
   },
+
+  // ── Premium shortcut cards (State B) ─────────────────────────────────────────
+  shortcutsRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 20,
+  },
+  scWrapper: {
+    flex: 1,
+    borderRadius: 20,
+    // Shadow applied on the wrapper so it shows under the gradient
+    shadowColor: '#000',
+    shadowOpacity: 0.18,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 7 },
+    elevation: 8,
+  },
+  scCard: {
+    borderRadius: 20,
+    padding: 16,
+    paddingBottom: 18,
+    minHeight: 148,
+    overflow: 'hidden',
+    justifyContent: 'flex-start',
+  },
+  // Decorative circles
+  scCircle: {
+    position: 'absolute',
+    borderRadius: 999,
+    backgroundColor: C.white,
+  },
+  scCircleDark: {
+    position: 'absolute',
+    borderRadius: 999,
+    backgroundColor: '#000',
+  },
+  // Icon pill — navy card
+  scIconPillNavy: {
+    width: 46, height: 46, borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.13)',
+    justifyContent: 'center', alignItems: 'center',
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+  },
+  // Icon pill — gold card
+  scIconPillGold: {
+    width: 46, height: 46, borderRadius: 14,
+    backgroundColor: 'rgba(26,41,128,0.10)',
+    justifyContent: 'center', alignItems: 'center',
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(26,41,128,0.10)',
+  },
+  scLabelLight: {
+    fontSize: 13, fontWeight: '900', color: C.white,
+    textAlign: 'right', marginBottom: 4,
+  },
+  scLabelDark: {
+    fontSize: 13, fontWeight: '900', color: C.navy,
+    textAlign: 'right', marginBottom: 4,
+  },
+  scSubLight: {
+    fontSize: 10, fontWeight: '600',
+    color: 'rgba(255,255,255,0.60)',
+    textAlign: 'right',
+  },
+  scSubDark: {
+    fontSize: 10, fontWeight: '600',
+    color: 'rgba(26,41,128,0.55)',
+    textAlign: 'right',
+  },
+  scArrowWrap: {
+    position: 'absolute',
+    bottom: 14, left: 14,
+  },
+
+  // ── Credits widget (State C) ──────────────────────────────────────────────────
+  credWidget: {
+    backgroundColor: C.white,
+    borderRadius: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    marginBottom: 18,
+    gap: 12,
+    ...shadow.md,
+    borderWidth: 1.5,
+    borderColor: C.border,
+  },
+  credLeft: { alignItems: 'center', minWidth: 48 },
+  credCount: { fontSize: 28, fontWeight: '900', color: C.amber, lineHeight: 30 },
+  credLabel: { fontSize: 10, fontWeight: '700', color: C.navy, marginTop: 2 },
+  credDivider: {
+    width: 1,
+    height: 36,
+    backgroundColor: C.border,
+  },
+  credRight: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6 },
+  credDone: { fontSize: 13, fontWeight: '700', color: C.navy },
+  bookNowBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: C.yellow,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+  },
+  bookNowTxt: { fontSize: 12, fontWeight: '800', color: C.navy },
+
+  // ── No-credits card (State B) ─────────────────────────────────────────────────
+  noCredCard: {
+    backgroundColor: C.white,
+    borderRadius: 24,
+    padding: 28,
+    alignItems: 'center',
+    marginBottom: 20,
+    ...shadow.md,
+    borderWidth: 1.5,
+    borderColor: C.border,
+  },
+  noCredIconWrap: {
+    width: 80, height: 80, borderRadius: 40,
+    backgroundColor: C.cream,
+    justifyContent: 'center', alignItems: 'center',
+    marginBottom: 16,
+  },
+  noCredTitle: { fontSize: 18, fontWeight: '900', color: C.navy, marginBottom: 10 },
+  noCredSub:   {
+    fontSize: 13,
+    color: C.grayMid,
+    textAlign: 'center',
+    lineHeight: 21,
+    marginBottom: 22,
+  },
+  waBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#25D366',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 16,
+  },
+  waBtnTxt: { fontSize: 14, fontWeight: '800', color: '#fff' },
 
   // ── Unit card ────────────────────────────────────────────────────────────────
   unitCard: {
@@ -339,11 +706,15 @@ const styles = StyleSheet.create({
   unitAccent:       { width: 5, alignSelf: 'stretch', backgroundColor: C.yellow },
   unitAccentLocked: { backgroundColor: '#E5E7EB' },
   unitBody: { flex: 1, paddingVertical: 14, paddingHorizontal: 14 },
-  unitTop:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
+  unitTop:  {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
   unitName: { fontSize: 15, fontWeight: '800', color: C.navy, flex: 1, marginRight: 8, textAlign: 'right' },
   unitMeta: { fontSize: 12, color: C.gray, marginBottom: 8, textAlign: 'right' },
   textMuted: { color: C.gray },
-
   doneBadge: {
     width: 20, height: 20, borderRadius: 10,
     backgroundColor: C.success,
@@ -358,13 +729,8 @@ const styles = StyleSheet.create({
     borderColor: C.yellow,
   },
   activeBadgeTxt: { fontSize: 10, fontWeight: '800', color: C.amber },
-
-  progressBg: {
-    height: 5, backgroundColor: '#F3F4F6', borderRadius: 3,
-  },
-  progressFill: {
-    height: 5, borderRadius: 3, backgroundColor: C.yellow,
-  },
+  progressBg:   { height: 5, backgroundColor: '#F3F4F6', borderRadius: 3 },
+  progressFill: { height: 5, borderRadius: 3, backgroundColor: C.yellow },
 
   // ── Empty state ───────────────────────────────────────────────────────────────
   emptyCard: {
@@ -383,6 +749,27 @@ const styles = StyleSheet.create({
   },
   emptyTitle: { fontSize: 15, fontWeight: '800', color: C.navy, textAlign: 'center' },
   emptySub:   { fontSize: 13, color: C.gray, marginTop: 8, textAlign: 'center', lineHeight: 20 },
+
+  // ── Evaluation booking button ─────────────────────────────────────────────────
+  evalBtn: {
+    backgroundColor: C.navy,
+    borderRadius: 18,
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    marginBottom: 14,
+    gap: 12,
+    ...shadow.md,
+  },
+  evalBtnIcon: {
+    width: 44, height: 44, borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.10)',
+    justifyContent: 'center', alignItems: 'center',
+  },
+  evalBtnTitle: {
+    flex: 1,
+    fontSize: 15, fontWeight: '900', color: C.white, textAlign: 'right',
+  },
 
   // ── Roadmap ───────────────────────────────────────────────────────────────────
   levelCard: {

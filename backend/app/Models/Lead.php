@@ -25,6 +25,7 @@ class Lead extends Model
         'name',
         'phone',
         'source',
+        'scheduled_at',
         'age',
         'status',
         'assigned_to',
@@ -38,6 +39,7 @@ class Lead extends Model
     {
         return [
             'is_small_treasure'    => 'boolean',
+            'scheduled_at'         => 'datetime',
             'moved_to_open_sea_at' => 'datetime',
             'converted_at'         => 'datetime',
         ];

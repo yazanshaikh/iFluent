@@ -17,6 +17,7 @@ import { useSidebarStore } from '@/stores/sidebarStore';
 import { useAvatarStore }  from '@/stores/avatarStore';
 import { C, shadow }       from '@/theme';
 import client              from '@/api/client';
+import { profileApi }      from '@/api/profile';
 import type { StudentProgress, Unit } from '@/api/levels';
 
 // Same preset avatars as profile screen (static requires)
@@ -30,15 +31,6 @@ const AVATARS = [
   { id: 7, src: require('../../assets/av7.png') },
   { id: 8, src: require('../../assets/av8.png') },
 ];
-
-interface Profile {
-  name:              string;
-  phone:             string;
-  timezone:          string | null;
-  completed_lessons: number;
-  passed_quizzes:    number;
-  enrolled_units:    number;
-}
 
 const SIDEBAR_W = Math.min(Dimensions.get('window').width * 0.82, 320);
 
@@ -120,10 +112,10 @@ export default function Sidebar() {
     ]).start(() => close());
   };
 
-  // Live profile from DB (shared cache with profile tab — no extra network request)
-  const { data: profile } = useQuery<Profile>({
+  // Live profile from DB — same queryKey as levels.tsx so cache is shared
+  const { data: profile } = useQuery({
     queryKey: ['profile'],
-    queryFn:  () => client.get<{ profile: Profile }>('/student/profile').then((r) => r.data.profile ?? null),
+    queryFn:  profileApi.get,
     enabled:  isOpen,
   });
 
@@ -240,14 +232,14 @@ export default function Sidebar() {
               icon="information-circle"
               iconBg="#F0FDF4"
               iconColor={C.success}
-              label="عنا"
+              label="خِذ فكرة عنّا"
               onPress={() => navigate('/about')}
             />
             <SidebarItem
               icon="book"
               iconBg="#FAF5FF"
               iconColor="#7C3AED"
-              label="طريقة الاستخدام"
+              label="اعرف طريق الطلاقة"
               onPress={() => navigate('/how-to-use')}
             />
 

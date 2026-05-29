@@ -1,11 +1,12 @@
 /**
- * Sessions tab — active, upcoming and past sessions.
- * Brand theme: Yellow header / Navy text / Cream background.
+ * Sessions tab — حصصي.
+ * Filter: القادمة (active + waiting) | المكتملة (completed + cancelled).
  */
 import {
   View, Text, ScrollView, TouchableOpacity,
   StyleSheet, ActivityIndicator, RefreshControl, Animated,
 } from 'react-native';
+import { useState } from 'react';
 import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
@@ -13,6 +14,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { sessionsApi, type SessionListItem } from '@/api/sessions';
 import { C, shadow }          from '@/theme';
 import { useAnimatedHeader }  from '@/hooks/useAnimatedHeader';
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+type Filter = 'upcoming' | 'done';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -44,7 +49,6 @@ function fmt(iso: string | null) {
 function ActiveCard({ session, onJoin }: { session: SessionListItem; onJoin: () => void }) {
   return (
     <View style={styles.activeCard}>
-      {/* Pulsing dot + label */}
       <View style={styles.activeTop}>
         <View style={styles.liveDot} />
         <Text style={styles.liveLabel}>🟢 نشطة الآن</Text>
@@ -87,15 +91,17 @@ function SessionCard({ session }: { session: SessionListItem }) {
 
   return (
     <View style={[styles.card, isWait && styles.cardWaiting]}>
-      <View style={styles.cardLeft}>
-        <View style={[styles.statusDot, { backgroundColor: color }]} />
-      </View>
+      <View style={[styles.statusBar, { backgroundColor: color }]} />
       <View style={styles.cardBody}>
         <View style={styles.cardTopRow}>
           <View style={[styles.pill, { backgroundColor: color + '20' }]}>
-            <Text style={[styles.pillTxt, { color }]}>{STATUS_LABEL[session.status] ?? session.status}</Text>
+            <Text style={[styles.pillTxt, { color }]}>
+              {STATUS_LABEL[session.status] ?? session.status}
+            </Text>
           </View>
-          <Text style={styles.cardDate}>{fmt(session.scheduled_at ?? session.started_at)}</Text>
+          <Text style={styles.cardDate}>
+            {fmt(session.scheduled_at ?? session.started_at)}
+          </Text>
         </View>
         <Text style={styles.cardLesson} numberOfLines={1}>
           {session.lesson?.title ?? 'حصة'}
@@ -111,11 +117,74 @@ function SessionCard({ session }: { session: SessionListItem }) {
   );
 }
 
+// ─── Filter pills ─────────────────────────────────────────────────────────────
+
+function FilterPills({
+  value,
+  onChange,
+  upcomingCount,
+  doneCount,
+}: {
+  value:         Filter;
+  onChange:      (v: Filter) => void;
+  upcomingCount: number;
+  doneCount:     number;
+}) {
+  return (
+    <View style={styles.pillsRow}>
+      <TouchableOpacity
+        style={[styles.filterPill, value === 'upcoming' && styles.filterPillActive]}
+        onPress={() => onChange('upcoming')}
+        activeOpacity={0.8}
+      >
+        <Ionicons
+          name="time-outline"
+          size={14}
+          color={value === 'upcoming' ? C.navy : C.navyMid}
+        />
+        <Text style={[styles.filterPillTxt, value === 'upcoming' && styles.filterPillTxtActive]}>
+          القادمة
+        </Text>
+        {upcomingCount > 0 && (
+          <View style={[styles.filterBadge, value === 'upcoming' && styles.filterBadgeActive]}>
+            <Text style={[styles.filterBadgeTxt, value === 'upcoming' && styles.filterBadgeTxtActive]}>
+              {upcomingCount}
+            </Text>
+          </View>
+        )}
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={[styles.filterPill, value === 'done' && styles.filterPillActive]}
+        onPress={() => onChange('done')}
+        activeOpacity={0.8}
+      >
+        <Ionicons
+          name="checkmark-circle-outline"
+          size={14}
+          color={value === 'done' ? C.navy : C.navyMid}
+        />
+        <Text style={[styles.filterPillTxt, value === 'done' && styles.filterPillTxtActive]}>
+          المكتملة
+        </Text>
+        {doneCount > 0 && (
+          <View style={[styles.filterBadge, value === 'done' && styles.filterBadgeActive]}>
+            <Text style={[styles.filterBadgeTxt, value === 'done' && styles.filterBadgeTxtActive]}>
+              {doneCount}
+            </Text>
+          </View>
+        )}
+      </TouchableOpacity>
+    </View>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function SessionsScreen() {
   const router      = useRouter();
   const insets      = useSafeAreaInsets();
+  const [filter, setFilter] = useState<Filter>('upcoming');
 
   const { headerHeight, onHeaderLayout, onScroll, headerStyle } = useAnimatedHeader();
 
@@ -125,23 +194,23 @@ export default function SessionsScreen() {
     refetchInterval: 15_000,
   });
 
-  if (isLoading) {
-    return (
-      <View style={[styles.centered, { backgroundColor: C.cream }]}>
-        <ActivityIndicator size="large" color={C.yellow} />
-      </View>
-    );
-  }
+  const sessions  = data ?? [];
+  const active    = sessions.filter((s) => s.status === 'active');
+  const upcoming  = sessions.filter((s) => s.status === 'waiting');
+  const past      = sessions.filter((s) => ['completed', 'cancelled'].includes(s.status));
 
-  const sessions = data ?? [];
-  const active   = sessions.filter((s) => s.status === 'active');
-  const upcoming = sessions.filter((s) => s.status === 'waiting');
-  const past     = sessions.filter((s) => ['completed', 'cancelled'].includes(s.status));
+  const upcomingCount = active.length + upcoming.length;
+  const doneCount     = past.length;
+
+  // Visible sessions based on current filter
+  const visible = filter === 'upcoming'
+    ? [...active, ...upcoming]
+    : past;
 
   return (
     <View style={{ flex: 1, backgroundColor: C.cream }}>
 
-      {/* ── Yellow curved header (absolute, animates on scroll) ───────────── */}
+      {/* ── Yellow curved header ───────────────────────────────────────────────── */}
       <Animated.View
         style={[styles.header, { paddingTop: insets.top + 14 }, headerStyle]}
         onLayout={onHeaderLayout}
@@ -149,21 +218,28 @@ export default function SessionsScreen() {
         <View style={[styles.dot, { width: 90, height: 90, top: -25, left: -25 }]} />
         <View style={[styles.dot, { width: 40, height: 40, bottom: 8, right: 30 }]} />
 
+        {/* Title row */}
         <View style={styles.headerContent}>
           <View style={{ flex: 1 }}>
             <Text style={styles.headerTitle}>حصصي</Text>
             <Text style={styles.headerSub}>جلساتك مع المعلم</Text>
           </View>
-          <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 8 }}>
-            <View style={styles.countPill}>
-              <Ionicons name="videocam" size={14} color={C.navy} />
-              <Text style={styles.countTxt}>{sessions.length} جلسة</Text>
-            </View>
+          <View style={styles.countPill}>
+            <Ionicons name="videocam" size={14} color={C.navy} />
+            <Text style={styles.countTxt}>{sessions.length} جلسة</Text>
           </View>
         </View>
+
+        {/* Filter pills — always shown */}
+        <FilterPills
+          value={filter}
+          onChange={setFilter}
+          upcomingCount={upcomingCount}
+          doneCount={doneCount}
+        />
       </Animated.View>
 
-      {/* ── Content (padded so it starts below the header) ────────────────── */}
+      {/* ── Content ────────────────────────────────────────────────────────────── */}
       <ScrollView
         contentContainerStyle={[styles.scroll, { paddingTop: headerHeight }]}
         onScroll={onScroll}
@@ -178,48 +254,65 @@ export default function SessionsScreen() {
         }
         showsVerticalScrollIndicator={false}
       >
+        {isLoading ? (
+          <View style={styles.bodySpinner}>
+            <ActivityIndicator size="large" color={C.yellow} />
+          </View>
 
-        {/* Active sessions — hero cards */}
-        {active.length > 0 && (
-          <>
-            <Text style={styles.sectionLabel}>🔴 نشطة الآن</Text>
-            {active.map((s) => (
-              <ActiveCard
-                key={s.id}
-                session={s}
-                onJoin={() => router.push({ pathname: '/session/[id]', params: { id: String(s.id) } })}
-              />
-            ))}
-          </>
-        )}
-
-        {/* Upcoming */}
-        {upcoming.length > 0 && (
-          <>
-            <Text style={styles.sectionLabel}>⏰ القادمة</Text>
-            {upcoming.map((s) => <SessionCard key={s.id} session={s} />)}
-          </>
-        )}
-
-        {/* Past */}
-        {past.length > 0 && (
-          <>
-            <Text style={styles.sectionLabel}>السابقة</Text>
-            {past.map((s) => <SessionCard key={s.id} session={s} />)}
-          </>
-        )}
-
-        {/* Empty */}
-        {sessions.length === 0 && (
+        ) : visible.length === 0 ? (
+          /* Empty state per filter */
           <View style={styles.emptyCard}>
             <View style={styles.emptyIconWrap}>
-              <Ionicons name="videocam-outline" size={36} color={C.yellow} />
+              <Ionicons
+                name={filter === 'upcoming' ? 'time-outline' : 'checkmark-done-outline'}
+                size={36}
+                color={C.yellow}
+              />
             </View>
-            <Text style={styles.emptyTitle}>لا توجد حصص بعد</Text>
+            <Text style={styles.emptyTitle}>
+              {filter === 'upcoming' ? 'لا توجد حصص قادمة' : 'لا توجد حصص مكتملة'}
+            </Text>
             <Text style={styles.emptySub}>
-              ستظهر حصصك هنا بعد أن يقوم معلمك بإنشاء الجلسة
+              {filter === 'upcoming'
+                ? 'ستظهر حصصك القادمة هنا بعد الحجز مع معلمك'
+                : 'حصصك المنتهية ستظهر هنا بعد اكتمالها'}
             </Text>
           </View>
+
+        ) : (
+          <>
+            {/* Active sessions (only in upcoming filter) */}
+            {filter === 'upcoming' && active.length > 0 && (
+              <>
+                <Text style={styles.sectionLabel}>🔴 نشطة الآن</Text>
+                {active.map((s) => (
+                  <ActiveCard
+                    key={s.id}
+                    session={s}
+                    onJoin={() =>
+                      router.push({ pathname: '/session/[id]', params: { id: String(s.id) } })
+                    }
+                  />
+                ))}
+              </>
+            )}
+
+            {/* Upcoming waiting */}
+            {filter === 'upcoming' && upcoming.length > 0 && (
+              <>
+                <Text style={styles.sectionLabel}>⏰ المجدولة</Text>
+                {upcoming.map((s) => <SessionCard key={s.id} session={s} />)}
+              </>
+            )}
+
+            {/* Done / cancelled */}
+            {filter === 'done' && (
+              <>
+                <Text style={styles.sectionLabel}>السابقة</Text>
+                {past.map((s) => <SessionCard key={s.id} session={s} />)}
+              </>
+            )}
+          </>
         )}
 
         <View style={{ height: 20 }} />
@@ -228,8 +321,9 @@ export default function SessionsScreen() {
   );
 }
 
+// ─── Styles ───────────────────────────────────────────────────────────────────
+
 const styles = StyleSheet.create({
-  centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
 
   // ── Header ──────────────────────────────────────────────────────────────────
   header: {
@@ -238,7 +332,7 @@ const styles = StyleSheet.create({
     zIndex: 10,
     backgroundColor: C.yellow,
     paddingHorizontal: 22,
-    paddingBottom: 28,
+    paddingBottom: 16,
     borderBottomLeftRadius: 40,
     borderBottomRightRadius: 40,
     overflow: 'hidden',
@@ -259,14 +353,10 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'flex-end',
     marginTop: 8,
+    marginBottom: 14,
   },
   headerTitle: { fontSize: 26, fontWeight: '900', color: C.navy },
   headerSub:   { fontSize: 12, color: C.navyMid, marginTop: 2, fontWeight: '600' },
-  menuBtn: {
-    width: 40, height: 40, borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.42)',
-    justifyContent: 'center', alignItems: 'center',
-  },
   countPill: {
     backgroundColor: 'rgba(255,255,255,0.45)',
     borderRadius: 20,
@@ -278,11 +368,65 @@ const styles = StyleSheet.create({
   },
   countTxt: { fontSize: 13, fontWeight: '800', color: C.navy },
 
+  // ── Filter pills ─────────────────────────────────────────────────────────────
+  pillsRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  filterPill: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 9,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.35)',
+  },
+  filterPillActive: {
+    backgroundColor: C.white,
+    shadowColor: C.navy,
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
+  },
+  filterPillTxt: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: C.navyMid,
+  },
+  filterPillTxtActive: {
+    color: C.navy,
+    fontWeight: '900',
+  },
+  filterBadge: {
+    minWidth: 18, height: 18, borderRadius: 9,
+    backgroundColor: 'rgba(26,41,128,0.15)',
+    justifyContent: 'center', alignItems: 'center',
+    paddingHorizontal: 4,
+  },
+  filterBadgeActive: {
+    backgroundColor: C.navy,
+  },
+  filterBadgeTxt: {
+    fontSize: 10, fontWeight: '800', color: C.navyMid,
+  },
+  filterBadgeTxtActive: {
+    color: C.yellow,
+  },
+
   // ── Scroll ────────────────────────────────────────────────────────────────
   scroll: { padding: 16, paddingBottom: 32 },
   sectionLabel: {
     fontSize: 13, fontWeight: '800', color: C.navy,
     textAlign: 'right', marginBottom: 10, marginTop: 4,
+  },
+
+  // ── Loading ───────────────────────────────────────────────────────────────
+  bodySpinner: {
+    marginTop: 80,
+    alignItems: 'center',
   },
 
   // ── Active hero card ──────────────────────────────────────────────────────
@@ -297,7 +441,6 @@ const styles = StyleSheet.create({
   liveDot:   { width: 8, height: 8, borderRadius: 4, backgroundColor: C.success },
   liveLabel: { fontSize: 12, fontWeight: '800', color: C.success, flex: 1 },
   activeDate:  { fontSize: 11, color: 'rgba(255,255,255,0.55)' },
-
   activeLesson: {
     fontSize: 18, fontWeight: '900', color: C.white,
     textAlign: 'right', marginBottom: 6,
@@ -320,7 +463,6 @@ const styles = StyleSheet.create({
   },
   teacherInitial: { fontSize: 13, fontWeight: '900', color: C.navy },
   teacherName:    { fontSize: 13, fontWeight: '700', color: 'rgba(255,255,255,0.85)' },
-
   joinBtn: {
     backgroundColor: C.yellow,
     borderRadius: 14,
@@ -345,13 +487,7 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: C.border,
   },
-  cardLeft: {
-    width: 4,
-    backgroundColor: 'transparent',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  statusDot: {
+  statusBar: {
     width: 4,
     alignSelf: 'stretch',
   },
@@ -365,7 +501,10 @@ const styles = StyleSheet.create({
   pill:    { borderRadius: 20, paddingHorizontal: 10, paddingVertical: 3 },
   pillTxt: { fontSize: 11, fontWeight: '800' },
   cardDate:   { fontSize: 11, color: C.gray },
-  cardLesson: { fontSize: 15, fontWeight: '800', color: C.navy, textAlign: 'right', marginBottom: 6 },
+  cardLesson: {
+    fontSize: 15, fontWeight: '800', color: C.navy,
+    textAlign: 'right', marginBottom: 6,
+  },
   cardTeacherRow: {
     flexDirection: 'row', alignItems: 'center',
     gap: 4, justifyContent: 'flex-end',
@@ -376,6 +515,7 @@ const styles = StyleSheet.create({
   emptyCard: {
     backgroundColor: C.white, borderRadius: 20,
     padding: 40, alignItems: 'center', ...shadow.sm,
+    marginTop: 16,
   },
   emptyIconWrap: {
     width: 72, height: 72, borderRadius: 36,

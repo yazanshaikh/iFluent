@@ -29,6 +29,7 @@ class ProfileController extends Controller
                 'name'              => $user->name,
                 'phone'             => $user->phone,
                 'timezone'          => $user->timezone,
+                'lesson_credits'    => (int) $user->lesson_credits,
                 'completed_lessons' => $completedLessons,
                 'passed_quizzes'    => $passedQuizzes,
                 'enrolled_units'    => $user->enrolledUnits()->where('status', 'active')->count(),

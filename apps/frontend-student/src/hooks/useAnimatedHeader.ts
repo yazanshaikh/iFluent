@@ -19,6 +19,7 @@ import {
   type NativeSyntheticEvent,
   type NativeScrollEvent,
 } from 'react-native';
+import { useFocusEffect } from 'expo-router';
 import { tabBarScrollAnim } from '@/animations';
 
 export const TAB_BAR_H = Platform.OS === 'ios' ? 82 : 62;
@@ -39,6 +40,22 @@ export function useAnimatedHeader({ animateTabBar = true }: Options = {}) {
   const headerAnim = useRef(new Animated.Value(0)).current;
   const lastY      = useRef(0);
   const hidden     = useRef(false);
+
+  // ── Reset everything when this screen comes into focus ──────────────────────
+  // Fixes the bug where tabBarScrollAnim stays hidden after leaving a screen
+  // mid-scroll and switching to another tab.
+  useFocusEffect(
+    useCallback(() => {
+      headerAnim.setValue(0);
+      hidden.current = false;
+      lastY.current  = 0;
+      if (animateTabBar) {
+        tabBarScrollAnim.setValue(0);
+      }
+    // Stable refs — only animateTabBar matters in dep array
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [animateTabBar]),
+  );
 
   const onHeaderLayout = useCallback((e: LayoutChangeEvent) => {
     setHeaderHeight(e.nativeEvent.layout.height);

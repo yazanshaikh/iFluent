@@ -24,22 +24,6 @@ const buildStats = (earnedCount: number) => [
   { icon: 'medal'         as const, color: C.amber, label: 'بطاقات مكتسبة', value: String(earnedCount),        unit: 'بطاقة' },
 ];
 
-const LEVELS = [
-  { code: 'A1', name: 'المستوى 1', pct: 0, unlocked: true,  lockMsg: '' },
-  { code: 'A2', name: 'المستوى 2', pct: 0, unlocked: false, lockMsg: 'أكمل 80% من المستوى السابق لفتح هذا المستوى' },
-  { code: 'B1', name: 'المستوى 3', pct: 0, unlocked: false, lockMsg: 'أكمل 80% من المستوى السابق لفتح هذا المستوى' },
-  { code: 'B2', name: 'المستوى 4', pct: 0, unlocked: false, lockMsg: 'أكمل 80% من المستوى السابق لفتح هذا المستوى' },
-  { code: 'FT', name: 'المستوى المتقدم', pct: 0, unlocked: false, lockMsg: 'أكمل 80% من المستوى السابق لفتح هذا المستوى' },
-];
-
-const LEVEL_BAR_COLORS: Record<string, string> = {
-  A1: '#22C55E',   // أخضر  — مبتدئ
-  A2: '#3B82F6',   // أزرق  — أساسي
-  B1: '#8B5CF6',   // بنفسجي — متوسط
-  B2: '#F59E0B',   // ذهبي  — فوق المتوسط
-  FT: '#EF4444',   // أحمر  — متقدم
-};
-
 interface Achievement {
   id:        number;
   icon:      keyof typeof Ionicons.glyphMap;
@@ -166,79 +150,6 @@ const sc = StyleSheet.create({
   value: { fontSize: 18, fontWeight: '900', color: C.navy },
   unit:  { fontSize: 10, fontWeight: '600', color: C.gray, marginTop: -2 },
   label: { fontSize: 10, fontWeight: '700', color: C.grayMid, textAlign: 'center' },
-});
-
-function LevelCard({ code, name, pct, unlocked, lockMsg }: typeof LEVELS[0]) {
-  const barColor = LEVEL_BAR_COLORS[code] ?? C.info;
-  return (
-    <View style={[lc.card, !unlocked && lc.cardLocked]}>
-      {/* ── Top row: [code badge] [name] [pct / lock] ── */}
-      <View style={lc.top}>
-        {/* Colored code badge */}
-        <View style={[lc.codeBadge, { backgroundColor: barColor }]}>
-          <Text style={lc.codeTxt}>{code}</Text>
-        </View>
-        {/* Level name */}
-        <Text style={[lc.name, !unlocked && lc.nameMuted]} numberOfLines={1}>
-          {name}
-        </Text>
-        {/* Percentage or lock icon */}
-        {unlocked ? (
-          <Text style={[lc.pct, { color: barColor }]}>{pct}%</Text>
-        ) : (
-          <View style={lc.lockWrap}>
-            <Ionicons name="lock-closed" size={13} color={C.gray} />
-          </View>
-        )}
-      </View>
-      {/* ── Progress bar ── */}
-      <View style={lc.track}>
-        <View style={[lc.fill, { width: `${pct}%` as any, backgroundColor: barColor }]} />
-      </View>
-      {!unlocked && lockMsg ? (
-        <Text style={lc.lockMsg}>{lockMsg}</Text>
-      ) : null}
-    </View>
-  );
-}
-
-const lc = StyleSheet.create({
-  card: {
-    backgroundColor: C.white, borderRadius: 16,
-    padding: 16, marginBottom: 10,
-    ...shadow.sm,
-  },
-  cardLocked: { opacity: 0.65 },
-  top: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginBottom: 12,
-  },
-  codeBadge: {
-    width: 44, height: 44, borderRadius: 13,
-    justifyContent: 'center', alignItems: 'center',
-    flexShrink: 0,
-  },
-  codeTxt:  { fontSize: 12, fontWeight: '900', color: C.white },
-  name:     { flex: 1, fontSize: 15, fontWeight: '800', color: C.navy, textAlign: 'right' },
-  nameMuted:{ color: C.gray },
-  pct:      { fontSize: 18, fontWeight: '900', flexShrink: 0 },
-  lockWrap: {
-    width: 32, height: 32, borderRadius: 10,
-    backgroundColor: '#F3F4F6',
-    justifyContent: 'center', alignItems: 'center',
-    flexShrink: 0,
-  },
-  track: {
-    height: 8, backgroundColor: '#EBEBEB',
-    borderRadius: 4, overflow: 'hidden',
-  },
-  fill:  { height: 8, borderRadius: 4 },
-  lockMsg: {
-    fontSize: 11, color: C.gray, textAlign: 'right',
-    marginTop: 8, fontWeight: '500',
-  },
 });
 
 function AchievementCard({ item }: { item: Achievement }) {
@@ -374,12 +285,6 @@ export default function ProgressScreen() {
             <StatCard key={s.label} {...s} />
           ))}
         </View>
-
-        {/* ── Level progress ────────────────────────────────────────────── */}
-        <Text style={styles.sectionLabel}>تقدم المستويات</Text>
-        {LEVELS.map((lv) => (
-          <LevelCard key={lv.code} {...lv} />
-        ))}
 
         {/* ── Achievements ─────────────────────────────────────────────── */}
         <TouchableOpacity
