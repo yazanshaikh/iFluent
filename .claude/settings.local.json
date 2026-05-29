@@ -61,7 +61,16 @@
       "Bash(npx eas *)",
       "Bash(eas --version)",
       "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); [print\\(k,v\\) for k,v in {**d.get\\('dependencies',{}\\), **d.get\\('devDependencies',{}\\)}.items\\(\\) if any\\(x in k for x in ['moti','lottie','reanimated','svg','linear','expo-blur','expo-haptic']\\)]\")",
-      "Bash(ls /var/folders/7l/vtn309yx6bsgr564rstzn78h0000gn/T/net.whatsapp.WhatsApp/documents/ 2>/dev/null | head -20)"
+      "Bash(ls /var/folders/7l/vtn309yx6bsgr564rstzn78h0000gn/T/net.whatsapp.WhatsApp/documents/ 2>/dev/null | head -20)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:8000/api/v1/settings)",
+      "Bash(curl -s http://localhost:8000/api/v1/settings)",
+      "Bash(curl -s -I -X OPTIONS http://localhost:8000/api/v1/crm/auth/login -H 'Origin: http://localhost:3100' -H 'Access-Control-Request-Method: POST' -H 'Access-Control-Request-Headers: Content-Type,Accept,Authorization')",
+      "Bash(curl -s -o /dev/null -w \"HTTP %{http_code}\" http://192.168.0.104:8000/api/v1/settings)",
+      "Bash(curl -s -X POST http://localhost:8000/api/v1/public/eval-booking -H 'Content-Type: application/json' -H 'Accept: application/json' -d '{ *)",
+      "Bash(curl -s -X POST http://localhost:8000/api/v1/public/eval-booking -H 'Content-Type: application/json' -H 'Accept: application/json' -d '{\"name\":\"طالب تجريبي\",\"phone\":\"00962799999999\",\"scheduled_at\":\"2026-06-15 10:00:00\"}')",
+      "Bash(curl -s -X POST http://localhost:8000/api/v1/public/eval-booking -H 'Content-Type: application/json' -H 'Accept: application/json' -d '{\"name\":\"طالب تجريبي\",\"phone\":\"00962799999999\",\"scheduled_at\":\"2026-06-15 11:00:00\"}')",
+      "Bash(curl -v -X POST http://localhost:8000/api/v1/crm/auth/login -H 'Content-Type: application/json' -H 'Accept: application/json' -d '{\"email\":\"SYazanadmin@ifluent.jo\",\"password\":\"Yazan@1!2@#3\"}')",
+      "Bash(curl -s -X POST http://localhost:8000/api/v1/crm/auth/login -H 'Content-Type: application/json' -H 'Accept: application/json' -d '{\"email\":\"SYazanadmin@ifluent.jo\",\"password\":\"Yazan@1!2@#3\"}')"
     ]
   }
 }

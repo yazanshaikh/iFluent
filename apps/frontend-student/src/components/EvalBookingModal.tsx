@@ -94,18 +94,36 @@ export function EvalBookingModal({ visible, onClose }: Props) {
   // Existing booking (from SecureStore) — non-null while session hasn't happened yet
   const [existingBooking, setExistingBooking] = useState<string | null>(null);
 
-  // Re-read stored booking every time the modal opens
+  // On modal open: check backend for active booking (source of truth).
+  // SecureStore is only a fast local cache — CRM cancellations won't update it,
+  // so we always verify with the server and sync the cache accordingly.
   useEffect(() => {
-    if (!visible) return;
-    SecureStore.getItemAsync(STORE_KEY).then((val) => {
-      if (!val) { setExistingBooking(null); return; }
-      if (parseStoredDate(val) > new Date()) {
-        setExistingBooking(val);
-      } else {
-        SecureStore.deleteItemAsync(STORE_KEY);
-        setExistingBooking(null);
-      }
-    });
+    if (!visible || !user?.phone) return;
+
+    leadsApi.checkBookingStatus(user.phone)
+      .then(({ has_active_booking, scheduled_at }) => {
+        if (has_active_booking && scheduled_at) {
+          // Backend confirms active booking — normalise to "YYYY-MM-DD HH:MM:00"
+          const iso = scheduled_at.replace('T', ' ').replace(/\+.*$/, '').slice(0, 19);
+          SecureStore.setItemAsync(STORE_KEY, iso);
+          setExistingBooking(iso);
+        } else {
+          // No active booking on server (new / cancelled) — clear local cache
+          SecureStore.deleteItemAsync(STORE_KEY);
+          setExistingBooking(null);
+        }
+      })
+      .catch(() => {
+        // Network error — fall back to SecureStore cache
+        SecureStore.getItemAsync(STORE_KEY).then((val) => {
+          if (val && parseStoredDate(val) > new Date()) {
+            setExistingBooking(val);
+          } else {
+            SecureStore.deleteItemAsync(STORE_KEY);
+            setExistingBooking(null);
+          }
+        });
+      });
   }, [visible]);
 
   // 7 calendar days starting from today

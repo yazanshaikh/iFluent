@@ -5,12 +5,13 @@
 import {
   View, Text, StyleSheet, TouchableOpacity,
   Alert, ActivityIndicator, ScrollView, Animated,
-  Modal, Image,
+  Modal, Image, TextInput, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as SecureStore       from 'expo-secure-store';
 import { useAuthStore }    from '@/stores/authStore';
 import { useAvatarStore }  from '@/stores/avatarStore';
 import { authApi }         from '@/api/auth';
@@ -18,7 +19,9 @@ import client              from '@/api/client';
 import { levelsApi, type Unit } from '@/api/levels';
 import { C, shadow }          from '@/theme';
 import { useAnimatedHeader }  from '@/hooks/useAnimatedHeader';
-import { useState }           from 'react';
+import { useState, useEffect } from 'react';
+
+const LOCAL_NAME_KEY = 'student_local_name';
 
 // ─── Preset avatars (static requires — Metro needs explicit paths) ────────────
 const AVATARS = [
@@ -76,8 +79,18 @@ export default function ProfileScreen() {
   const insets  = useSafeAreaInsets();
   const [loggingOut, setLoggingOut]           = useState(false);
   const [avatarSheetOpen, setAvatarSheetOpen] = useState(false);
+  const [nameSheetOpen,   setNameSheetOpen]   = useState(false);
+  const [localName,       setLocalName]       = useState<string | null>(null);
+  const [draftName,       setDraftName]       = useState('');
   const { selectedAvatar, setAvatar }         = useAvatarStore();
   const { user, clearAuth } = useAuthStore();
+
+  // Load locally-saved name on mount
+  useEffect(() => {
+    SecureStore.getItemAsync(LOCAL_NAME_KEY).then((v) => {
+      if (v) setLocalName(v);
+    });
+  }, []);
 
   const { headerHeight, onHeaderLayout, onScroll, headerStyle } = useAnimatedHeader();
 
@@ -86,7 +99,8 @@ export default function ProfileScreen() {
     queryFn:  () => client.get<{ profile: Profile }>('/student/profile').then((r) => r.data.profile ?? null),
   });
 
-  const displayName  = profile?.name  ?? user?.name  ?? '…';
+  // Local name takes priority → server name → auth store name
+  const displayName  = localName ?? profile?.name ?? user?.name ?? '…';
   const displayPhone = profile?.phone ?? user?.phone ?? '';
   const initial      = displayName.trim().charAt(0).toUpperCase() || '?';
 
@@ -99,6 +113,22 @@ export default function ProfileScreen() {
   const doneCount  = myUnits.filter((u) => u.enrollment?.status === 'completed').length;
   const overallPct = myUnits.length > 0
     ? Math.round((doneCount / myUnits.length) * 100) : 0;
+
+  const openNameSheet = () => {
+    setDraftName(displayName === '…' ? '' : displayName);
+    setNameSheetOpen(true);
+  };
+
+  const saveLocalName = async () => {
+    const trimmed = draftName.trim();
+    if (!trimmed) {
+      Alert.alert('', 'الرجاء إدخال اسم صحيح');
+      return;
+    }
+    await SecureStore.setItemAsync(LOCAL_NAME_KEY, trimmed);
+    setLocalName(trimmed);
+    setNameSheetOpen(false);
+  };
 
   const chooseAvatar = (id: number) => {
     setAvatar(id);
@@ -178,7 +208,17 @@ export default function ProfileScreen() {
         showsVerticalScrollIndicator={false}
       >
         {/* Name + phone under avatar */}
-        <Text style={styles.profileName}>{displayName}</Text>
+        <View style={styles.nameRow}>
+          <Text style={styles.profileName}>{displayName}</Text>
+          <TouchableOpacity
+            style={styles.nameEditBtn}
+            onPress={openNameSheet}
+            hitSlop={10}
+            activeOpacity={0.75}
+          >
+            <Ionicons name="pencil" size={14} color={C.navy} />
+          </TouchableOpacity>
+        </View>
         <Text style={styles.profilePhone}>{displayPhone}</Text>
 
         {/* ── Info card ─────────────────────────────────────────────────── */}
@@ -313,6 +353,74 @@ export default function ProfileScreen() {
 
         <View style={{ height: 32 }} />
       </ScrollView>
+      {/* ── Name edit bottom sheet ───────────────────────────────────── */}
+      <Modal
+        visible={nameSheetOpen}
+        transparent
+        animationType="slide"
+        statusBarTranslucent
+        onRequestClose={() => setNameSheetOpen(false)}
+      >
+        <TouchableOpacity
+          style={styles.sheetOverlay}
+          activeOpacity={1}
+          onPress={() => setNameSheetOpen(false)}
+        />
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.nameSheetKav}
+        >
+          <View style={[styles.sheet, { paddingBottom: insets.bottom + 20 }]}>
+            <View style={styles.sheetHandle} />
+            <View style={styles.sheetHeader}>
+              <TouchableOpacity
+                style={styles.sheetCloseBtn}
+                onPress={() => setNameSheetOpen(false)}
+              >
+                <Ionicons name="close" size={18} color={C.navy} />
+              </TouchableOpacity>
+              <Text style={styles.sheetTitle}>تعديل الاسم</Text>
+            </View>
+
+            <TextInput
+              style={styles.nameInput}
+              value={draftName}
+              onChangeText={setDraftName}
+              placeholder="أدخل اسمك الكامل"
+              placeholderTextColor={C.gray}
+              textAlign="right"
+              autoFocus
+              returnKeyType="done"
+              onSubmitEditing={saveLocalName}
+            />
+
+            <TouchableOpacity
+              style={[styles.nameSaveBtn, !draftName.trim() && styles.nameSaveBtnOff]}
+              onPress={saveLocalName}
+              disabled={!draftName.trim()}
+              activeOpacity={0.85}
+            >
+              <Ionicons name="checkmark" size={18} color={C.navy} />
+              <Text style={styles.nameSaveTxt}>حفظ الاسم</Text>
+            </TouchableOpacity>
+
+            {localName && (
+              <TouchableOpacity
+                style={styles.nameResetBtn}
+                onPress={async () => {
+                  await SecureStore.deleteItemAsync(LOCAL_NAME_KEY);
+                  setLocalName(null);
+                  setNameSheetOpen(false);
+                }}
+                activeOpacity={0.75}
+              >
+                <Text style={styles.nameResetTxt}>إعادة تعيين للاسم الأصلي</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
       {/* ── Avatar picker bottom sheet ────────────────────────────────── */}
       <Modal
         visible={avatarSheetOpen}
@@ -461,14 +569,43 @@ const styles = StyleSheet.create({
 
   // ── Profile name/phone (below avatar) ────────────────────────────────────
   scroll: { paddingHorizontal: 16, paddingBottom: 20 },
+  nameRow: {
+    flexDirection: 'row', alignItems: 'center',
+    justifyContent: 'center', gap: 8,
+  },
   profileName: {
     fontSize: 22, fontWeight: '900', color: C.navy,
     textAlign: 'center',
+  },
+  nameEditBtn: {
+    width: 28, height: 28, borderRadius: 9,
+    backgroundColor: C.cream,
+    borderWidth: 1.5, borderColor: C.border,
+    justifyContent: 'center', alignItems: 'center',
   },
   profilePhone: {
     fontSize: 14, color: C.gray, textAlign: 'center',
     marginTop: 4, letterSpacing: 1,
   },
+
+  // ── Name edit sheet ───────────────────────────────────────────────────────
+  nameSheetKav: { justifyContent: 'flex-end' },
+  nameInput: {
+    backgroundColor: C.inputBg,
+    borderRadius: 14, borderWidth: 1.5, borderColor: C.border,
+    padding: 14, fontSize: 16, fontWeight: '600', color: C.navy,
+    marginBottom: 14,
+  },
+  nameSaveBtn: {
+    backgroundColor: C.yellow, borderRadius: 16,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 8, paddingVertical: 14, marginBottom: 10,
+    ...shadow.amber,
+  },
+  nameSaveBtnOff: { opacity: 0.4 },
+  nameSaveTxt: { fontSize: 15, fontWeight: '900', color: C.navy },
+  nameResetBtn: { alignItems: 'center', paddingVertical: 8 },
+  nameResetTxt: { fontSize: 13, color: C.gray, fontWeight: '600' },
 
   // ── Cards ─────────────────────────────────────────────────────────────────
   card: {

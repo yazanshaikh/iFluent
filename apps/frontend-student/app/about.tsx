@@ -21,7 +21,7 @@ const FEATURES = [
   { icon: 'videocam-outline'    as const, label: 'حصص لايف مباشرة',  sub: 'مع معلمين خبراء بالوقت اللي بريحك' },
   { icon: 'help-circle-outline' as const, label: 'كويزات تفاعلية',   sub: 'بتتحداك وتطوّر مستواك كل مرة' },
   { icon: 'journal-outline'     as const, label: 'دفتر ملاحظاتك',    sub: 'كل أفكارك بمكان واحد جوّا التطبيق' },
-  { icon: 'trending-up-outline' as const, label: 'متابعة شخصية',     sub: 'مشرفك بيوجهك ومعك خطوة بخطوة' },
+  { icon: 'trending-up-outline' as const, label: 'متابعة شخصية',     sub: 'مشرفك بيوجهك ومعكفوق خريطة المسار  خطوة بخطوة' },
 ];
 
 // ─── Wheel geometry ────────────────────────────────────────────────────────────

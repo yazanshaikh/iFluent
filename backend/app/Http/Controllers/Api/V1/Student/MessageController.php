@@ -17,10 +17,10 @@ class MessageController extends Controller
         $userId = $request->user()->id;
 
         $messages = AdminMessage::whereHas('recipients', fn ($q) => $q->where('user_id', $userId))
-            ->with(['recipients' => fn ($q) => $q->where('user_id', $userId)->select('users.id')])
+            ->with(['recipients' => fn ($q) => $q->where('user_id', $userId)->withPivot('read_at')])
             ->latest()
             ->get()
-            ->map(function ($m) use ($userId) {
+            ->map(function ($m) {
                 $pivot = $m->recipients->first()?->pivot;
                 return [
                     'id'         => $m->id,

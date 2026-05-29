@@ -1,6 +1,6 @@
 {
   "name": "@ifluent/landing",
-  "main": "expo-router/entry",
+  "main": "index.js",
   "version": "1.0.0",
   "description": "iFluent Landing Page — Web only",
   "scripts": {

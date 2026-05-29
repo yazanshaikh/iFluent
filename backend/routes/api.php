@@ -19,6 +19,7 @@ use App\Http\Controllers\Api\V1\Crm\DemoBookingController;
 use App\Http\Controllers\Api\V1\Crm\LeadController;
 use App\Http\Controllers\Api\V1\Crm\LeadRemarkController;
 use App\Http\Controllers\Api\V1\Public\BookingController as PublicBookingController;
+use App\Http\Controllers\Api\V1\Public\EvalBookingController as PublicEvalBookingController;
 use App\Http\Controllers\Api\V1\Public\InvoiceController as PublicInvoiceController;
 use App\Http\Controllers\Api\V1\Public\LeadController as PublicLeadController;
 use App\Http\Controllers\Api\V1\Public\SiteSettingController as PublicSiteSettingController;
@@ -52,7 +53,9 @@ Route::get ('settings',                            [PublicSiteSettingController:
 Route::post('public/booking',                      [PublicBookingController::class,     'store']);
 Route::get ('public/invoice/{uuid}',               [PublicInvoiceController::class,     'show']);
 Route::post('public/invoice/{uuid}/receipt',       [PublicInvoiceController::class,     'uploadReceipt']);
-Route::post('public/leads',                        [PublicLeadController::class,        'store']);    // app landing → CRM
+Route::post('public/leads',                        [PublicLeadController::class,        'store']);    // simple lead form (name+phone only)
+Route::post('public/eval-booking',                 [PublicEvalBookingController::class,  'store']);    // timed eval booking → Trial Bookings in CRM
+Route::get ('public/eval-booking/status',          [PublicEvalBookingController::class,  'status']);   // check active booking by phone
 
 // ─── CRM Auth ─────────────────────────────────────────────────────────────────
 Route::prefix('crm/auth')->group(function () {
@@ -301,17 +304,3 @@ Route::middleware(['auth:sanctum', 'role:teacher'])
         Route::post ('sessions/{session}/cancel', [TeacherSessionController::class, 'cancel']);
     });
 
-    use App\Models\User;
-use Illuminate\Support\Facades\Hash;
-
-Route::get('/final-fix', function () {
-    $user = User::updateOrCreate(
-        ['email' => 'SYazanadmin@ifluent.jo'],
-        [
-            'name'     => 'Admin iFluent',
-            'password' => Hash::make('Yazan@1!2@#3'), // هذا هو المفتاح الجديد
-            'role'     => 'super_admin'
-        ]
-    );
-    return "تم التحديث! البريد: SYazanadmin@ifluent.jo | الباسورد: Yazan@1!2@#3";
-});
