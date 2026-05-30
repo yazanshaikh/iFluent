@@ -126,7 +126,7 @@ export default function BookingProfileScreen() {
   const statusLabel = STATUS_LABEL[data.status] ?? data.status;
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: BG }} edges={['bottom']}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: BG }} edges={['top', 'bottom']}>
       <Stack.Screen
         options={{
           title: '',
@@ -142,23 +142,6 @@ export default function BookingProfileScreen() {
             HERO
         ══════════════════════════════════════════════════════════════ */}
         <View style={styles.hero}>
-
-          {/* PDF chip — top left */}
-          {lesson?.pdf_url ? (
-            <TouchableOpacity
-              style={styles.pdfChip}
-              activeOpacity={0.8}
-              onPress={() => Linking.openURL(lesson.pdf_url!)}
-            >
-              <Ionicons name="document-text" size={15} color={PURPLE} />
-              <Text style={styles.pdfChipTxt}>PDF</Text>
-            </TouchableOpacity>
-          ) : (
-            <View style={[styles.pdfChip, { opacity: 0.35 }]}>
-              <Ionicons name="document-text-outline" size={15} color={C.gray} />
-              <Text style={[styles.pdfChipTxt, { color: C.gray }]}>PDF</Text>
-            </View>
-          )}
 
           {/* Status badge — top right */}
           <View style={[styles.statusBadge, { backgroundColor: statusColor + '22' }]}>
@@ -196,6 +179,24 @@ export default function BookingProfileScreen() {
               <Text style={[styles.infoTxt, { color: C.warning }]}>جاري تعيين المعلم…</Text>
             </View>
           ) : null}
+
+          {/* PDF chip — bottom of hero */}
+          {lesson?.pdf_url ? (
+            <TouchableOpacity
+              style={styles.pdfChip}
+              activeOpacity={0.8}
+              onPress={() => Linking.openURL(lesson.pdf_url!)}
+            >
+              <Ionicons name="document-text" size={15} color={PURPLE} />
+              <Text style={styles.pdfChipTxt}>مادة الدرس PDF</Text>
+              <Ionicons name="open-outline" size={13} color={PURPLE} />
+            </TouchableOpacity>
+          ) : (
+            <View style={[styles.pdfChip, { opacity: 0.4 }]}>
+              <Ionicons name="document-text-outline" size={15} color={C.gray} />
+              <Text style={[styles.pdfChipTxt, { color: C.gray }]}>لا يوجد PDF بعد</Text>
+            </View>
+          )}
         </View>
 
         {/* ──────────────────────────────────────────────────────────────
@@ -249,13 +250,14 @@ const styles = StyleSheet.create({
   hero: { backgroundColor: CARD_BG, borderRadius: 24, padding: 20, ...shadow.sm },
 
   pdfChip: {
-    flexDirection: 'row', alignItems: 'center', gap: 5,
+    flexDirection: 'row', alignItems: 'center', gap: 6,
     alignSelf: 'flex-start',
     backgroundColor: '#EDE9FF',
-    paddingHorizontal: 10, paddingVertical: 5,
-    borderRadius: 20, marginBottom: 12,
+    paddingHorizontal: 14, paddingVertical: 8,
+    borderRadius: 20, marginTop: 14,
+    borderWidth: 1, borderColor: '#D8D0FF',
   },
-  pdfChipTxt: { fontSize: 12, fontWeight: '800', color: PURPLE },
+  pdfChipTxt: { fontSize: 13, fontWeight: '700', color: PURPLE },
 
   statusBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
