@@ -127,16 +127,42 @@ function SessionCard({ session }: { session: SessionListItem }) {
   );
 }
 
-// ─── Booking request card (pending — no teacher yet) ─────────────────────────
+// ─── Booking request card ─────────────────────────────────────────────────────
 
 function BookingRequestCard({ req }: { req: SessionRequest }) {
+  const router = useRouter();
+
   const isPending   = req.status === 'pending';
   const isConfirmed = req.status === 'confirmed';
-  const color = isPending ? C.warning : isConfirmed ? C.success : C.gray;
-  const label = isPending ? 'في الانتظار' : isConfirmed ? 'مؤكدة' : req.status;
+  const isExpired   = req.status === 'expired';
+  const isRejected  = req.status === 'rejected';
+
+  const color = isPending   ? C.warning
+              : isConfirmed ? C.success
+              : C.gray;
+
+  const label = isPending   ? 'بانتظار القبول'
+              : isConfirmed ? 'مؤكدة'
+              : isExpired   ? 'لم يتم القبول'
+              : isRejected  ? 'مرفوضة'
+              : req.status;
+
+  // إذا صار session → روح لبروفايل الحصة، غير هيك ما في شي يعرضه
+  const handlePress = () => {
+    if (req.session_id) {
+      router.push({ pathname: '/session/profile/[id]', params: { id: String(req.session_id) } });
+    }
+  };
+
+  const isNavigable = !!req.session_id;
 
   return (
-    <View style={[styles.card, styles.cardWaiting]}>
+    <TouchableOpacity
+      style={[styles.card, styles.cardWaiting]}
+      onPress={handlePress}
+      activeOpacity={isNavigable ? 0.8 : 1}
+      disabled={!isNavigable}
+    >
       <View style={[styles.statusBar, { backgroundColor: color }]} />
       <View style={styles.cardBody}>
         <View style={styles.cardTopRow}>
@@ -153,16 +179,24 @@ function BookingRequestCard({ req }: { req: SessionRequest }) {
             <Ionicons name="person-outline" size={12} color={C.gray} />
             <Text style={styles.cardTeacher}>{req.teacher.name}</Text>
           </View>
-        ) : (
+        ) : (isPending || isConfirmed) ? (
           <View style={styles.cardTeacherRow}>
             <Ionicons name="hourglass-outline" size={12} color={C.warning} />
-            <Text style={[styles.cardTeacher, { color: C.warning }]}>
-              بانتظار قبول معلم
-            </Text>
+            <Text style={[styles.cardTeacher, { color: C.warning }]}>بانتظار قبول معلم</Text>
+          </View>
+        ) : isExpired ? (
+          <View style={styles.cardTeacherRow}>
+            <Ionicons name="close-circle-outline" size={12} color={C.gray} />
+            <Text style={[styles.cardTeacher, { color: C.gray }]}>لم يقبل أي معلم الحصة</Text>
+          </View>
+        ) : null}
+        {isNavigable && (
+          <View style={styles.cardArrow}>
+            <Ionicons name="chevron-back" size={14} color={C.gray} />
           </View>
         )}
       </View>
-    </View>
+    </TouchableOpacity>
   );
 }
 
