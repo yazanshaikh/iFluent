@@ -95,7 +95,7 @@ function SessionCard({ session }: { session: SessionListItem }) {
       style={[styles.card, isWait && styles.cardWaiting]}
       activeOpacity={0.8}
       onPress={() =>
-        router.push({ pathname: '/session/profile/[id]', params: { id: String(session.id) } })
+        router.push({ pathname: '/session-profile/[id]', params: { id: String(session.id) } })
       }
     >
       <View style={[styles.statusBar, { backgroundColor: color }]} />
@@ -150,7 +150,7 @@ function BookingRequestCard({ req }: { req: SessionRequest }) {
   // إذا صار session → روح لبروفايل الحصة، غير هيك ما في شي يعرضه
   const handlePress = () => {
     if (req.session_id) {
-      router.push({ pathname: '/session/profile/[id]', params: { id: String(req.session_id) } });
+      router.push({ pathname: '/session-profile/[id]', params: { id: String(req.session_id) } });
     }
   };
 
@@ -400,7 +400,7 @@ export default function SessionsScreen() {
                         key={s.id}
                         session={s}
                         onJoin={() =>
-                          router.push({ pathname: '/session/[id]', params: { id: String(s.id) } })
+                          router.push({ pathname: '/session-profile/[id]', params: { id: String(s.id) } })
                         }
                       />
                     ))}
