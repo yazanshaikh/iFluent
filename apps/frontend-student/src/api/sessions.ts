@@ -73,6 +73,21 @@ export interface SessionRequest {
   session_id: number | null;
 }
 
+export interface BookingProfile {
+  id:           number;
+  status:       'pending' | 'confirmed' | 'rejected' | 'cancelled' | 'expired';
+  scheduled_at: string | null;
+  teacher:      { name: string } | null;
+  session_id:   number | null;
+  lesson: {
+    id:      number;
+    title:   string;
+    pdf_url: string | null;
+    unit?:   { id: number; name: string };
+    level?:  { id: number; code: string; name: string };
+  } | null;
+}
+
 // ─── API calls ────────────────────────────────────────────────────────────────
 
 export const sessionsApi = {
@@ -106,6 +121,12 @@ export const sessionsApi = {
   getProfile: (sessionId: number) =>
     client
       .get<SessionProfile>(`/student/sessions/${sessionId}/profile`)
+      .then((r) => r.data),
+
+  /** Fetch booking request profile (before a session is created) */
+  getBookingProfile: (bookingId: number) =>
+    client
+      .get<BookingProfile>(`/student/bookings/${bookingId}/profile`)
       .then((r) => r.data),
 
   /** Cancel a booking */

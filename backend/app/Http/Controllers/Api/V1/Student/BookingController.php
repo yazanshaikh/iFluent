@@ -153,6 +153,53 @@ class BookingController extends Controller
         ]));
     }
 
+    // ─── Booking Profile ─────────────────────────────────────────────────────
+
+    /**
+     * Profile view for a booking request — shown even before a session exists.
+     * Returns lesson details (title, pdf), booking status, and teacher info.
+     * If a session was created, includes session_id so the app can pivot to
+     * the full session profile.
+     */
+    public function profile(SessionRequest $sessionRequest, Request $request): JsonResponse
+    {
+        $student = $request->user();
+
+        if ($sessionRequest->student_id !== $student->id) {
+            return response()->json(['message' => 'Forbidden.'], 403);
+        }
+
+        $lesson = $sessionRequest->lesson()->with(['unit.level', 'level'])->first();
+
+        $lessonData = null;
+        if ($lesson) {
+            $lessonData = [
+                'id'      => $lesson->id,
+                'title'   => $lesson->title,
+                'pdf_url' => $lesson->pdf_url,
+            ];
+            if (!$lesson->is_assessment && $lesson->unit) {
+                $lessonData['unit']  = ['id' => $lesson->unit->id, 'name' => $lesson->unit->name];
+                $lessonData['level'] = [
+                    'id'   => $lesson->unit->level->id,
+                    'code' => $lesson->unit->level->code,
+                    'name' => $lesson->unit->level->name,
+                ];
+            }
+        }
+
+        return response()->json([
+            'id'           => $sessionRequest->id,
+            'status'       => $sessionRequest->status,
+            'scheduled_at' => $sessionRequest->requested_at_utc?->toIso8601String(),
+            'teacher'      => $sessionRequest->assignedTeacher
+                                ? ['name' => $sessionRequest->assignedTeacher->name]
+                                : null,
+            'lesson'       => $lessonData,
+            'session_id'   => $sessionRequest->session_id,
+        ]);
+    }
+
     // ─── Cancel a Booking Request ─────────────────────────────────────────────
 
     public function cancel(SessionRequest $sessionRequest, Request $request): JsonResponse

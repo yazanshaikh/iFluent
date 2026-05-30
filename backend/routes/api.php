@@ -219,9 +219,10 @@ Route::middleware(['auth:sanctum', 'role:student'])
         Route::get ('progress',                     [StudentQuizController::class, 'progress']);
 
         // ── Session Booking ────────────────────────────────────────────────────
-        Route::get   ('bookings',                         [StudentBookingController::class, 'index']);
-        Route::post  ('bookings',                         [StudentBookingController::class, 'store']);
-        Route::post  ('bookings/{sessionRequest}/cancel', [StudentBookingController::class, 'cancel']);
+        Route::get   ('bookings',                          [StudentBookingController::class, 'index']);
+        Route::post  ('bookings',                          [StudentBookingController::class, 'store']);
+        Route::get   ('bookings/{sessionRequest}/profile', [StudentBookingController::class, 'profile']);
+        Route::post  ('bookings/{sessionRequest}/cancel',  [StudentBookingController::class, 'cancel']);
 
         // ── Sessions ───────────────────────────────────────────────────────────
         Route::get ('sessions',                       [StudentSessionController::class, 'index']);

@@ -147,21 +147,23 @@ function BookingRequestCard({ req }: { req: SessionRequest }) {
               : isRejected  ? 'مرفوضة'
               : req.status;
 
-  // إذا صار session → روح لبروفايل الحصة، غير هيك ما في شي يعرضه
   const handlePress = () => {
     if (req.session_id) {
+      // Session created → go to full session profile
       router.push({ pathname: '/session-profile/[id]', params: { id: String(req.session_id) } });
+    } else {
+      // No session yet → go to booking profile
+      router.push({ pathname: '/booking-profile/[id]', params: { id: String(req.id) } });
     }
   };
 
-  const isNavigable = !!req.session_id;
+  const isNavigable = true;
 
   return (
     <TouchableOpacity
       style={[styles.card, styles.cardWaiting]}
       onPress={handlePress}
-      activeOpacity={isNavigable ? 0.8 : 1}
-      disabled={!isNavigable}
+      activeOpacity={0.8}
     >
       <View style={[styles.statusBar, { backgroundColor: color }]} />
       <View style={styles.cardBody}>
