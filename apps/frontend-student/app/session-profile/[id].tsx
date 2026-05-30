@@ -1,12 +1,6 @@
 /**
- * Session Profile Screen — بروفايل الحصة
- *
- * Sections (top to bottom):
- *  1. Header: lesson title, unit, level, teacher, scheduled time
- *  2. Pre-session activity (disabled — coming soon)
- *  3. Session button: enter live room if active, else greyed out
- *  4. Post-lesson quiz: locked until completed + 10 min both joined
- *  5. PDF material: opens in external browser via Linking
+ * Session Profile — بروفايل الحصة
+ * Template: purple background · fun lesson title · PDF chip top-right
  */
 import React from 'react';
 import {
@@ -19,27 +13,30 @@ import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { sessionsApi, type SessionProfile } from '@/api/sessions';
-import { C, shadow, LEVEL_COLORS } from '@/theme';
+import { C, shadow } from '@/theme';
+
+// ─── Design tokens ────────────────────────────────────────────────────────────
+const BG      = '#F0EBFF';   // light purple background
+const PURPLE  = '#7C3AED';   // accent purple
+const CARD_BG = '#FFFFFF';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function fmt(iso: string | null) {
+function fmtDate(iso: string | null) {
   if (!iso) return '—';
   return new Date(iso).toLocaleString('ar-SA', {
-    weekday: 'long',
-    day: 'numeric', month: 'long',
+    weekday: 'long', day: 'numeric', month: 'long',
     hour: '2-digit', minute: '2-digit',
     timeZone: 'Asia/Amman',
   });
 }
 
 const STATUS_LABEL: Record<string, string> = {
-  waiting:   'قريباً',
-  active:    'نشطة الآن',
-  completed: 'مكتملة',
-  cancelled: 'ملغاة',
+  waiting:   '⏳ قريباً',
+  active:    '🟢 نشطة الآن',
+  completed: '✅ مكتملة',
+  cancelled: '❌ ملغاة',
 };
-
 const STATUS_COLOR: Record<string, string> = {
   waiting:   C.warning,
   active:    C.success,
@@ -47,38 +44,29 @@ const STATUS_COLOR: Record<string, string> = {
   cancelled: C.error,
 };
 
-// ─── Section Card ─────────────────────────────────────────────────────────────
+// ─── Section card ─────────────────────────────────────────────────────────────
 
-function SectionCard({
+function Card({
   icon, title, locked, lockedMsg, children,
 }: {
-  icon: string;
-  title: string;
-  locked?: boolean;
-  lockedMsg?: string;
+  icon: string; title: string;
+  locked?: boolean; lockedMsg?: string;
   children?: React.ReactNode;
 }) {
   return (
     <View style={[styles.card, locked && styles.cardLocked]}>
-      <View style={styles.cardHeader}>
-        <Ionicons
-          name={icon as any}
-          size={20}
-          color={locked ? C.gray : C.navy}
-          style={{ marginRight: 8 }}
-        />
-        <Text style={[styles.cardTitle, locked && styles.cardTitleLocked]}>{title}</Text>
+      <View style={styles.cardRow}>
+        <Ionicons name={icon as any} size={19} color={locked ? C.gray : PURPLE} style={{ marginRight: 8 }} />
+        <Text style={[styles.cardTitle, locked && { color: C.gray }]}>{title}</Text>
         {locked && (
-          <View style={styles.lockBadge}>
-            <Ionicons name="lock-closed" size={12} color={C.gray} />
+          <View style={styles.lockChip}>
+            <Ionicons name="lock-closed" size={11} color={C.gray} />
           </View>
         )}
       </View>
-      {locked ? (
-        <Text style={styles.lockedMsg}>{lockedMsg}</Text>
-      ) : (
-        children
-      )}
+      {locked
+        ? <Text style={styles.lockedMsg}>{lockedMsg}</Text>
+        : children}
     </View>
   );
 }
@@ -96,23 +84,21 @@ export default function SessionProfileScreen() {
     staleTime: 30_000,
   });
 
-  // ── Loading ─────────────────────────────────────────────────────────────────
-
   if (isLoading) {
     return (
-      <SafeAreaView style={styles.centered}>
-        <Stack.Screen options={{ title: 'بروفايل الحصة', headerBackTitle: 'حصصي' }} />
-        <ActivityIndicator size="large" color={C.navy} />
+      <SafeAreaView style={[styles.centered, { backgroundColor: BG }]}>
+        <Stack.Screen options={{ title: 'تفاصيل الحصة', headerBackTitle: 'حصصي' }} />
+        <ActivityIndicator size="large" color={PURPLE} />
       </SafeAreaView>
     );
   }
 
   if (isError || !data) {
     return (
-      <SafeAreaView style={styles.centered}>
-        <Stack.Screen options={{ title: 'بروفايل الحصة', headerBackTitle: 'حصصي' }} />
+      <SafeAreaView style={[styles.centered, { backgroundColor: BG }]}>
+        <Stack.Screen options={{ title: 'تفاصيل الحصة', headerBackTitle: 'حصصي' }} />
         <Ionicons name="alert-circle-outline" size={48} color={C.error} />
-        <Text style={styles.errorText}>تعذّر تحميل بيانات الحصة</Text>
+        <Text style={styles.errTxt}>تعذّر تحميل بيانات الحصة</Text>
         <TouchableOpacity style={styles.retryBtn} onPress={() => refetch()}>
           <Text style={styles.retryTxt}>إعادة المحاولة</Text>
         </TouchableOpacity>
@@ -121,67 +107,97 @@ export default function SessionProfileScreen() {
   }
 
   const lesson      = data.lesson;
-  const levelColor  = LEVEL_COLORS[lesson.level?.code ?? ''] ?? C.navyLight;
   const isActive    = data.status === 'active';
   const isWaiting   = data.status === 'waiting';
   const isCompleted = data.status === 'completed';
+  const statusColor = STATUS_COLOR[data.status] ?? C.gray;
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#F8F9FA' }} edges={['bottom']}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: BG }} edges={['bottom']}>
       <Stack.Screen
         options={{
-          title: 'بروفايل الحصة',
+          title: '',
           headerBackTitle: 'حصصي',
-          headerStyle: { backgroundColor: C.navy },
-          headerTintColor: '#fff',
-          headerTitleStyle: { fontWeight: '700' },
+          headerStyle:      { backgroundColor: PURPLE },
+          headerTintColor:  '#fff',
+          headerTransparent: false,
         }}
       />
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
 
-        {/* ─── 1. Header ────────────────────────────────────────────────────── */}
-        <View style={[styles.heroCard, { borderTopColor: levelColor }]}>
-          <View style={[styles.statusBadge, { backgroundColor: STATUS_COLOR[data.status] + '22' }]}>
-            <View style={[styles.statusDot, { backgroundColor: STATUS_COLOR[data.status] }]} />
-            <Text style={[styles.statusText, { color: STATUS_COLOR[data.status] }]}>
+        {/* ══════════════════════════════════════════════════════════════
+            HERO — lesson title + PDF chip
+        ══════════════════════════════════════════════════════════════ */}
+        <View style={styles.hero}>
+
+          {/* PDF chip — top left */}
+          {lesson.pdf_url ? (
+            <TouchableOpacity
+              style={styles.pdfChip}
+              activeOpacity={0.8}
+              onPress={() => Linking.openURL(lesson.pdf_url!)}
+            >
+              <Ionicons name="document-text" size={15} color={PURPLE} />
+              <Text style={styles.pdfChipTxt}>PDF</Text>
+            </TouchableOpacity>
+          ) : (
+            <View style={[styles.pdfChip, { opacity: 0.35 }]}>
+              <Ionicons name="document-text-outline" size={15} color={C.gray} />
+              <Text style={[styles.pdfChipTxt, { color: C.gray }]}>PDF</Text>
+            </View>
+          )}
+
+          {/* Status badge */}
+          <View style={[styles.statusBadge, { backgroundColor: statusColor + '22' }]}>
+            <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
+            <Text style={[styles.statusTxt, { color: statusColor }]}>
               {STATUS_LABEL[data.status] ?? data.status}
             </Text>
           </View>
 
-          <Text style={styles.lessonTitle}>{lesson.title ?? 'حصة'}</Text>
+          {/* Fun title */}
+          <Text style={styles.heroSub}>حصة اليوم رح تكون عن ✨</Text>
+          <Text style={styles.heroTitle}>{lesson.title ?? 'حصة فردية'}</Text>
 
+          {/* Unit / Level */}
           {lesson.unit && (
-            <Text style={styles.unitText}>
-              {lesson.unit.name}{lesson.level ? `  ·  ${lesson.level.name}` : ''}
+            <Text style={styles.heroMeta}>
+              {lesson.unit.name}
+              {lesson.level ? `  ·  ${lesson.level.name}` : ''}
             </Text>
           )}
 
+          {/* Divider */}
           <View style={styles.heroDivider} />
 
-          <View style={styles.metaRow}>
-            <Ionicons name="calendar-outline" size={15} color={C.grayMid} />
-            <Text style={styles.metaText}>{fmt(data.scheduled_at)}</Text>
+          {/* Date + Teacher */}
+          <View style={styles.infoRow}>
+            <Ionicons name="calendar-outline" size={14} color={PURPLE} />
+            <Text style={styles.infoTxt}>{fmtDate(data.scheduled_at)}</Text>
           </View>
-
           {data.teacher?.name && (
-            <View style={styles.metaRow}>
-              <Ionicons name="person-outline" size={15} color={C.grayMid} />
-              <Text style={styles.metaText}>مع {data.teacher.name}</Text>
+            <View style={styles.infoRow}>
+              <Ionicons name="person-circle-outline" size={14} color={PURPLE} />
+              <Text style={styles.infoTxt}>مع {data.teacher.name}</Text>
             </View>
           )}
         </View>
 
-        {/* ─── 2. Pre-session (coming soon) ────────────────────────────────── */}
-        <SectionCard
+        {/* ──────────────────────────────────────────────────────────────
+            نشاط ما قبل الحصة
+        ────────────────────────────────────────────────────────────── */}
+        <Card
           icon="clipboard-outline"
           title="نشاط ما قبل الحصة"
           locked
-          lockedMsg="هذه الميزة ستكون متاحة قريباً"
+          lockedMsg="هذه الميزة ستكون متاحة قريباً 🚀"
         />
 
-        {/* ─── 3. الحصة الحية ──────────────────────────────────────────────── */}
-        <SectionCard icon="videocam-outline" title="الحصة الحية">
+        {/* ──────────────────────────────────────────────────────────────
+            الحصة الحية
+        ────────────────────────────────────────────────────────────── */}
+        <Card icon="videocam-outline" title="الحصة الحية">
           {isActive ? (
             <TouchableOpacity
               style={styles.joinBtn}
@@ -189,35 +205,39 @@ export default function SessionProfileScreen() {
               onPress={() => router.push({ pathname: '/session/[id]', params: { id: String(data.id) } })}
             >
               <Ionicons name="videocam" size={18} color="#fff" />
-              <Text style={styles.joinBtnTxt}>دخول الفصل الآن</Text>
+              <Text style={styles.joinTxt}>دخول الفصل الآن 🎉</Text>
             </TouchableOpacity>
           ) : isWaiting ? (
-            <View style={styles.sessionState}>
-              <Ionicons name="time-outline" size={32} color={C.warning} />
-              <Text style={[styles.sessionStateTitle, { color: C.warning }]}>الحصة لم تبدأ بعد</Text>
-              <Text style={styles.sessionStateSub}>ستُفعَّل تلقائياً عند بدء المعلم للحصة</Text>
+            <View style={styles.stateBox}>
+              <Text style={styles.stateEmoji}>⏳</Text>
+              <Text style={[styles.stateTitle, { color: C.warning }]}>الحصة لم تبدأ بعد</Text>
+              <Text style={styles.stateSub}>ستُفعَّل تلقائياً عند بدء المعلم</Text>
             </View>
           ) : isCompleted ? (
-            <View style={styles.sessionState}>
-              <Ionicons name="checkmark-circle" size={32} color={C.success} />
-              <Text style={[styles.sessionStateTitle, { color: C.success }]}>الحصة مكتملة</Text>
+            <View style={styles.stateBox}>
+              <Text style={styles.stateEmoji}>🎓</Text>
+              <Text style={[styles.stateTitle, { color: C.success }]}>الحصة مكتملة</Text>
             </View>
           ) : (
-            <View style={styles.sessionState}>
-              <Ionicons name="close-circle-outline" size={32} color={C.error} />
-              <Text style={[styles.sessionStateTitle, { color: C.error }]}>تم إلغاء الحصة</Text>
+            <View style={styles.stateBox}>
+              <Text style={styles.stateEmoji}>😔</Text>
+              <Text style={[styles.stateTitle, { color: C.error }]}>تم إلغاء الحصة</Text>
             </View>
           )}
-        </SectionCard>
+        </Card>
 
-        {/* ─── 4. كويز ─────────────────────────────────────────────────────── */}
-        <SectionCard
+        {/* ──────────────────────────────────────────────────────────────
+            كويز
+        ────────────────────────────────────────────────────────────── */}
+        <Card
           icon="help-circle-outline"
           title="كويز ما بعد الدرس"
           locked={!data.quiz_unlocked}
-          lockedMsg={isCompleted
-            ? 'الكويز سيُفتح بعد ١٠ دقائق من انتهاء الحصة'
-            : 'الكويز يُفتح فقط بعد إتمام الحصة'}
+          lockedMsg={
+            isCompleted
+              ? 'الكويز سيُفتح بعد ١٠ دقائق من انتهاء الحصة ⏱️'
+              : 'الكويز يُفتح فقط بعد إتمام الحصة 🔐'
+          }
         >
           <TouchableOpacity
             style={styles.quizBtn}
@@ -225,36 +245,9 @@ export default function SessionProfileScreen() {
             onPress={() => router.push({ pathname: '/quiz/[id]', params: { id: String(lesson.id) } })}
           >
             <Ionicons name="help-circle" size={18} color="#fff" />
-            <Text style={styles.quizBtnTxt}>ابدأ الكويز</Text>
+            <Text style={styles.quizTxt}>ابدأ الكويز 🚀</Text>
           </TouchableOpacity>
-        </SectionCard>
-
-        {/* ─── 5. PDF ───────────────────────────────────────────────────────── */}
-        <SectionCard icon="document-text-outline" title="مادة الدرس (PDF)">
-          {lesson.pdf_url ? (
-            <View style={styles.pdfBox}>
-              <View style={styles.pdfIcon}>
-                <Ionicons name="document-text" size={36} color={C.navy} />
-              </View>
-              <Text style={styles.pdfTitle} numberOfLines={2}>{lesson.title}</Text>
-              <Text style={styles.pdfSub}>اضغط لفتح الملف في المتصفح</Text>
-
-              <TouchableOpacity
-                style={styles.pdfOpenBtn}
-                activeOpacity={0.85}
-                onPress={() => Linking.openURL(lesson.pdf_url!)}
-              >
-                <Ionicons name="open-outline" size={17} color="#fff" />
-                <Text style={styles.pdfOpenTxt}>فتح وتحميل PDF</Text>
-              </TouchableOpacity>
-            </View>
-          ) : (
-            <View style={styles.noPdf}>
-              <Ionicons name="document-outline" size={32} color={C.gray} />
-              <Text style={styles.noPdfText}>لم يُرفق ملف PDF لهذه الحصة بعد</Text>
-            </View>
-          )}
-        </SectionCard>
+        </Card>
 
       </ScrollView>
     </SafeAreaView>
@@ -264,47 +257,65 @@ export default function SessionProfileScreen() {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  scroll:  { padding: 16, paddingBottom: 40, gap: 12 },
-  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F8F9FA', gap: 12 },
-  errorText: { fontSize: 16, color: C.grayDark, fontWeight: '600', textAlign: 'center' },
-  retryBtn:  { marginTop: 8, paddingHorizontal: 24, paddingVertical: 10, backgroundColor: C.navy, borderRadius: 12 },
-  retryTxt:  { color: '#fff', fontWeight: '700', fontSize: 14 },
+  scroll:   { padding: 16, paddingBottom: 48, gap: 14 },
+  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12 },
+  errTxt:   { fontSize: 16, color: C.grayDark, fontWeight: '600', textAlign: 'center' },
+  retryBtn: { marginTop: 8, paddingHorizontal: 24, paddingVertical: 10, backgroundColor: PURPLE, borderRadius: 12 },
+  retryTxt: { color: '#fff', fontWeight: '700', fontSize: 14 },
 
-  heroCard: { backgroundColor: '#fff', borderRadius: 16, padding: 20, borderTopWidth: 4, ...shadow.sm },
-  statusBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, marginBottom: 12 },
-  statusDot:   { width: 7, height: 7, borderRadius: 4 },
-  statusText:  { fontSize: 12, fontWeight: '700' },
-  lessonTitle: { fontSize: 22, fontWeight: '800', color: C.navy, textAlign: 'right', lineHeight: 32, marginBottom: 4 },
-  unitText:    { fontSize: 13, color: C.grayMid, textAlign: 'right', marginBottom: 4 },
-  heroDivider: { height: 1, backgroundColor: '#F3F4F6', marginVertical: 14 },
-  metaRow:     { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
-  metaText:    { fontSize: 13, color: C.grayMid, flex: 1, textAlign: 'right' },
+  // ── Hero ──────────────────────────────────────────────────────────────────
+  hero: {
+    backgroundColor: CARD_BG,
+    borderRadius: 24,
+    padding: 20,
+    ...shadow.sm,
+  },
+  pdfChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    alignSelf: 'flex-start',
+    backgroundColor: '#EDE9FF',
+    paddingHorizontal: 10, paddingVertical: 5,
+    borderRadius: 20, marginBottom: 12,
+  },
+  pdfChipTxt: { fontSize: 12, fontWeight: '800', color: PURPLE },
 
-  card:            { backgroundColor: '#fff', borderRadius: 16, padding: 18, ...shadow.sm },
-  cardLocked:      { opacity: 0.65 },
-  cardHeader:      { flexDirection: 'row', alignItems: 'center', marginBottom: 14 },
-  cardTitle:       { flex: 1, fontSize: 15, fontWeight: '700', color: C.navy, textAlign: 'right' },
-  cardTitleLocked: { color: C.grayMid },
-  lockBadge:       { width: 22, height: 22, borderRadius: 11, backgroundColor: '#F3F4F6', justifyContent: 'center', alignItems: 'center', marginLeft: 4 },
-  lockedMsg:       { fontSize: 13, color: C.grayMid, textAlign: 'right', lineHeight: 20 },
+  statusBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    alignSelf: 'flex-end',
+    paddingHorizontal: 10, paddingVertical: 4,
+    borderRadius: 20, marginBottom: 16,
+    position: 'absolute', top: 20, right: 20,
+  },
+  statusDot: { width: 7, height: 7, borderRadius: 4 },
+  statusTxt: { fontSize: 12, fontWeight: '700' },
 
-  joinBtn:    { backgroundColor: C.navy, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingVertical: 14, borderRadius: 14 },
-  joinBtnTxt: { color: '#fff', fontSize: 15, fontWeight: '800' },
+  heroSub:   { fontSize: 13, color: PURPLE, fontWeight: '600', textAlign: 'right', marginBottom: 4 },
+  heroTitle: {
+    fontSize: 24, fontWeight: '900', color: C.navy,
+    textAlign: 'right', lineHeight: 34, marginBottom: 6,
+  },
+  heroMeta:    { fontSize: 13, color: C.grayMid, textAlign: 'right', marginBottom: 4 },
+  heroDivider: { height: 1, backgroundColor: '#F3EFFF', marginVertical: 14 },
+  infoRow:     { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
+  infoTxt:     { fontSize: 13, color: C.grayMid, flex: 1, textAlign: 'right' },
 
-  sessionState:      { alignItems: 'center', padding: 12, gap: 8 },
-  sessionStateTitle: { fontSize: 15, fontWeight: '700' },
-  sessionStateSub:   { fontSize: 12, color: C.grayMid, textAlign: 'center', lineHeight: 18 },
+  // ── Cards ─────────────────────────────────────────────────────────────────
+  card:      { backgroundColor: CARD_BG, borderRadius: 18, padding: 18, ...shadow.sm },
+  cardLocked: { opacity: 0.6 },
+  cardRow:   { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
+  cardTitle: { flex: 1, fontSize: 15, fontWeight: '700', color: C.navy, textAlign: 'right' },
+  lockChip:  { width: 22, height: 22, borderRadius: 11, backgroundColor: '#F3F4F6', justifyContent: 'center', alignItems: 'center', marginLeft: 4 },
+  lockedMsg: { fontSize: 13, color: C.grayMid, textAlign: 'right', lineHeight: 20 },
 
-  quizBtn:    { backgroundColor: '#7C3AED', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingVertical: 14, borderRadius: 14 },
-  quizBtnTxt: { color: '#fff', fontSize: 15, fontWeight: '800' },
+  // ── Session states ────────────────────────────────────────────────────────
+  joinBtn:  { backgroundColor: PURPLE, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingVertical: 14, borderRadius: 14 },
+  joinTxt:  { color: '#fff', fontSize: 15, fontWeight: '800' },
+  stateBox: { alignItems: 'center', paddingVertical: 8, gap: 6 },
+  stateEmoji: { fontSize: 32 },
+  stateTitle: { fontSize: 15, fontWeight: '700' },
+  stateSub:   { fontSize: 12, color: C.grayMid, textAlign: 'center' },
 
-  pdfBox:     { alignItems: 'center', gap: 10 },
-  pdfIcon:    { width: 72, height: 72, borderRadius: 16, backgroundColor: C.cream, justifyContent: 'center', alignItems: 'center', ...shadow.sm },
-  pdfTitle:   { fontSize: 15, fontWeight: '700', color: C.navy, textAlign: 'center', lineHeight: 22 },
-  pdfSub:     { fontSize: 12, color: C.grayMid },
-  pdfOpenBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 13, paddingHorizontal: 32, borderRadius: 14, backgroundColor: C.navy, marginTop: 4 },
-  pdfOpenTxt: { color: '#fff', fontSize: 15, fontWeight: '700' },
-
-  noPdf:     { alignItems: 'center', gap: 8, padding: 12 },
-  noPdfText: { fontSize: 13, color: C.grayMid, textAlign: 'center' },
+  // ── Quiz ──────────────────────────────────────────────────────────────────
+  quizBtn: { backgroundColor: C.navy, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingVertical: 14, borderRadius: 14 },
+  quizTxt: { color: '#fff', fontSize: 15, fontWeight: '800' },
 });
