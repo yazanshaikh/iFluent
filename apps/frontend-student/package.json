@@ -2,7 +2,6 @@
   "name": "@ifluent/frontend-student",
   "version": "1.0.0",
   "private": true,
-  "packageManager": "npm@10.9.2",
   "main": "expo-router/entry",
   "scripts": {
     "start": "expo start",
