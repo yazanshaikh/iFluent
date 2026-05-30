@@ -28,13 +28,17 @@ const REMOVE_PATHS = [
   path.join(root, 'apps', 'frontend-student', 'node_modules', 'expo-router', 'node_modules', 'react'),
   path.join(root, 'apps', 'frontend-student', 'node_modules', 'expo-router', 'node_modules', 'react-dom'),
 
-  // ── Nested reanimated inside workspace local node_modules ────────────────
-  // Root overrides force 4.1.7 everywhere, but npm may still nest a local copy.
-  // Deleting it guarantees Metro + Gradle see exactly one copy.
+  // ── Nested reanimated ────────────────────────────────────────────────────
   path.join(root, 'apps', 'frontend-student', 'node_modules', 'react-native-reanimated'),
   path.join(root, 'apps', 'frontend-teacher', 'node_modules', 'react-native-reanimated'),
   path.join(root, 'apps', 'ifluent-app',      'node_modules', 'react-native-reanimated'),
   path.join(root, 'apps', 'landing',          'node_modules', 'react-native-reanimated'),
+
+  // ── Nested worklets (must be one version: 0.8.3) ─────────────────────────
+  path.join(root, 'apps', 'frontend-student', 'node_modules', 'react-native-worklets'),
+  path.join(root, 'apps', 'frontend-teacher', 'node_modules', 'react-native-worklets'),
+  path.join(root, 'apps', 'ifluent-app',      'node_modules', 'react-native-worklets'),
+  path.join(root, 'apps', 'landing',          'node_modules', 'react-native-worklets'),
 ];
 
 let removed = 0;
