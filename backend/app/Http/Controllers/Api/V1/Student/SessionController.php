@@ -27,6 +27,66 @@ class SessionController extends Controller
         return SessionResource::collection($sessions);
     }
 
+    // ─── Session Profile ──────────────────────────────────────────────────────
+
+    /**
+     * Full profile data for a session — shown on the "بروفايل الحصة" screen.
+     * Accessible regardless of session status (all statuses).
+     * Returns:
+     *   - lesson info (title, unit, level, pdf_url)
+     *   - session status + timestamps
+     *   - quiz_unlocked: true only when completed + 10 min since both joined
+     */
+    public function profile(Session $session, Request $request): JsonResponse
+    {
+        if ($session->student_id !== $request->user()->id) {
+            return response()->json(['message' => 'Forbidden.'], 403);
+        }
+
+        $lesson = $session->lesson()->with(['unit.level', 'level'])->first();
+
+        // Quiz unlock logic: session completed + 10 min since both joined
+        $quizUnlocked = false;
+        if ($session->isCompleted() && $session->student_joined_at && $session->teacher_joined_at) {
+            $bothJoinedAt  = max($session->student_joined_at, $session->teacher_joined_at);
+            $quizUnlocked  = now()->diffInMinutes($bothJoinedAt) >= 10;
+        }
+
+        $lessonData = [
+            'id'            => $lesson?->id,
+            'title'         => $lesson?->title,
+            'is_assessment' => $lesson?->is_assessment ?? false,
+            'pdf_url'       => $lesson?->pdf_url,
+        ];
+
+        if ($lesson && !$lesson->is_assessment && $lesson->unit) {
+            $lessonData['order'] = $lesson->order;
+            $lessonData['unit']  = ['id' => $lesson->unit->id, 'name' => $lesson->unit->name];
+            $lessonData['level'] = [
+                'id'   => $lesson->unit->level->id,
+                'code' => $lesson->unit->level->code,
+                'name' => $lesson->unit->level->name,
+            ];
+        } elseif ($lesson?->level) {
+            $lessonData['level'] = [
+                'id'   => $lesson->level->id,
+                'code' => $lesson->level->code,
+                'name' => $lesson->level->name,
+            ];
+        }
+
+        return response()->json([
+            'id'           => $session->id,
+            'status'       => $session->status,
+            'scheduled_at' => $session->scheduled_at?->toIso8601String(),
+            'started_at'   => $session->started_at?->toIso8601String(),
+            'ended_at'     => $session->ended_at?->toIso8601String(),
+            'teacher'      => ['name' => $session->teacher?->name],
+            'lesson'       => $lessonData,
+            'quiz_unlocked' => $quizUnlocked,
+        ]);
+    }
+
     // ─── Join Session ─────────────────────────────────────────────────────────
 
     /**

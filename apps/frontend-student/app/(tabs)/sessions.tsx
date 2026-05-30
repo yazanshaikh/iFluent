@@ -86,11 +86,18 @@ function ActiveCard({ session, onJoin }: { session: SessionListItem; onJoin: () 
 // ─── Regular session card ─────────────────────────────────────────────────────
 
 function SessionCard({ session }: { session: SessionListItem }) {
+  const router = useRouter();
   const color  = STATUS_COLOR[session.status] ?? C.gray;
   const isWait = session.status === 'waiting';
 
   return (
-    <View style={[styles.card, isWait && styles.cardWaiting]}>
+    <TouchableOpacity
+      style={[styles.card, isWait && styles.cardWaiting]}
+      activeOpacity={0.8}
+      onPress={() =>
+        router.push({ pathname: '/session/profile/[id]', params: { id: String(session.id) } })
+      }
+    >
       <View style={[styles.statusBar, { backgroundColor: color }]} />
       <View style={styles.cardBody}>
         <View style={styles.cardTopRow}>
@@ -112,8 +119,11 @@ function SessionCard({ session }: { session: SessionListItem }) {
             <Text style={styles.cardTeacher}>{session.teacher.name}</Text>
           </View>
         )}
+        <View style={styles.cardArrow}>
+          <Ionicons name="chevron-back" size={14} color={C.gray} />
+        </View>
       </View>
-    </View>
+    </TouchableOpacity>
   );
 }
 
@@ -589,6 +599,7 @@ const styles = StyleSheet.create({
     gap: 4, justifyContent: 'flex-end',
   },
   cardTeacher: { fontSize: 12, color: C.gray },
+  cardArrow:   { position: 'absolute', left: 0, top: '50%' as any },
 
   // ── Empty ─────────────────────────────────────────────────────────────────
   emptyCard: {

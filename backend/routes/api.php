@@ -225,6 +225,7 @@ Route::middleware(['auth:sanctum', 'role:student'])
 
         // ── Sessions ───────────────────────────────────────────────────────────
         Route::get ('sessions',                       [StudentSessionController::class, 'index']);
+        Route::get ('sessions/{session}/profile',     [StudentSessionController::class, 'profile']);
         Route::get ('sessions/{session}/join',        [StudentSessionController::class, 'join']);
         Route::post('sessions/{session}/rate',        [SessionRatingController::class, 'store']);
         Route::get ('sessions/{session}/rate/check',  [SessionRatingController::class, 'check']);

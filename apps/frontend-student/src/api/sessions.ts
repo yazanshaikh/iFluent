@@ -44,6 +44,25 @@ export interface BookingRequest {
   notes?:             string;
 }
 
+export interface SessionProfile {
+  id:           number;
+  status:       'waiting' | 'active' | 'completed' | 'cancelled';
+  scheduled_at: string | null;
+  started_at:   string | null;
+  ended_at:     string | null;
+  teacher:      { name: string };
+  lesson: {
+    id:            number;
+    title:         string;
+    is_assessment: boolean;
+    pdf_url:       string | null;
+    order?:        number;
+    unit?:         { id: number; name: string };
+    level?:        { id: number; code: string; name: string };
+  };
+  quiz_unlocked: boolean;
+}
+
 export interface SessionRequest {
   id:           number;
   type:         string;
@@ -81,6 +100,12 @@ export const sessionsApi = {
   book: (payload: BookingRequest) =>
     client
       .post<{ message: string; request: SessionRequest }>('/student/bookings', payload)
+      .then((r) => r.data),
+
+  /** Fetch session profile (all statuses) */
+  getProfile: (sessionId: number) =>
+    client
+      .get<SessionProfile>(`/student/sessions/${sessionId}/profile`)
       .then((r) => r.data),
 
   /** Cancel a booking */
