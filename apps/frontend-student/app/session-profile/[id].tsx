@@ -326,15 +326,17 @@ const styles = StyleSheet.create({
   },
   subWrap: {
     alignSelf: 'center',
-    backgroundColor: 'rgba(147, 210, 255, 0.18)',
+    backgroundColor: 'rgba(147, 210, 255, 0.15)',
     borderRadius: 22,
     paddingHorizontal: 20, paddingVertical: 9,
     marginBottom: 14,
-    shadowColor: '#60C8FF',
-    shadowOpacity: 0.7,
-    shadowRadius: 14,
+    // glow — iOS
+    shadowColor: '#93D2FF',
+    shadowOpacity: 1,
+    shadowRadius: 24,
     shadowOffset: { width: 0, height: 0 },
-    elevation: 6,
+    // glow — Android
+    elevation: 12,
   },
   heroSub: {
     fontSize: 18,
