@@ -408,6 +408,23 @@ export default function ProcessOrdersPage() {
     staleTime: 30_000,
   });
 
+  // Pre-fill lesson range dropdowns from subscription data when orders load
+  useEffect(() => {
+    if (!pendingApproval?.data) return;
+    setLessonRangeMap((prev) => {
+      const next = { ...prev };
+      pendingApproval.data.forEach((order) => {
+        if (order.from_lesson_id && order.to_lesson_id && !prev[order.id]) {
+          next[order.id] = {
+            from: String(order.from_lesson_id),
+            to:   String(order.to_lesson_id),
+          };
+        }
+      });
+      return next;
+    });
+  }, [pendingApproval?.data]);
+
   const uploadMutation = useMutation({
     mutationFn: ({ id, file }: { id: number; file: File }) =>
       checkoutApi.uploadReceiptForOrder(id, file),

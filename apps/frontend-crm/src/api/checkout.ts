@@ -12,8 +12,10 @@ export interface LessonOption {
 }
 
 export interface PurchaseCoursePayload {
-  lessons_count: number;
-  amount_paid:   number;
+  lessons_count:   number;
+  amount_paid:     number;
+  from_lesson_id?: number | null;
+  to_lesson_id?:   number | null;
 }
 
 export interface InvoiceCreatedResponse {
@@ -36,6 +38,8 @@ export interface PendingOrder {
   lessons_count: number | null;
   months_count:  number;
   amount_paid:   number;
+  from_lesson_id: number | null;
+  to_lesson_id:   number | null;
   payment_account: {
     alias:     string;
     cliq_name: string;
@@ -63,7 +67,7 @@ export interface PublicInvoice {
 // ─── CRM API (authenticated) ──────────────────────────────────────────────────
 
 export const checkoutApi = {
-  /** Generate invoice for a lead */
+  /** Generate invoice for a lead — includes optional lesson range */
   purchaseCourse: (leadId: string | number, payload: PurchaseCoursePayload) =>
     client
       .post<InvoiceCreatedResponse>(`/crm/leads/${leadId}/checkout`, payload)

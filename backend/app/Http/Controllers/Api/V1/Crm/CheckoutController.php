@@ -57,6 +57,9 @@ class CheckoutController extends Controller
                 'lessons_count'      => $lessonsCount,
                 'months_count'       => $monthsCount,
                 'amount_paid'        => $request->amount_paid,
+                // Lesson range — selected by employee at purchase time
+                'from_lesson_id'     => $request->from_lesson_id,
+                'to_lesson_id'       => $request->to_lesson_id,
             ]);
         });
 

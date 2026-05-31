@@ -11,8 +11,10 @@ class CheckoutRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'lessons_count' => ['required', 'integer', 'min:1', 'max:252'],
-            'amount_paid'   => ['required', 'numeric', 'min:0'],
+            'lessons_count'   => ['required', 'integer', 'min:1', 'max:252'],
+            'amount_paid'     => ['required', 'numeric', 'min:0'],
+            'from_lesson_id'  => ['nullable', 'integer', 'exists:lessons,id'],
+            'to_lesson_id'    => ['nullable', 'integer', 'exists:lessons,id'],
         ];
     }
 

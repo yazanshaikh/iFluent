@@ -229,8 +229,11 @@ export default function LeadProfilePage() {
   const purchaseMutation = useMutation({
     mutationFn: () =>
       checkoutApi.purchaseCourse(leadId, {
-        lessons_count: selectedLessonsCount,
-        amount_paid:   Number(purchaseActualPrice) || selectedLessonsCount * pricePerLesson,
+        lessons_count:   selectedLessonsCount,
+        amount_paid:     Number(purchaseActualPrice) || selectedLessonsCount * pricePerLesson,
+        // global lesson numbers match DB IDs (lessons seeded sequentially 1-252)
+        from_lesson_id:  purchaseLessonsFrom,
+        to_lesson_id:    purchaseLessonsTo ?? purchaseLessonsFrom,
       }),
     onSuccess: (data) => {
       setPurchaseResult(data);
