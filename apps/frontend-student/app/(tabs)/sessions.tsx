@@ -6,12 +6,16 @@ import {
   View, Text, ScrollView, TouchableOpacity,
   StyleSheet, ActivityIndicator, RefreshControl, Animated,
 } from 'react-native';
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { sessionsApi, type SessionListItem, type SessionRequest } from '@/api/sessions';
+import { profileApi } from '@/api/profile';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import client from '@/api/client';
+import { Alert, Modal, TextInput as RNTextInput } from 'react-native';
 import { C, shadow }          from '@/theme';
 import { useAnimatedHeader }  from '@/hooks/useAnimatedHeader';
 
@@ -285,8 +289,40 @@ export default function SessionsScreen() {
     refetchInterval: 15_000,
   });
 
-  const sessions = data ?? [];
-  const bookings = (bookingsData ?? []) as SessionRequest[];
+  const { data: profile } = useQuery({
+    queryKey: ['profile'],
+    queryFn:  profileApi.get,
+    staleTime: 60_000,
+  });
+
+  const sessions   = data ?? [];
+  const bookings   = (bookingsData ?? []) as SessionRequest[];
+  const hasCredits = (profile?.lesson_credits ?? 0) > 0;
+
+  // ── Assessment booking state ──────────────────────────────────────────────
+  const [showAssessModal, setShowAssessModal] = useState(false);
+  const [scheduledAt, setScheduledAt]         = useState('');
+  const qc = useQueryClient();
+
+  const assessMutation = useMutation({
+    mutationFn: ({ lessonId, date }: { lessonId: number; date: string }) =>
+      client.post('/student/bookings', { lesson_id: lessonId, scheduled_at: date }).then(r => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['bookings'] });
+      setShowAssessModal(false);
+      setScheduledAt('');
+      Alert.alert('✅ تم الحجز', 'تم إرسال طلب الحصة التقييمية. سيتواصل معك المعلم قريباً.');
+    },
+    onError: (e: any) => Alert.alert('خطأ', e?.response?.data?.message ?? 'تعذر الحجز'),
+  });
+
+  // Fetch assessment lessons when modal opens
+  const { data: assessLessons = [] } = useQuery({
+    queryKey: ['assessment-lessons'],
+    queryFn:  () => client.get<{ data: { id: number; title: string; level: any }[] }>('/student/assessment-lessons').then(r => r.data.data),
+    enabled:  showAssessModal,
+    staleTime: 5 * 60_000,
+  });
 
   const active   = sessions.filter((s) => s.status === 'active');
   const upcoming = sessions.filter((s) => s.status === 'waiting');
@@ -368,6 +404,16 @@ export default function SessionsScreen() {
             </View>
             <Text style={styles.emptyTitle}>لا توجد حصص قادمة</Text>
             <Text style={styles.emptySub}>ستظهر حصصك القادمة هنا فور الحجز</Text>
+            {!hasCredits && (
+              <TouchableOpacity
+                style={styles.assessBtn}
+                activeOpacity={0.85}
+                onPress={() => setShowAssessModal(true)}
+              >
+                <Ionicons name="star-outline" size={17} color={C.navy} />
+                <Text style={styles.assessBtnTxt}>احجز حصة تقييمية مجانية</Text>
+              </TouchableOpacity>
+            )}
           </View>
 
         ) : filter === 'done' && !hasDone ? (
@@ -442,6 +488,61 @@ export default function SessionsScreen() {
 
         <View style={{ height: 20 }} />
       </ScrollView>
+
+      {/* ── Assessment Booking Modal ── */}
+      <Modal visible={showAssessModal} transparent animationType="slide" onRequestClose={() => setShowAssessModal(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>🎯 احجز حصة تقييمية مجانية</Text>
+            <Text style={styles.modalSub}>اختر الدرس وحدد الموعد المناسب لك</Text>
+
+            {assessLessons.length === 0 ? (
+              <ActivityIndicator color={C.navy} style={{ marginVertical: 20 }} />
+            ) : (
+              <>
+                {assessLessons.map((l) => (
+                  <TouchableOpacity
+                    key={l.id}
+                    style={[styles.lessonChoice, assessMutation.variables?.lessonId === l.id && styles.lessonChoiceActive]}
+                    onPress={() => assessMutation.reset()}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.lessonChoiceTxt}>{l.level?.code} — {l.title}</Text>
+                  </TouchableOpacity>
+                ))}
+              </>
+            )}
+
+            <Text style={[styles.fieldLbl, { marginTop: 16 }]}>الموعد (YYYY-MM-DD HH:MM)</Text>
+            <RNTextInput
+              style={styles.dateInput}
+              value={scheduledAt}
+              onChangeText={setScheduledAt}
+              placeholder="2026-06-01 10:00"
+              placeholderTextColor={C.gray}
+            />
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity style={styles.modalCancel} onPress={() => setShowAssessModal(false)}>
+                <Text style={styles.modalCancelTxt}>إلغاء</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalConfirm, assessMutation.isPending && { opacity: 0.6 }]}
+                disabled={assessMutation.isPending || !scheduledAt || assessLessons.length === 0}
+                onPress={() => {
+                  if (!scheduledAt || assessLessons.length === 0) return;
+                  assessMutation.mutate({ lessonId: assessLessons[0].id, date: scheduledAt });
+                }}
+                activeOpacity={0.85}
+              >
+                {assessMutation.isPending
+                  ? <ActivityIndicator color="#fff" size="small" />
+                  : <Text style={styles.modalConfirmTxt}>تأكيد الحجز</Text>}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -649,6 +750,24 @@ const styles = StyleSheet.create({
     justifyContent: 'center', alignItems: 'center', marginBottom: 16,
   },
   emptyTitle: { fontSize: 15, fontWeight: '800', color: C.navy, textAlign: 'center' },
+  assessBtn:  { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 16, backgroundColor: C.cream, borderRadius: 14, paddingHorizontal: 18, paddingVertical: 12, borderWidth: 1.5, borderColor: C.border },
+  assessBtnTxt: { fontSize: 14, fontWeight: '700', color: C.navy },
+
+  // Modal
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
+  modalCard: { backgroundColor: '#fff', borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, paddingBottom: 40 },
+  modalTitle: { fontSize: 18, fontWeight: '900', color: C.navy, textAlign: 'right', marginBottom: 4 },
+  modalSub:   { fontSize: 13, color: C.gray, textAlign: 'right', marginBottom: 16 },
+  lessonChoice: { backgroundColor: C.cream, borderRadius: 12, padding: 14, marginBottom: 8, borderWidth: 1.5, borderColor: C.border },
+  lessonChoiceActive: { borderColor: C.navy, backgroundColor: '#EEF2FF' },
+  lessonChoiceTxt: { fontSize: 14, fontWeight: '600', color: C.navy, textAlign: 'right' },
+  fieldLbl: { fontSize: 13, fontWeight: '700', color: C.navy, textAlign: 'right', marginBottom: 8 },
+  dateInput: { borderWidth: 2, borderColor: C.border, borderRadius: 14, padding: 14, fontSize: 15, color: C.navy, backgroundColor: C.inputBg, textAlign: 'right', marginBottom: 4 },
+  modalActions: { flexDirection: 'row', gap: 12, marginTop: 16 },
+  modalCancel:  { flex: 1, padding: 14, borderRadius: 14, borderWidth: 1.5, borderColor: C.border, alignItems: 'center' },
+  modalCancelTxt: { fontSize: 14, fontWeight: '700', color: C.gray },
+  modalConfirm: { flex: 2, padding: 14, borderRadius: 14, backgroundColor: C.navy, alignItems: 'center' },
+  modalConfirmTxt: { fontSize: 14, fontWeight: '800', color: '#fff' },
   emptySub:   {
     fontSize: 13, color: C.gray, marginTop: 8,
     textAlign: 'center', lineHeight: 20, paddingHorizontal: 20,
