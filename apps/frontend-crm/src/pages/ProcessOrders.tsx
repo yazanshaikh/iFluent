@@ -408,22 +408,6 @@ export default function ProcessOrdersPage() {
     staleTime: 30_000,
   });
 
-  // Pre-fill lesson range dropdowns from subscription data when orders load
-  useEffect(() => {
-    if (!pendingApproval?.data) return;
-    setLessonRangeMap((prev) => {
-      const next = { ...prev };
-      pendingApproval.data.forEach((order) => {
-        if (order.from_lesson_id && order.to_lesson_id && !prev[order.id]) {
-          next[order.id] = {
-            from: String(order.from_lesson_id),
-            to:   String(order.to_lesson_id),
-          };
-        }
-      });
-      return next;
-    });
-  }, [pendingApproval?.data]);
 
   const uploadMutation = useMutation({
     mutationFn: ({ id, file }: { id: number; file: File }) =>
@@ -570,7 +554,11 @@ export default function ProcessOrdersPage() {
             <>
               <div className="space-y-3">
                 {approvalOrders.map((order) => {
-                  const range = lessonRangeMap[order.id] ?? { from: '', to: '' };
+                  // use saved edit first, then fall back to what was stored in the subscription
+                  const range = lessonRangeMap[order.id] ?? {
+                    from: order.from_lesson_id ? String(order.from_lesson_id) : '',
+                    to:   order.to_lesson_id   ? String(order.to_lesson_id)   : '',
+                  };
                   return (
                     <div key={order.id} className="space-y-2">
                       <OrderCard
