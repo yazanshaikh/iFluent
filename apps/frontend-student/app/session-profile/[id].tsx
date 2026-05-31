@@ -311,8 +311,6 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
     borderBottomLeftRadius: 32,
     borderBottomRightRadius: 32,
-    overflow: 'hidden',
-    position: 'relative',
   },
   backBtn: {
     width: 38, height: 38, borderRadius: 19,
