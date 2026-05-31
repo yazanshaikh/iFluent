@@ -39,16 +39,24 @@ class BookingController extends Controller
             'notes'        => ['sometimes', 'nullable', 'string', 'max:300'],
         ]);
 
-        // ── Jordan working hours: 09:00–21:00 (UTC+3) ────────────────────────
-        $jordanHour = (int) \Carbon\Carbon::parse($validated['scheduled_at'])
-            ->setTimezone('Asia/Amman')
-            ->format('H');
+        // ── Parse as Jordan time → convert to UTC for storage ────────────────
+        // The student app sends "YYYY-MM-DD HH:MM:00" in Jordan local time (UTC+3).
+        // We must interpret it as Jordan time then store as UTC so that
+        // CRM displays (which adds +3) shows the correct time.
+        $scheduledUtc = \Carbon\Carbon::parse($validated['scheduled_at'], 'Asia/Amman')
+            ->utc();
+
+        // ── Jordan working hours check: 09:00–21:00 ──────────────────────────
+        $jordanHour = (int) $scheduledUtc->copy()->setTimezone('Asia/Amman')->format('H');
 
         if ($jordanHour < 9 || $jordanHour >= 21) {
             return response()->json([
                 'message' => 'يُقبل الحجز فقط بين الساعة ٩ صباحاً و٩ مساءً بتوقيت الأردن.',
             ], 422);
         }
+
+        // Overwrite validated value with the UTC version for consistent storage
+        $validated['scheduled_at'] = $scheduledUtc->toDateTimeString();
 
         // ── Lesson-specific booking ───────────────────────────────────────────
         $lesson = null;
