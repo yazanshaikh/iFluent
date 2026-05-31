@@ -47,10 +47,9 @@ class StudentProgress extends Model
 
     // ─── Helpers ──────────────────────────────────────────────────────────────
 
-    const PASS_MARK = 60; // 60% required to pass
-
-    public function hasPassed(): bool
+    // Activity completed = lesson_completed flag is true (no pass score required)
+    public function isCompleted(): bool
     {
-        return $this->score !== null && $this->score >= self::PASS_MARK;
+        return $this->lesson_completed === true;
     }
 }

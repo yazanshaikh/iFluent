@@ -45,12 +45,9 @@ class SessionController extends Controller
 
         $lesson = $session->lesson()->with(['unit.level', 'level'])->first();
 
-        // Quiz unlock logic: session completed + 10 min since both joined
-        $quizUnlocked = false;
-        if ($session->isCompleted() && $session->student_joined_at && $session->teacher_joined_at) {
-            $bothJoinedAt  = max($session->student_joined_at, $session->teacher_joined_at);
-            $quizUnlocked  = now()->diffInMinutes($bothJoinedAt) >= 10;
-        }
+        // Activity unlock: session completed (no score/pass requirement)
+        // No 60% pass mark — activity unlocks as soon as session is done
+        $quizUnlocked = $session->isCompleted();
 
         $lessonData = [
             'id'            => $lesson?->id,

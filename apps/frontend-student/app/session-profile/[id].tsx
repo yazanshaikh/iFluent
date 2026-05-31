@@ -6,7 +6,7 @@
  *  │  LinearGradient hero        │  ← lesson title + meta
  *  ├─────────────────────────────┤
  *
- *  │  Card: الحصة الحية          │
+ *  │  Card: الحصة المباشرة          │
  *  │  Card: الكويز               │
  *  └─────────────────────────────┘
  *  FAB ↘ PDF download
@@ -239,8 +239,8 @@ export default function SessionProfileScreen() {
         <View style={styles.cards}>
 
 
-          {/* الحصة الحية */}
-          <Card icon="videocam-outline" title="الحصة الحية" accent="#22C55E">
+          {/* الحصة المباشرة */}
+          <Card icon="videocam-outline" title="الحصة المباشرة" accent="#22C55E">
             {isActive ? (
               <TouchableOpacity
                 style={styles.joinBtn}
@@ -269,25 +269,21 @@ export default function SessionProfileScreen() {
             )}
           </Card>
 
-          {/* الكويز */}
+          {/* نشاط ما بعد الدرس */}
           <Card
-            icon="help-circle-outline"
-            title="كويز ما بعد الدرس"
+            icon="pencil-outline"
+            title="نشاط ما بعد الدرس"
             accent={PURPLE}
             locked={!data.quiz_unlocked}
-            lockedMsg={
-              isCompleted
-                ? 'الكويز سيُفتح بعد ١٠ دقائق من انتهاء الحصة ⏱️'
-                : 'الكويز يُفتح فقط بعد إتمام الحصة 🔐'
-            }
+            lockedMsg="النشاط يُفتح بعد إتمام الحصة 🔐"
           >
             <TouchableOpacity
               style={styles.quizBtn}
               activeOpacity={0.85}
               onPress={() => router.push({ pathname: '/quiz/[id]', params: { id: String(lesson.id) } })}
             >
-              <Ionicons name="help-circle" size={18} color="#fff" />
-              <Text style={styles.quizTxt}>ابدأ الكويز 🚀</Text>
+              <Ionicons name="pencil" size={18} color="#fff" />
+              <Text style={styles.quizTxt}>ابدأ النشاط</Text>
             </TouchableOpacity>
           </Card>
 
