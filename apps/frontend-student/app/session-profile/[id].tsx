@@ -152,10 +152,11 @@ export default function SessionProfileScreen() {
     );
   }
 
-  const lesson      = data.lesson;
-  const isActive    = data.status === 'active';
-  const isWaiting   = data.status === 'waiting';
-  const isCompleted = data.status === 'completed';
+  const lesson       = data.lesson;
+  const isAssessment = lesson?.is_assessment ?? false;
+  const isActive     = data.status === 'active';
+  const isWaiting    = data.status === 'waiting';
+  const isCompleted  = data.status === 'completed';
 
   return (
     <View style={{ flex: 1, backgroundColor: '#F4F0FF' }}>
@@ -182,30 +183,34 @@ export default function SessionProfileScreen() {
             <StatusPill status={data.status} />
           </View>
 
-          {/* ── Label: حصة اليوم — gradient top→bottom ── */}
-          <LinearGradient
-            colors={['rgba(109,40,217,0.55)', 'rgba(26,41,128,0.25)']}
-            start={{ x: 0.5, y: 0 }}
-            end={{ x: 0.5, y: 1 }}
-            style={styles.subWrap}
-          >
-            <Text style={styles.heroSub}>حصة اليوم رح تكون عن</Text>
-          </LinearGradient>
+          {/* Assessment label OR regular lesson title+PDF */}
+          {isAssessment ? (
+            <Text style={styles.assessmentLabel}>🎯 حصة تقييمية</Text>
+          ) : (
+            <>
+              <LinearGradient
+                colors={['rgba(109,40,217,0.55)', 'rgba(26,41,128,0.25)']}
+                start={{ x: 0.5, y: 0 }}
+                end={{ x: 0.5, y: 1 }}
+                style={styles.subWrap}
+              >
+                <Text style={styles.heroSub}>حصة اليوم رح تكون عن</Text>
+              </LinearGradient>
 
-          {/* ── Lesson title ── */}
-          <Text style={styles.heroTitle} numberOfLines={3}>
-            {lesson.title ?? ''}
-          </Text>
+              <Text style={styles.heroTitle} numberOfLines={3}>
+                {lesson.title ?? ''}
+              </Text>
 
-          {/* Unit · Level */}
-          {lesson.unit && (
-            <Text style={styles.heroMeta}>
-              {lesson.unit.name}
-              {lesson.level ? `  ·  ${lesson.level.name}` : ''}
-            </Text>
+              {lesson.unit && (
+                <Text style={styles.heroMeta}>
+                  {lesson.unit.name}
+                  {lesson.level ? `  ·  ${lesson.level.name}` : ''}
+                </Text>
+              )}
+            </>
           )}
 
-          {/* Teacher only */}
+          {/* Teacher */}
           {data.teacher?.name && (
             <View style={styles.metaStrip}>
               <View style={styles.metaItem}>
@@ -215,8 +220,8 @@ export default function SessionProfileScreen() {
             </View>
           )}
 
-          {/* PDF download button */}
-          {fixStorageUrl(lesson.pdf_url) && (
+          {/* PDF — only for regular lessons */}
+          {!isAssessment && fixStorageUrl(lesson.pdf_url) && (
             <TouchableOpacity
               style={styles.pdfBtn}
               activeOpacity={0.82}
@@ -336,7 +341,8 @@ const styles = StyleSheet.create({
     letterSpacing: 0.4,
     fontFamily: Platform.select({ ios: 'Al Nile', android: 'serif' }),
   },
-  heroTitle: { fontSize: 20, fontWeight: '900', color: '#fff', textAlign: 'right', lineHeight: 28, marginBottom: 6 },
+  heroTitle:       { fontSize: 20, fontWeight: '900', color: '#fff', textAlign: 'right', lineHeight: 28, marginBottom: 6 },
+  assessmentLabel: { fontSize: 18, fontWeight: '800', color: '#fff', textAlign: 'center', marginTop: 8, marginBottom: 6, letterSpacing: 0.3 },
   heroMeta:  { fontSize: 12, color: 'rgba(255,255,255,0.65)', textAlign: 'right', marginBottom: 14 },
 
   metaStrip: { flexDirection: 'row', flexWrap: 'wrap', gap: 14, justifyContent: 'flex-end' },

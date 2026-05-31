@@ -282,9 +282,10 @@ class BookingController extends Controller
         $lessonData = null;
         if ($lesson) {
             $lessonData = [
-                'id'      => $lesson->id,
-                'title'   => $lesson->title,
-                'pdf_url' => $lesson->pdf_url,
+                'id'           => $lesson->id,
+                'title'        => $lesson->title,
+                'pdf_url'      => $lesson->pdf_url,
+                'is_assessment' => (bool) $lesson->is_assessment,
             ];
             if (!$lesson->is_assessment && $lesson->unit) {
                 $lessonData['unit']  = ['id' => $lesson->unit->id, 'name' => $lesson->unit->name];

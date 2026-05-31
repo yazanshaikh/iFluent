@@ -137,10 +137,11 @@ export default function BookingProfileScreen() {
     );
   }
 
-  const lesson    = data.lesson;
-  const pdfUrl    = fixStorageUrl(lesson?.pdf_url);
-  const isPending = data.status === 'pending' || data.status === 'confirmed';
-  const meta      = STATUS_META[data.status] ?? { label: data.status, color: '#fff', emoji: '' };
+  const lesson       = data.lesson;
+  const isAssessment = lesson?.is_assessment ?? false;
+  const pdfUrl       = !isAssessment ? fixStorageUrl(lesson?.pdf_url) : null;
+  const isPending    = data.status === 'pending' || data.status === 'confirmed';
+  const meta         = STATUS_META[data.status] ?? { label: data.status, color: '#fff', emoji: '' };
 
   return (
     <View style={{ flex: 1, backgroundColor: '#F4F0FF' }}>
@@ -174,30 +175,37 @@ export default function BookingProfileScreen() {
             </View>
           </View>
 
-          {/* Sub-label badge */}
-          <LinearGradient
-            colors={['rgba(109,40,217,0.55)', 'rgba(26,41,128,0.2)']}
-            start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }}
-            style={styles.subBadge}
-          >
-            <Text style={styles.subLabel}>حصة اليوم رح تكون عن</Text>
-          </LinearGradient>
+          {/* Sub-label badge + title — hidden for assessment sessions */}
+          {!isAssessment && (
+            <>
+              <LinearGradient
+                colors={['rgba(109,40,217,0.55)', 'rgba(26,41,128,0.2)']}
+                start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }}
+                style={styles.subBadge}
+              >
+                <Text style={styles.subLabel}>حصة اليوم رح تكون عن</Text>
+              </LinearGradient>
 
-          {/* Lesson title */}
-          {lesson?.title ? (
-            <Text style={styles.lessonTitle} numberOfLines={3}>{lesson.title}</Text>
-          ) : (
-            <Text style={styles.lessonTitleFallback}>
-              {isPending ? 'سيتم تحديد الدرس عند قبول المعلم' : '—'}
-            </Text>
+              {lesson?.title ? (
+                <Text style={styles.lessonTitle} numberOfLines={3}>{lesson.title}</Text>
+              ) : (
+                <Text style={styles.lessonTitleFallback}>
+                  {isPending ? 'سيتم تحديد الدرس عند قبول المعلم' : '—'}
+                </Text>
+              )}
+
+              {lesson?.unit && (
+                <Text style={styles.lessonMeta}>
+                  {lesson.unit.name}
+                  {lesson.level ? `  ·  ${lesson.level.name}` : ''}
+                </Text>
+              )}
+            </>
           )}
 
-          {/* Unit · Level */}
-          {lesson?.unit && (
-            <Text style={styles.lessonMeta}>
-              {lesson.unit.name}
-              {lesson.level ? `  ·  ${lesson.level.name}` : ''}
-            </Text>
+          {/* Assessment label */}
+          {isAssessment && (
+            <Text style={styles.assessmentLabel}>🎯 حصة تقييمية</Text>
           )}
 
           {/* Teacher */}
@@ -349,6 +357,11 @@ const styles = StyleSheet.create({
   lessonMeta: {
     fontSize: 13, color: 'rgba(255,255,255,0.65)',
     textAlign: 'right', marginBottom: 10, zIndex: 1,
+  },
+  assessmentLabel: {
+    fontSize: 18, fontWeight: '800', color: '#fff',
+    textAlign: 'center', marginTop: 8, marginBottom: 6,
+    letterSpacing: 0.3,
   },
   teacherRow: {
     flexDirection: 'row', alignItems: 'center',

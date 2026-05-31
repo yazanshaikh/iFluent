@@ -80,11 +80,12 @@ export interface BookingProfile {
   teacher:      { name: string } | null;
   session_id:   number | null;
   lesson: {
-    id:      number;
-    title:   string;
-    pdf_url: string | null;
-    unit?:   { id: number; name: string };
-    level?:  { id: number; code: string; name: string };
+    id:            number;
+    title:         string;
+    pdf_url:       string | null;
+    is_assessment: boolean;
+    unit?:         { id: number; name: string };
+    level?:        { id: number; code: string; name: string };
   } | null;
 }
 
