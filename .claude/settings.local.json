@@ -102,7 +102,21 @@
       "Bash(node -p \"const p=require\\('./package.json'\\); JSON.stringify\\({reanimated:p.dependencies['react-native-reanimated'],worklets:p.dependencies['react-native-worklets'],override:p.overrides},null,2\\)\")",
       "Bash(node -p \"require\\('./package.json'\\).overrides\")",
       "Bash(node -p \"require\\('./apps/ifluent-app/package.json'\\).dependencies['react-native-worklets']\")",
-      "Bash(node -p \"require\\('./apps/ifluent-app/node_modules/react-native-worklets/package.json'\\).version\")"
+      "Bash(node -p \"require\\('./apps/ifluent-app/node_modules/react-native-worklets/package.json'\\).version\")",
+      "Bash(echo \"Done. Verifying...\")",
+      "Bash(ls /Users/yazan/Documents/lesons/ | grep -E \"3[3-6]|33|34|35|36\")",
+      "Bash(echo \"Files in storage now:\")",
+      "Bash(git checkout *)",
+      "Bash(git merge *)",
+      "Bash(git stash *)",
+      "Bash(git rm *)",
+      "Bash(git commit *)",
+      "Bash(mkdir -p /Users/yazan/Documents/crm_iFluent/apps/frontend-student/app/session-profile *)",
+      "Bash(grep -v \"^$\")",
+      "Bash(ls /Users/yazan/Documents/crm_iFluent/backend/app/Models/)",
+      "Bash(CLAUDE_CODE_TMPDIR=/tmp docker exec ifluent_app php artisan tinker '--execute= *)",
+      "Bash(CLAUDE_CODE_TMPDIR=/tmp docker exec ifluent_app php artisan route:list --name=admin)",
+      "Bash(grep \"lessons$\")"
     ]
   }
 }

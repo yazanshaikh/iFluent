@@ -228,21 +228,21 @@ export default function BookingProfileScreen() {
             icon="clipboard-outline"
             title="نشاط ما قبل الحصة"
             locked
-            lockedMsg="هذه الميزة ستكون متاحة قريباً 🚀"
+            lockedMsg="هذه الميزة ستكون متاحة قريباً "
           />
           <Card
             icon="videocam-outline"
             title="الحصة الحية"
             locked
             lockedMsg={isPending
-              ? 'ستُفعَّل تلقائياً بمجرد قبول المعلم 🎯'
+              ? 'ستُفعَّل تلقائياً بمجرد قبول المعلم'
               : 'لم تُعقد هذه الحصة'}
           />
           <Card
             icon="help-circle-outline"
             title="كويز ما بعد الدرس"
             locked
-            lockedMsg="الكويز يُفتح فقط بعد إتمام الحصة 🔐"
+            lockedMsg="الكويز يُفتح فقط بعد إتمام الحصة "
           />
 
           {/* زر الإلغاء — فقط لما status = pending (قبل قبول المعلم) */}
