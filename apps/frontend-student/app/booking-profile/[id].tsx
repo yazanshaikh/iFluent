@@ -175,7 +175,7 @@ export default function BookingProfileScreen() {
 
           {/* ── Label ── */}
           <LinearGradient
-            colors={['rgba(147,210,255,0.45)', 'rgba(147,210,255,0.08)']}
+            colors={['rgba(109,40,217,0.55)', 'rgba(26,41,128,0.25)']}
             start={{ x: 0.5, y: 0 }}
             end={{ x: 0.5, y: 1 }}
             style={styles.subWrap}
@@ -273,7 +273,7 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     paddingHorizontal: 20, paddingVertical: 9,
     marginBottom: 14,
-    shadowColor: '#93D2FF',
+    shadowColor: '#6D28D9',
     shadowOpacity: 1,
     shadowRadius: 24,
     shadowOffset: { width: 0, height: 0 },
