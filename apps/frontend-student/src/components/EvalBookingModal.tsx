@@ -14,23 +14,22 @@ import {
   Text,
   TouchableOpacity,
   ScrollView,
-  TextInput,
   ActivityIndicator,
   StyleSheet,
   Platform,
   KeyboardAvoidingView,
   Alert,
 } from 'react-native';
-import * as SecureStore from 'expo-secure-store';
 import { Ionicons }              from '@expo/vector-icons';
 import { useSafeAreaInsets }     from 'react-native-safe-area-context';
-import { useAuthStore }          from '@/stores/authStore';
-import { leadsApi }              from '@/api/leads';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import client                    from '@/api/client';
 import { C, shadow }             from '@/theme';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const STORE_KEY = 'eval_booking_at';   // "YYYY-MM-DD HH:MM:00"
+// Assessment session type from session requests
+type AssessmentLesson = { id: number; title: string; level: { code: string } | null };
 
 const AR_DAYS = [
   'الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت',
@@ -82,49 +81,43 @@ interface Props {
 
 export function EvalBookingModal({ visible, onClose }: Props) {
   const insets = useSafeAreaInsets();
-  const user   = useAuthStore((s) => s.user);
+  const qc     = useQueryClient();
 
   // Form state
-  const [dayIdx,  setDayIdx]  = useState(0);
-  const [slot,    setSlot]    = useState<string | null>(null);
-  const [name,    setName]    = useState('');
-  const [loading, setLoading] = useState(false);
-  const [done,    setDone]    = useState(false);
+  const [dayIdx, setDayIdx] = useState(0);
+  const [slot,   setSlot]   = useState<string | null>(null);
+  const [done,   setDone]   = useState(false);
 
-  // Existing booking (from SecureStore) — non-null while session hasn't happened yet
-  const [existingBooking, setExistingBooking] = useState<string | null>(null);
+  // Fetch assessment lessons (once)
+  const { data: assessLessons = [] } = useQuery<AssessmentLesson[]>({
+    queryKey: ['assessment-lessons'],
+    queryFn:  () => client.get<{ data: AssessmentLesson[] }>('/student/assessment-lessons').then(r => r.data.data),
+    enabled:  visible,
+    staleTime: 10 * 60_000,
+  });
 
-  // On modal open: check backend for active booking (source of truth).
-  // SecureStore is only a fast local cache — CRM cancellations won't update it,
-  // so we always verify with the server and sync the cache accordingly.
-  useEffect(() => {
-    if (!visible || !user?.phone) return;
+  // Check if student already has a pending assessment booking
+  const { data: existingBookings = [] } = useQuery<{ id: number; status: string; lesson: any; scheduled_at: string | null }[]>({
+    queryKey: ['bookings'],
+    queryFn:  () => client.get<{ data: any[] }>('/student/bookings').then(r => r.data.data),
+    enabled:  visible,
+    staleTime: 15_000,
+  });
 
-    leadsApi.checkBookingStatus(user.phone)
-      .then(({ has_active_booking, scheduled_at }) => {
-        if (has_active_booking && scheduled_at) {
-          // Backend confirms active booking — normalise to "YYYY-MM-DD HH:MM:00"
-          const iso = scheduled_at.replace('T', ' ').replace(/\+.*$/, '').slice(0, 19);
-          SecureStore.setItemAsync(STORE_KEY, iso);
-          setExistingBooking(iso);
-        } else {
-          // No active booking on server (new / cancelled) — clear local cache
-          SecureStore.deleteItemAsync(STORE_KEY);
-          setExistingBooking(null);
-        }
-      })
-      .catch(() => {
-        // Network error — fall back to SecureStore cache
-        SecureStore.getItemAsync(STORE_KEY).then((val) => {
-          if (val && parseStoredDate(val) > new Date()) {
-            setExistingBooking(val);
-          } else {
-            SecureStore.deleteItemAsync(STORE_KEY);
-            setExistingBooking(null);
-          }
-        });
-      });
-  }, [visible]);
+  const existingBooking = existingBookings.find(
+    (b) => ['pending', 'confirmed'].includes(b.status) && b.lesson?.is_assessment,
+  ) ?? null;
+
+  // Booking mutation — authenticated, creates SessionRequest with student_id
+  const bookMutation = useMutation({
+    mutationFn: ({ lessonId, scheduled_at }: { lessonId: number; scheduled_at: string }) =>
+      client.post('/student/bookings', { lesson_id: lessonId, scheduled_at }).then(r => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['bookings'] });
+      setDone(true);
+    },
+    onError: (e: any) => Alert.alert('خطأ', e?.response?.data?.message ?? 'حدث خطأ، يرجى المحاولة مرة أخرى'),
+  });
 
   // 7 calendar days starting from today
   const days = useMemo(() =>
@@ -154,44 +147,26 @@ export function EvalBookingModal({ visible, onClose }: Props) {
 
   const pad = (n: number) => String(n).padStart(2, '0');
 
-  const handleSubmit = async () => {
-    if (!effectiveSlot) return;
-    const trimmedName = name.trim();
-    if (!trimmedName) {
-      Alert.alert('', 'الرجاء إدخال اسمك الكامل');
-      return;
-    }
-
+  const handleSubmit = () => {
+    if (!effectiveSlot || assessLessons.length === 0) return;
     const d            = days[dayIdx];
     const scheduled_at = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${effectiveSlot}:00`;
-
-    setLoading(true);
-    try {
-      await leadsApi.bookEval({ name: trimmedName, phone: user?.phone ?? '', scheduled_at });
-      await SecureStore.setItemAsync(STORE_KEY, scheduled_at);
-      setDone(true);
-    } catch (e: any) {
-      Alert.alert('خطأ', e?.response?.data?.message ?? 'حدث خطأ، يرجى المحاولة مرة أخرى');
-    } finally {
-      setLoading(false);
-    }
+    bookMutation.mutate({ lessonId: assessLessons[0].id, scheduled_at });
   };
 
   const handleClose = () => {
     setDayIdx(0);
     setSlot(null);
-    setName('');
     setDone(false);
     onClose();
   };
 
-  const canSubmit = !!effectiveSlot && name.trim().length > 0;
+  const canSubmit = !!effectiveSlot && assessLessons.length > 0;
 
-  // ── Which screen to render ─────────────────────────────────────────────────
   const screen: 'booked' | 'success' | 'form' =
-    existingBooking ? 'booked' :
-    done            ? 'success' :
-                      'form';
+    existingBooking !== null ? 'booked' :
+    done                     ? 'success' :
+                               'form';
 
   return (
     <Modal
@@ -228,7 +203,9 @@ export function EvalBookingModal({ visible, onClose }: Props) {
               <Text style={s.bookedTitle}>لديك حجز مجدول بالفعل</Text>
               <View style={s.bookedDateBox}>
                 <Text style={s.bookedDateTxt}>
-                  {formatBookingLabel(existingBooking!)}
+                  {existingBooking?.scheduled_at
+                    ? formatBookingLabel(existingBooking.scheduled_at.replace('T', ' ').slice(0, 16) + ':00')
+                    : 'موعد محجوز'}
                 </Text>
               </View>
               <Text style={s.bookedSub}>
@@ -317,26 +294,14 @@ export function EvalBookingModal({ visible, onClose }: Props) {
                 </View>
               )}
 
-              {/* Name input */}
-              <Text style={[s.label, { marginTop: 20 }]}>اسمك الكامل</Text>
-              <TextInput
-                style={s.nameInput}
-                value={name}
-                onChangeText={setName}
-                placeholder="أدخل اسمك الكامل"
-                placeholderTextColor={C.gray}
-                textAlign="right"
-                returnKeyType="done"
-              />
-
               {/* Submit */}
               <TouchableOpacity
                 style={[s.submitBtn, !canSubmit && s.submitBtnOff]}
                 onPress={handleSubmit}
-                disabled={loading || !canSubmit}
+                disabled={bookMutation.isPending || !canSubmit}
                 activeOpacity={0.85}
               >
-                {loading ? (
+                {bookMutation.isPending ? (
                   <ActivityIndicator color={C.navy} />
                 ) : (
                   <>
