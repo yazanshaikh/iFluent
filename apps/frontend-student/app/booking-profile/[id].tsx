@@ -1,6 +1,5 @@
 /**
  * Booking Profile — بروفايل الحجز (قبل قبول المعلم)
- * Same gradient template as session-profile.
  * Auto-redirects to session-profile once session is created.
  */
 import React, { useEffect } from 'react';
@@ -19,65 +18,32 @@ import { fixStorageUrl } from '@/api/client';
 import { C, shadow } from '@/theme';
 
 // ─── Tokens ───────────────────────────────────────────────────────────────────
-const G_TOP   = '#6D28D9';
+const G_TOP    = '#6D28D9';
 const G_BOTTOM = '#1A2980';
-const PURPLE  = '#7C3AED';
-const ACCENT  = '#A78BFA';
-const CARD_BG = '#FFFFFF';
+const PURPLE   = '#7C3AED';
+const ACCENT   = '#A78BFA';
+const CARD_BG  = '#FFFFFF';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-function fmtDate(iso: string | null) {
-  if (!iso) return '—';
-  return new Date(iso).toLocaleString('ar-SA', {
-    weekday: 'short', day: 'numeric', month: 'short',
-    hour: '2-digit', minute: '2-digit',
-    timeZone: 'Asia/Amman',
-  });
-}
-
 const STATUS_META: Record<string, { label: string; color: string; emoji: string }> = {
   pending:   { label: 'بانتظار القبول', color: '#F59E0B', emoji: '⏳' },
   confirmed: { label: 'مؤكدة',          color: '#22C55E', emoji: '✅' },
-  expired:   { label: 'لم يتم القبول',  color: '#6B7280', emoji: '😔' },
+  expired:   { label: 'لم يتم القبول',  color: '#9CA3AF', emoji: '😔' },
   rejected:  { label: 'مرفوضة',         color: '#EF4444', emoji: '❌' },
   cancelled: { label: 'ملغاة',          color: '#EF4444', emoji: '❌' },
 };
 
-// ─── Status pill ──────────────────────────────────────────────────────────────
-function StatusPill({ status, isPending }: { status: string; isPending: boolean }) {
-  const meta = STATUS_META[status] ?? { label: status, color: '#fff', emoji: '' };
-  return (
-    <View style={[pillSt.wrap, { borderColor: meta.color + '88' }]}>
-      {isPending && <ActivityIndicator size="small" color={meta.color} style={{ marginRight: 2 }} />}
-      <Text style={pillSt.emoji}>{meta.emoji}</Text>
-      <Text style={[pillSt.label, { color: meta.color }]}>{meta.label}</Text>
-    </View>
-  );
-}
-const pillSt = StyleSheet.create({
-  wrap:  { flexDirection: 'row', alignItems: 'center', gap: 5, alignSelf: 'flex-end', borderWidth: 1.5, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4, backgroundColor: 'rgba(255,255,255,0.12)' },
-  emoji: { fontSize: 12 },
-  label: { fontSize: 12, fontWeight: '700' },
-});
-
-// ─── Card ─────────────────────────────────────────────────────────────────────
-function Card({
-  icon, title, locked, lockedMsg,
-}: {
-  icon: string; title: string;
-  locked?: boolean; lockedMsg?: string;
+// ─── Section card ─────────────────────────────────────────────────────────────
+function Card({ icon, title, locked, lockedMsg }: {
+  icon: string; title: string; locked?: boolean; lockedMsg?: string;
 }) {
   return (
-    <View style={[cardSt.wrap, locked && { opacity: 0.58 }]}>
-      {!locked && <View style={[cardSt.bar, { backgroundColor: PURPLE }]} />}
+    <View style={[cardSt.wrap, locked && { opacity: 0.55 }]}>
+      {!locked && <View style={[cardSt.bar]} />}
       <View style={cardSt.inner}>
         <View style={cardSt.header}>
           <View style={[cardSt.iconWrap, locked && { shadowOpacity: 0 }]}>
-            <Ionicons
-              name={icon as any}
-              size={22}
-              color={locked ? C.gray : PURPLE}
-            />
+            <Ionicons name={icon as any} size={21} color={locked ? C.gray : PURPLE} />
           </View>
           <Text style={[cardSt.title, locked && { color: C.gray }]}>{title}</Text>
           {locked && (
@@ -86,17 +52,17 @@ function Card({
             </View>
           )}
         </View>
-        <Text style={cardSt.lockedMsg}>{lockedMsg}</Text>
+        {locked && <Text style={cardSt.lockedMsg}>{lockedMsg}</Text>}
       </View>
     </View>
   );
 }
 const cardSt = StyleSheet.create({
   wrap:       { backgroundColor: CARD_BG, borderRadius: 20, flexDirection: 'row', overflow: 'hidden', ...shadow.sm },
-  bar:        { width: 4 },
+  bar:        { width: 4, backgroundColor: PURPLE },
   inner:      { flex: 1, padding: 18 },
-  header:     { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 },
-  iconWrap:   { justifyContent: 'center', alignItems: 'center', shadowColor: PURPLE, shadowOpacity: 0.7, shadowRadius: 8, shadowOffset: { width: 0, height: 0 }, elevation: 6 },
+  header:     { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 8 },
+  iconWrap:   { justifyContent: 'center', alignItems: 'center', shadowColor: PURPLE, shadowOpacity: 0.6, shadowRadius: 8, shadowOffset: { width: 0, height: 0 }, elevation: 5 },
   title:      { flex: 1, fontSize: 15, fontWeight: '700', color: C.navy, textAlign: 'right' },
   lockBubble: { width: 22, height: 22, borderRadius: 11, backgroundColor: '#F3F4F6', justifyContent: 'center', alignItems: 'center' },
   lockedMsg:  { fontSize: 13, color: C.grayMid, textAlign: 'right', lineHeight: 20 },
@@ -149,67 +115,91 @@ export default function BookingProfileScreen() {
   }
 
   const lesson    = data.lesson;
+  const pdfUrl    = fixStorageUrl(lesson?.pdf_url);
   const isPending = data.status === 'pending' || data.status === 'confirmed';
+  const meta      = STATUS_META[data.status] ?? { label: data.status, color: '#fff', emoji: '' };
 
   return (
     <View style={{ flex: 1, backgroundColor: '#F4F0FF' }}>
       <Stack.Screen options={{ headerShown: false }} />
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 60 }}>
 
-        {/* ════════════════════════════════════════════════════════
-            GRADIENT HERO
-        ════════════════════════════════════════════════════════ */}
+        {/* ════════════════ HERO ════════════════ */}
         <LinearGradient
           colors={[G_TOP, G_BOTTOM]}
           start={{ x: 0.2, y: 0 }} end={{ x: 1, y: 1 }}
-          style={[styles.hero, { paddingTop: insets.top + 16 }]}
+          style={[styles.hero, { paddingTop: insets.top + 12 }]}
         >
-          {/* ── Row: back + status ── */}
-          <View style={styles.heroTopRow}>
+          {/* Decorative blobs */}
+          <View style={styles.blob1} pointerEvents="none" />
+          <View style={styles.blob2} pointerEvents="none" />
+
+          {/* Top row: back ← · status pill */}
+          <View style={styles.topRow}>
             <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
               <Ionicons name="chevron-back" size={22} color="#fff" />
             </TouchableOpacity>
-            <StatusPill status={data.status} isPending={isPending} />
+
+            {/* Status pill */}
+            <View style={[styles.statusPill, { borderColor: meta.color + '66' }]}>
+              {isPending && (
+                <ActivityIndicator size="small" color={meta.color} style={{ marginLeft: 4 }} />
+              )}
+              <Text style={styles.statusEmoji}>{meta.emoji}</Text>
+              <Text style={[styles.statusLabel, { color: meta.color }]}>{meta.label}</Text>
+            </View>
           </View>
 
-          {/* ── Label ── */}
+          {/* Sub-label badge */}
           <LinearGradient
-            colors={['rgba(109,40,217,0.55)', 'rgba(26,41,128,0.25)']}
-            start={{ x: 0.5, y: 0 }}
-            end={{ x: 0.5, y: 1 }}
-            style={styles.subWrap}
+            colors={['rgba(109,40,217,0.55)', 'rgba(26,41,128,0.2)']}
+            start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }}
+            style={styles.subBadge}
           >
-            <Text style={styles.heroSub}>حصة اليوم رح تكون عن</Text>
+            <Text style={styles.subLabel}>حصة اليوم رح تكون عن</Text>
           </LinearGradient>
 
-          <Text style={styles.heroTitle} numberOfLines={3}>
-            {lesson?.title ?? ''}
-          </Text>
+          {/* Lesson title */}
+          {lesson?.title ? (
+            <Text style={styles.lessonTitle} numberOfLines={3}>{lesson.title}</Text>
+          ) : (
+            <Text style={styles.lessonTitleFallback}>
+              {isPending ? 'سيتم تحديد الدرس عند قبول المعلم' : '—'}
+            </Text>
+          )}
 
+          {/* Unit · Level */}
           {lesson?.unit && (
-            <Text style={styles.heroMeta}>
+            <Text style={styles.lessonMeta}>
               {lesson.unit.name}
               {lesson.level ? `  ·  ${lesson.level.name}` : ''}
             </Text>
           )}
 
+          {/* Teacher */}
           {data.teacher?.name && (
-            <View style={styles.metaStrip}>
-              <View style={styles.metaItem}>
-                <Ionicons name="person-circle-outline" size={14} color={ACCENT} />
-                <Text style={styles.metaItemTxt}>{data.teacher.name}</Text>
-              </View>
+            <View style={styles.teacherRow}>
+              <Ionicons name="person-circle-outline" size={14} color={ACCENT} />
+              <Text style={styles.teacherTxt}>{data.teacher.name}</Text>
             </View>
           )}
 
-          <View style={styles.deco1} pointerEvents="none" />
-          <View style={styles.deco2} pointerEvents="none" />
+          {/* PDF download button — inside hero, bottom */}
+          {pdfUrl ? (
+            <TouchableOpacity
+              style={styles.pdfBtn}
+              activeOpacity={0.82}
+              onPress={() => Linking.openURL(pdfUrl)}
+            >
+              <Ionicons name="document-text" size={16} color={PURPLE} />
+              <Text style={styles.pdfBtnTxt}>تحميل مادة الدرس</Text>
+              <Ionicons name="download-outline" size={14} color={PURPLE} />
+            </TouchableOpacity>
+          ) : null}
         </LinearGradient>
 
-        {/* ════════════════════════════════════════════════════════
-            CARDS
-        ════════════════════════════════════════════════════════ */}
+        {/* ════════════════ CARDS ════════════════ */}
         <View style={styles.cards}>
           <Card
             icon="clipboard-outline"
@@ -221,7 +211,9 @@ export default function BookingProfileScreen() {
             icon="videocam-outline"
             title="الحصة الحية"
             locked
-            lockedMsg={isPending ? 'ستُفعَّل تلقائياً بمجرد قبول المعلم 🎯' : 'لم تُعقد هذه الحصة'}
+            lockedMsg={isPending
+              ? 'ستُفعَّل تلقائياً بمجرد قبول المعلم 🎯'
+              : 'لم تُعقد هذه الحصة'}
           />
           <Card
             icon="help-circle-outline"
@@ -229,23 +221,8 @@ export default function BookingProfileScreen() {
             locked
             lockedMsg="الكويز يُفتح فقط بعد إتمام الحصة 🔐"
           />
-
-          {/* ── PDF — تحت الكويز، على اليمين ── */}
-          {fixStorageUrl(lesson?.pdf_url) && (
-            <View style={styles.pdfRow}>
-              <TouchableOpacity
-                style={styles.pdfBtn}
-                activeOpacity={0.8}
-                onPress={() => Linking.openURL(fixStorageUrl(lesson!.pdf_url)!)}
-              >
-                <Ionicons name="document-text" size={18} color={PURPLE} />
-                <Text style={styles.pdfBtnTxt}>تحميل مادة الدرس</Text>
-                <Ionicons name="download-outline" size={15} color={PURPLE} />
-              </TouchableOpacity>
-            </View>
-          )}
-
         </View>
+
       </ScrollView>
     </View>
   );
@@ -254,54 +231,98 @@ export default function BookingProfileScreen() {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 14 },
-  errTxt:   { color: '#fff', fontSize: 16, fontWeight: '700', textAlign: 'center' },
-  retryBtn: { marginTop: 8, paddingHorizontal: 28, paddingVertical: 12, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 14, borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.5)' },
+  errTxt:   { color: '#fff', fontSize: 16, fontWeight: '700', textAlign: 'center', paddingHorizontal: 24 },
+  retryBtn: { marginTop: 8, paddingHorizontal: 28, paddingVertical: 12, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 14, borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.4)' },
   retryTxt: { color: '#fff', fontWeight: '700', fontSize: 14 },
 
+  // ── Hero ──────────────────────────────────────────────────────────────────
   hero: {
-    paddingHorizontal: 20, paddingBottom: 24,
-    borderBottomLeftRadius: 28, borderBottomRightRadius: 28,
+    paddingHorizontal: 22,
+    paddingBottom: 32,
+    borderBottomLeftRadius: 32,
+    borderBottomRightRadius: 32,
+    position: 'relative',
   },
-  heroTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 },
+
+  blob1: { position: 'absolute', width: 200, height: 200, borderRadius: 100, backgroundColor: 'rgba(255,255,255,0.07)', top: -50, left: -60, zIndex: 0 },
+  blob2: { position: 'absolute', width: 130, height: 130, borderRadius: 65,  backgroundColor: 'rgba(255,255,255,0.05)', bottom: 10,  left: 20,  zIndex: 0 },
+
+  topRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 18,
+    zIndex: 1,
+  },
   backBtn: {
     width: 38, height: 38, borderRadius: 19,
     backgroundColor: 'rgba(255,255,255,0.18)',
     justifyContent: 'center', alignItems: 'center',
   },
-  subWrap: {
+  statusPill: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    borderWidth: 1.5, borderRadius: 20,
+    paddingHorizontal: 12, paddingVertical: 5,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+  },
+  statusEmoji: { fontSize: 13 },
+  statusLabel: { fontSize: 12, fontWeight: '700' },
+
+  subBadge: {
     alignSelf: 'center',
     borderRadius: 22,
     paddingHorizontal: 20, paddingVertical: 9,
-    marginBottom: 14,
+    marginBottom: 12,
     shadowColor: '#6D28D9',
     shadowOpacity: 1,
-    shadowRadius: 24,
+    shadowRadius: 22,
     shadowOffset: { width: 0, height: 0 },
-    elevation: 12,
+    elevation: 10,
+    zIndex: 1,
   },
-  heroSub: {
-    fontSize: 18, color: '#E0F4FF', fontWeight: '800',
-    textAlign: 'center', letterSpacing: 0.4,
+  subLabel: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: '#E0F4FF',
+    textAlign: 'center',
+    letterSpacing: 0.3,
     fontFamily: Platform.select({ ios: 'Al Nile', android: 'serif' }),
   },
-  heroTitle: { fontSize: 20, fontWeight: '900', color: '#fff', textAlign: 'right', lineHeight: 28, marginBottom: 6 },
-  heroMeta:  { fontSize: 12, color: 'rgba(255,255,255,0.65)', textAlign: 'right', marginBottom: 14 },
-  metaStrip: { flexDirection: 'row', flexWrap: 'wrap', gap: 14, justifyContent: 'flex-end' },
-  metaItem:  { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  metaItemTxt: { fontSize: 13, color: 'rgba(255,255,255,0.82)', fontWeight: '500' },
 
-  deco1: { position: 'absolute', width: 180, height: 180, borderRadius: 90, backgroundColor: 'rgba(255,255,255,0.07)', top: -40, left: -50 },
-  deco2: { position: 'absolute', width: 120, height: 120, borderRadius: 60, backgroundColor: 'rgba(255,255,255,0.05)', bottom: 10, left: 30 },
+  lessonTitle: {
+    fontSize: 22, fontWeight: '900', color: '#fff',
+    textAlign: 'right', lineHeight: 32, marginBottom: 6,
+    zIndex: 1,
+  },
+  lessonTitleFallback: {
+    fontSize: 14, color: 'rgba(255,255,255,0.5)',
+    textAlign: 'right', fontStyle: 'italic', marginBottom: 6,
+    zIndex: 1,
+  },
+  lessonMeta: {
+    fontSize: 13, color: 'rgba(255,255,255,0.65)',
+    textAlign: 'right', marginBottom: 10, zIndex: 1,
+  },
+  teacherRow: {
+    flexDirection: 'row', alignItems: 'center',
+    gap: 6, justifyContent: 'flex-end',
+    marginBottom: 16, zIndex: 1,
+  },
+  teacherTxt: { fontSize: 13, color: 'rgba(255,255,255,0.8)', fontWeight: '500' },
 
-  cards: { padding: 16, gap: 14, marginTop: -16 },
-
-  pdfRow: { alignItems: 'flex-end' },
   pdfBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: '#EDE9FF',
-    paddingHorizontal: 14, paddingVertical: 9,
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    alignSelf: 'flex-end',
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    paddingHorizontal: 16, paddingVertical: 9,
     borderRadius: 20,
-    borderWidth: 1.5, borderColor: '#C4B5FD',
+    shadowColor: '#000', shadowOpacity: 0.12,
+    shadowRadius: 6, shadowOffset: { width: 0, height: 2 },
+    elevation: 4,
+    zIndex: 1,
   },
   pdfBtnTxt: { fontSize: 13, fontWeight: '700', color: PURPLE },
+
+  // ── Cards ─────────────────────────────────────────────────────────────────
+  cards: { padding: 16, gap: 14, marginTop: -12 },
 });

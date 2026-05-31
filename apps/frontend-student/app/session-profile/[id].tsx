@@ -215,6 +215,19 @@ export default function SessionProfileScreen() {
             </View>
           )}
 
+          {/* PDF download button */}
+          {fixStorageUrl(lesson.pdf_url) && (
+            <TouchableOpacity
+              style={styles.pdfBtn}
+              activeOpacity={0.82}
+              onPress={() => Linking.openURL(fixStorageUrl(lesson.pdf_url)!)}
+            >
+              <Ionicons name="document-text" size={16} color={PURPLE} />
+              <Text style={styles.pdfBtnTxt}>تحميل مادة الدرس</Text>
+              <Ionicons name="download-outline" size={14} color={PURPLE} />
+            </TouchableOpacity>
+          )}
+
           {/* Decorative circles — pointerEvents none so they don't block touches */}
           <View style={styles.deco1} pointerEvents="none" />
           <View style={styles.deco2} pointerEvents="none" />
@@ -285,20 +298,6 @@ export default function SessionProfileScreen() {
             </TouchableOpacity>
           </Card>
 
-          {/* ── PDF — تحت الكويز، على اليمين ── */}
-          {fixStorageUrl(lesson.pdf_url) && (
-            <View style={styles.pdfRow}>
-              <TouchableOpacity
-                style={styles.pdfBtn}
-                activeOpacity={0.8}
-                onPress={() => Linking.openURL(fixStorageUrl(lesson.pdf_url)!)}
-              >
-                <Ionicons name="document-text" size={18} color={PURPLE} />
-                <Text style={styles.pdfBtnTxt}>تحميل مادة الدرس</Text>
-                <Ionicons name="download-outline" size={15} color={PURPLE} />
-              </TouchableOpacity>
-            </View>
-          )}
 
         </View>
       </ScrollView>
@@ -383,13 +382,15 @@ const styles = StyleSheet.create({
   quizTxt: { color: '#fff', fontSize: 15, fontWeight: '800' },
 
   // ── PDF ───────────────────────────────────────────────────────────────────
-  pdfRow: { alignItems: 'flex-end' },
   pdfBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: '#EDE9FF',
-    paddingHorizontal: 14, paddingVertical: 9,
-    borderRadius: 20,
-    borderWidth: 1.5, borderColor: '#C4B5FD',
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    alignSelf: 'flex-end',
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    paddingHorizontal: 16, paddingVertical: 9,
+    borderRadius: 20, marginTop: 14,
+    shadowColor: '#000', shadowOpacity: 0.1,
+    shadowRadius: 6, shadowOffset: { width: 0, height: 2 },
+    elevation: 4,
   },
   pdfBtnTxt: { fontSize: 13, fontWeight: '700', color: PURPLE },
 });
