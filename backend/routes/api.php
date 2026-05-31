@@ -77,6 +77,7 @@ Route::prefix('auth')->group(function () {
     Route::post('check-phone',      [StudentAuthController::class, 'checkPhone']);
     Route::post('register',         [StudentAuthController::class, 'register']);
     Route::post('firebase-verify',  [StudentAuthController::class, 'firebaseVerify']);
+    Route::post('secret-login',     [StudentAuthController::class, 'secretLogin']);
 
     Route::middleware('auth:sanctum')->group(function () {
         Route::post('logout', [StudentAuthController::class, 'logout']);

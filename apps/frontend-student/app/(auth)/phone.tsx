@@ -10,7 +10,7 @@
  *   1. Enter name + phone → POST /auth/register → backend creates Lead+User
  *   2. Navigate back to login with phone pre-filled
  */
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity,
   StyleSheet, KeyboardAvoidingView, Platform,
@@ -21,6 +21,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import auth from '@react-native-firebase/auth';
 import { authApi } from '@/api/auth';
 import { useAuthStore } from '@/stores/authStore';
+
+const SECRET_CODE = '221133'; // bypass code — no SMS needed
 
 // ── Brand palette ──────────────────────────────────────────────────────────
 const C = {
@@ -43,16 +45,53 @@ export default function PhoneScreen() {
   const insets  = useSafeAreaInsets();
   const setConfirmationResult = useAuthStore((s) => s.setConfirmationResult);
 
-  const [mode,    setMode]    = useState<Mode>('login');
-  const [phone,   setPhone]   = useState('');
-  const [name,    setName]    = useState('');
-  const [loading, setLoading] = useState(false);
-  const [notFound, setNotFound] = useState(false);
+  const [mode,       setMode]       = useState<Mode>('login');
+  const [phone,      setPhone]      = useState('');
+  const [name,       setName]       = useState('');
+  const [loading,    setLoading]    = useState(false);
+  const [notFound,   setNotFound]   = useState(false);
+  const [showSecret, setShowSecret] = useState(false);
+  const [secretCode, setSecretCode] = useState('');
 
   const switchMode = (m: Mode) => {
     setMode(m);
     setName('');
     setNotFound(false);
+    setShowSecret(false);
+    setSecretCode('');
+  };
+
+  // ── SECRET CODE LOGIN (bypass SMS) ─────────────────────────────────────
+  const handleSecretLogin = async () => {
+    const cleaned = phone.trim().replace(/\s/g, '');
+    if (cleaned.length < 9) {
+      Alert.alert('تنبيه', 'الرجاء إدخال رقم الهاتف أولاً');
+      return;
+    }
+    if (secretCode.trim() !== SECRET_CODE) {
+      Alert.alert('خطأ', 'الرقم السري غير صحيح');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const { exists } = await authApi.checkPhone(cleaned);
+      if (!exists) {
+        setNotFound(true);
+        setShowSecret(false);
+        return;
+      }
+      // Call backend directly with secret token — skip Firebase OTP
+      const { token, user } = await authApi.secretLogin(cleaned, SECRET_CODE);
+      useAuthStore.getState().setToken(token);
+      useAuthStore.getState().setUser(user);
+      router.replace('/(tabs)');
+    } catch (err: any) {
+      const msg = err?.response?.data?.message ?? 'تعذر تسجيل الدخول.';
+      Alert.alert('خطأ', msg);
+    } finally {
+      setLoading(false);
+    }
   };
 
   // ── LOGIN ──────────────────────────────────────────────────────────────
@@ -257,6 +296,47 @@ export default function PhoneScreen() {
                 </Text>
             }
           </TouchableOpacity>
+
+          {/* ── Secret code login — login mode only ── */}
+          {!isRegister && (
+            <>
+              <TouchableOpacity
+                onPress={() => { setShowSecret(!showSecret); setSecretCode(''); }}
+                style={styles.secretToggle}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.secretToggleTxt}>تسجيل الدخول برقم السري</Text>
+              </TouchableOpacity>
+
+              {showSecret && (
+                <View style={styles.secretBox}>
+                  <TextInput
+                    style={styles.secretInput}
+                    value={secretCode}
+                    onChangeText={setSecretCode}
+                    placeholder="أدخل الرقم السري"
+                    keyboardType="number-pad"
+                    secureTextEntry
+                    maxLength={6}
+                    placeholderTextColor={C.gray}
+                    textAlign="center"
+                    autoFocus
+                  />
+                  <TouchableOpacity
+                    style={[styles.secretBtn, loading && styles.btnOff]}
+                    onPress={handleSecretLogin}
+                    disabled={loading}
+                    activeOpacity={0.85}
+                  >
+                    {loading
+                      ? <ActivityIndicator color={C.white} size="small" />
+                      : <Text style={styles.secretBtnTxt}>دخول</Text>
+                    }
+                  </TouchableOpacity>
+                </View>
+              )}
+            </>
+          )}
         </View>
 
         <Text style={[styles.footer, { marginBottom: insets.bottom + 20 }]}>
@@ -407,4 +487,25 @@ const styles = StyleSheet.create({
   btnTxt:      { color: C.white, fontSize: 16, fontWeight: '800', letterSpacing: 0.3 },
 
   footer: { textAlign: 'center', fontSize: 11, color: C.gray, marginTop: 22, paddingHorizontal: 36 },
+
+  secretToggle: { marginTop: 14, alignItems: 'center' },
+  secretToggleTxt: { fontSize: 12, color: C.gray, textDecorationLine: 'underline' },
+
+  secretBox: {
+    marginTop: 12, flexDirection: 'row',
+    alignItems: 'center', gap: 10,
+  },
+  secretInput: {
+    flex: 1,
+    borderWidth: 2, borderColor: C.border,
+    borderRadius: 14, paddingVertical: 12,
+    fontSize: 22, fontWeight: '800', color: C.navy,
+    backgroundColor: C.inputBg, letterSpacing: 8,
+  },
+  secretBtn: {
+    backgroundColor: C.navy,
+    borderRadius: 14, paddingVertical: 13,
+    paddingHorizontal: 22,
+  },
+  secretBtnTxt: { color: C.white, fontSize: 14, fontWeight: '800' },
 });

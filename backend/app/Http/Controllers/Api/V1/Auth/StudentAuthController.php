@@ -240,6 +240,45 @@ class StudentAuthController extends Controller
         return response()->json(['message' => 'Logged out.']);
     }
 
+    /**
+     * POST /api/v1/auth/secret-login
+     * Bypass SMS — for internal testing only.
+     * Accepts { phone, secret } where secret must match the env/hardcoded key.
+     */
+    public function secretLogin(Request $request): JsonResponse
+    {
+        $request->validate([
+            'phone'  => ['required', 'string'],
+            'secret' => ['required', 'string'],
+        ]);
+
+        // Hardcoded secret — matches the frontend constant
+        if ($request->secret !== '221133') {
+            return response()->json(['message' => 'رمز سري غير صحيح.'], 401);
+        }
+
+        $phone = $request->phone;
+
+        $user = User::where('phone', $phone)->where('role', User::ROLE_STUDENT)->first();
+
+        if (!$user) {
+            return response()->json(['message' => 'هذا الرقم غير مسجل في النظام.'], 404);
+        }
+
+        $user->tokens()->delete();
+        $token = $user->createToken('student-session')->plainTextToken;
+
+        return response()->json([
+            'token' => $token,
+            'user'  => [
+                'id'             => $user->id,
+                'name'           => $user->name,
+                'phone'          => $user->phone,
+                'lesson_credits' => (int) $user->lesson_credits,
+            ],
+        ]);
+    }
+
     // =========================================================================
     // Private helpers
     // =========================================================================

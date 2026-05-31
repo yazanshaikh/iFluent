@@ -72,4 +72,10 @@ export const authApi = {
   /** Logout: revoke current Sanctum token */
   logout: () =>
     client.post('/auth/logout').then((r) => r.data),
+
+  /** Secret code login — bypass SMS for internal testing */
+  secretLogin: (phone: string, secret: string) =>
+    client
+      .post<FirebaseVerifyResponse>('/auth/secret-login', { phone, secret })
+      .then((r) => r.data),
 };
