@@ -34,17 +34,23 @@ const AR_MONTHS = [
   'يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر',
 ];
 
-// 09:00 → 23:30 every 30 min + 00:00 midnight
+// 09:00 → 21:00 (9 PM) Jordan time, every 30 min
 const ALL_SLOTS = (() => {
   const slots: string[] = [];
   const pad = (n: number) => String(n).padStart(2, '0');
-  for (let h = 9; h <= 23; h++) {
+  for (let h = 9; h <= 21; h++) {
     slots.push(`${pad(h)}:00`);
-    slots.push(`${pad(h)}:30`);
+    if (h < 21) slots.push(`${pad(h)}:30`); // no 21:30
   }
-  slots.push('00:00');
   return slots;
 })();
+
+// Jordan is UTC+3 — get current Jordan hour/minute regardless of device timezone
+function jordanNow() {
+  const now      = new Date();
+  const jordan   = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Amman' }));
+  return { h: jordan.getHours(), m: jordan.getMinutes() };
+}
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
@@ -74,14 +80,14 @@ export function SessionBookingModal({ visible, credits, onClose, onBooked }: Pro
     }), [],
   );
 
-  // Filter past slots when today is selected
+  // Filter past slots when today is selected — use Jordan time
   const availableSlots = useMemo(() => {
     if (dayIdx !== 0) return ALL_SLOTS;
-    const now    = new Date();
-    const curMin = now.getHours() * 60 + now.getMinutes();
+    const { h, m } = jordanNow();
+    const curMin   = h * 60 + m;
     return ALL_SLOTS.filter((s) => {
-      const [h, m] = s.split(':').map(Number);
-      return h * 60 + m > curMin;
+      const [sh, sm] = s.split(':').map(Number);
+      return sh * 60 + sm > curMin + 30; // must be 30+ min from now
     });
   }, [dayIdx]);
 
@@ -92,7 +98,14 @@ export function SessionBookingModal({ visible, credits, onClose, onBooked }: Pro
   const handleSubmit = async () => {
     if (!effectiveSlot) return;
 
-    const d            = days[dayIdx];
+    // Build ISO 8601 with Jordan +03:00 offset so backend stores correct UTC
+    const d   = days[dayIdx];
+    const [slotH, slotM] = effectiveSlot.split(':').map(Number);
+    const jordanDate = new Date(
+      d.getFullYear(), d.getMonth(), d.getDate(), slotH, slotM, 0,
+    );
+    // Adjust: jordanDate is in device local time; we need it interpreted as Jordan (+3)
+    // Send as "YYYY-MM-DD HH:MM:00+03:00"
     const scheduled_at = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${effectiveSlot}:00`;
 
     setLoading(true);

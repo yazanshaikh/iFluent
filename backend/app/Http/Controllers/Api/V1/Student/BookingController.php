@@ -39,6 +39,17 @@ class BookingController extends Controller
             'notes'        => ['sometimes', 'nullable', 'string', 'max:300'],
         ]);
 
+        // ── Jordan working hours: 09:00–21:00 (UTC+3) ────────────────────────
+        $jordanHour = (int) \Carbon\Carbon::parse($validated['scheduled_at'])
+            ->setTimezone('Asia/Amman')
+            ->format('H');
+
+        if ($jordanHour < 9 || $jordanHour >= 21) {
+            return response()->json([
+                'message' => 'يُقبل الحجز فقط بين الساعة ٩ صباحاً و٩ مساءً بتوقيت الأردن.',
+            ], 422);
+        }
+
         // ── Lesson-specific booking ───────────────────────────────────────────
         $lesson = null;
         if (!empty($validated['lesson_id'])) {

@@ -95,7 +95,7 @@ class DemoBookingController extends Controller
         $sessionRequest = SessionRequest::create([
             'type'              => SessionRequest::TYPE_DEMO,
             'requested_by'      => $staff->id,
-            'student_id'        => $studentUserId ?? $staff->id, // fallback to staff if no student yet
+            'student_id'        => $studentUserId,  // null if no student account yet
             'lesson_id'         => $lesson->id,
             'lead_id'           => $lead->id,
             'target_teacher_id' => $targetTeacherId,
