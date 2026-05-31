@@ -5,7 +5,7 @@
  *  ┌─────────────────────────────┐
  *  │  LinearGradient hero        │  ← lesson title + meta
  *  ├─────────────────────────────┤
- *  │  Card: نشاط ما قبل الحصة   │
+ *
  *  │  Card: الحصة الحية          │
  *  │  Card: الكويز               │
  *  └─────────────────────────────┘
@@ -238,13 +238,6 @@ export default function SessionProfileScreen() {
         ════════════════════════════════════════════════════════ */}
         <View style={styles.cards}>
 
-          {/* نشاط ما قبل الحصة */}
-          <Card
-            icon="clipboard-outline"
-            title="نشاط ما قبل الحصة"
-            locked
-            lockedMsg="هذه الميزة ستكون متاحة قريباً 🚀"
-          />
 
           {/* الحصة الحية */}
           <Card icon="videocam-outline" title="الحصة الحية" accent="#22C55E">

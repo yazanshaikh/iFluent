@@ -225,12 +225,6 @@ export default function BookingProfileScreen() {
         {/* ════════════════ CARDS ════════════════ */}
         <View style={styles.cards}>
           <Card
-            icon="clipboard-outline"
-            title="نشاط ما قبل الحصة"
-            locked
-            lockedMsg="هذه الميزة ستكون متاحة قريباً "
-          />
-          <Card
             icon="videocam-outline"
             title="الحصة الحية"
             locked
