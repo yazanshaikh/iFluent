@@ -1,83 +1,103 @@
 /**
  * Booking Profile — بروفايل الحجز (قبل قبول المعلم)
- * Same template as session-profile: purple · fun title · PDF chip
- * Auto-redirects to session-profile once teacher creates the session.
+ * Same gradient template as session-profile.
+ * Auto-redirects to session-profile once session is created.
  */
 import React, { useEffect } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
   ScrollView, ActivityIndicator, Linking,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { sessionsApi, type BookingProfile } from '@/api/sessions';
 import { C, shadow } from '@/theme';
 
-// ─── Design tokens ────────────────────────────────────────────────────────────
-const BG     = '#F0EBFF';
-const PURPLE = '#7C3AED';
+// ─── Tokens ───────────────────────────────────────────────────────────────────
+const G_TOP   = '#6D28D9';
+const G_BOTTOM = '#1A2980';
+const PURPLE  = '#7C3AED';
+const ACCENT  = '#A78BFA';
 const CARD_BG = '#FFFFFF';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
 function fmtDate(iso: string | null) {
   if (!iso) return '—';
   return new Date(iso).toLocaleString('ar-SA', {
-    weekday: 'long', day: 'numeric', month: 'long',
+    weekday: 'short', day: 'numeric', month: 'short',
     hour: '2-digit', minute: '2-digit',
     timeZone: 'Asia/Amman',
   });
 }
 
-const STATUS_LABEL: Record<string, string> = {
-  pending:   '⏳ بانتظار القبول',
-  confirmed: '✅ مؤكدة',
-  expired:   '😔 لم يتم القبول',
-  rejected:  '❌ مرفوضة',
-  cancelled: '❌ ملغاة',
-};
-const STATUS_COLOR: Record<string, string> = {
-  pending:   C.warning,
-  confirmed: C.success,
-  expired:   C.gray,
-  rejected:  C.error,
-  cancelled: C.error,
+const STATUS_META: Record<string, { label: string; color: string; emoji: string }> = {
+  pending:   { label: 'بانتظار القبول', color: '#F59E0B', emoji: '⏳' },
+  confirmed: { label: 'مؤكدة',          color: '#22C55E', emoji: '✅' },
+  expired:   { label: 'لم يتم القبول',  color: '#6B7280', emoji: '😔' },
+  rejected:  { label: 'مرفوضة',         color: '#EF4444', emoji: '❌' },
+  cancelled: { label: 'ملغاة',          color: '#EF4444', emoji: '❌' },
 };
 
-// ─── Section card ─────────────────────────────────────────────────────────────
-
-function Card({
-  icon, title, locked, lockedMsg, children,
-}: {
-  icon: string; title: string;
-  locked?: boolean; lockedMsg?: string;
-  children?: React.ReactNode;
-}) {
+// ─── Status pill ──────────────────────────────────────────────────────────────
+function StatusPill({ status, isPending }: { status: string; isPending: boolean }) {
+  const meta = STATUS_META[status] ?? { label: status, color: '#fff', emoji: '' };
   return (
-    <View style={[styles.card, locked && styles.cardLocked]}>
-      <View style={styles.cardRow}>
-        <Ionicons name={icon as any} size={19} color={locked ? C.gray : PURPLE} style={{ marginRight: 8 }} />
-        <Text style={[styles.cardTitle, locked && { color: C.gray }]}>{title}</Text>
-        {locked && (
-          <View style={styles.lockChip}>
-            <Ionicons name="lock-closed" size={11} color={C.gray} />
-          </View>
-        )}
-      </View>
-      {locked
-        ? <Text style={styles.lockedMsg}>{lockedMsg}</Text>
-        : children}
+    <View style={[pillSt.wrap, { borderColor: meta.color + '88' }]}>
+      {isPending && <ActivityIndicator size="small" color={meta.color} style={{ marginRight: 2 }} />}
+      <Text style={pillSt.emoji}>{meta.emoji}</Text>
+      <Text style={[pillSt.label, { color: meta.color }]}>{meta.label}</Text>
     </View>
   );
 }
+const pillSt = StyleSheet.create({
+  wrap:  { flexDirection: 'row', alignItems: 'center', gap: 5, alignSelf: 'flex-end', borderWidth: 1.5, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4, backgroundColor: 'rgba(255,255,255,0.12)' },
+  emoji: { fontSize: 12 },
+  label: { fontSize: 12, fontWeight: '700' },
+});
+
+// ─── Card ─────────────────────────────────────────────────────────────────────
+function Card({
+  icon, title, locked, lockedMsg,
+}: {
+  icon: string; title: string;
+  locked?: boolean; lockedMsg?: string;
+}) {
+  return (
+    <View style={[cardSt.wrap, locked && { opacity: 0.58 }]}>
+      {!locked && <View style={[cardSt.bar, { backgroundColor: PURPLE }]} />}
+      <View style={cardSt.inner}>
+        <View style={cardSt.header}>
+          <Ionicons name={icon as any} size={19} color={locked ? C.gray : PURPLE} />
+          <Text style={[cardSt.title, locked && { color: C.gray }]}>{title}</Text>
+          {locked && (
+            <View style={cardSt.lockBubble}>
+              <Ionicons name="lock-closed" size={11} color={C.gray} />
+            </View>
+          )}
+        </View>
+        <Text style={cardSt.lockedMsg}>{lockedMsg}</Text>
+      </View>
+    </View>
+  );
+}
+const cardSt = StyleSheet.create({
+  wrap:       { backgroundColor: CARD_BG, borderRadius: 20, flexDirection: 'row', overflow: 'hidden', ...shadow.sm },
+  bar:        { width: 4 },
+  inner:      { flex: 1, padding: 18 },
+  header:     { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 },
+  title:      { flex: 1, fontSize: 15, fontWeight: '700', color: C.navy, textAlign: 'right' },
+  lockBubble: { width: 22, height: 22, borderRadius: 11, backgroundColor: '#F3F4F6', justifyContent: 'center', alignItems: 'center' },
+  lockedMsg:  { fontSize: 13, color: C.grayMid, textAlign: 'right', lineHeight: 20 },
+});
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
-
 export default function BookingProfileScreen() {
   const router    = useRouter();
+  const insets    = useSafeAreaInsets();
   const { id }    = useLocalSearchParams<{ id: string }>();
   const bookingId = Number(id);
 
@@ -85,8 +105,8 @@ export default function BookingProfileScreen() {
     queryKey: ['booking-profile', bookingId],
     queryFn:  () => sessionsApi.getBookingProfile(bookingId),
     staleTime: 15_000,
-    refetchInterval: (query) => {
-      const s = query.state.data?.status;
+    refetchInterval: (q) => {
+      const s = q.state.data?.status;
       return (s === 'pending' || s === 'confirmed') ? 15_000 : false;
     },
   });
@@ -100,59 +120,54 @@ export default function BookingProfileScreen() {
 
   if (isLoading) {
     return (
-      <SafeAreaView style={[styles.centered, { backgroundColor: BG }]}>
-        <Stack.Screen options={{ title: 'تفاصيل الحصة', headerBackTitle: 'حصصي' }} />
-        <ActivityIndicator size="large" color={PURPLE} />
-      </SafeAreaView>
+      <LinearGradient colors={[G_TOP, G_BOTTOM]} style={styles.centered}>
+        <Stack.Screen options={{ headerShown: false }} />
+        <ActivityIndicator size="large" color="#fff" />
+      </LinearGradient>
     );
   }
 
   if (isError || !data) {
     return (
-      <SafeAreaView style={[styles.centered, { backgroundColor: BG }]}>
-        <Stack.Screen options={{ title: 'تفاصيل الحصة', headerBackTitle: 'حصصي' }} />
-        <Ionicons name="alert-circle-outline" size={48} color={C.error} />
+      <LinearGradient colors={[G_TOP, G_BOTTOM]} style={styles.centered}>
+        <Stack.Screen options={{ headerShown: false }} />
+        <Ionicons name="alert-circle-outline" size={52} color="#fff" />
         <Text style={styles.errTxt}>تعذّر تحميل بيانات الحجز</Text>
         <TouchableOpacity style={styles.retryBtn} onPress={() => refetch()}>
           <Text style={styles.retryTxt}>إعادة المحاولة</Text>
         </TouchableOpacity>
-      </SafeAreaView>
+      </LinearGradient>
     );
   }
 
-  const lesson      = data.lesson;
-  const isPending   = data.status === 'pending' || data.status === 'confirmed';
-  const statusColor = STATUS_COLOR[data.status] ?? C.gray;
-  const statusLabel = STATUS_LABEL[data.status] ?? data.status;
+  const lesson    = data.lesson;
+  const isPending = data.status === 'pending' || data.status === 'confirmed';
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: BG }} edges={['top', 'bottom']}>
-      <Stack.Screen
-        options={{
-          title: '',
-          headerBackTitle: 'حصصي',
-          headerStyle:     { backgroundColor: PURPLE },
-          headerTintColor: '#fff',
-        }}
-      />
+    <View style={{ flex: 1, backgroundColor: '#F4F0FF' }}>
+      <Stack.Screen options={{ headerShown: false }} />
 
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
 
-        {/* ══════════════════════════════════════════════════════════════
-            HERO
-        ══════════════════════════════════════════════════════════════ */}
-        <View style={styles.hero}>
+        {/* ════════════════════════════════════════════════════════
+            GRADIENT HERO
+        ════════════════════════════════════════════════════════ */}
+        <LinearGradient
+          colors={[G_TOP, G_BOTTOM]}
+          start={{ x: 0.2, y: 0 }} end={{ x: 1, y: 1 }}
+          style={[styles.hero, { paddingTop: insets.top + 16 }]}
+        >
+          {/* Back */}
+          <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+            <Ionicons name="chevron-back" size={22} color="#fff" />
+          </TouchableOpacity>
 
-          {/* Status badge — top right */}
-          <View style={[styles.statusBadge, { backgroundColor: statusColor + '22' }]}>
-            {isPending && <ActivityIndicator size="small" color={statusColor} style={{ marginLeft: 2 }} />}
-            <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
-            <Text style={[styles.statusTxt, { color: statusColor }]}>{statusLabel}</Text>
-          </View>
+          <StatusPill status={data.status} isPending={isPending} />
 
-          {/* Fun title */}
           <Text style={styles.heroSub}>حصة اليوم رح تكون عن ✨</Text>
-          <Text style={styles.heroTitle}>{lesson?.title ?? 'حصة فردية'}</Text>
+          <Text style={styles.heroTitle} numberOfLines={3}>
+            {lesson?.title ?? 'حصة فردية'}
+          </Text>
 
           {lesson?.unit && (
             <Text style={styles.heroMeta}>
@@ -161,124 +176,107 @@ export default function BookingProfileScreen() {
             </Text>
           )}
 
-          <View style={styles.heroDivider} />
-
-          <View style={styles.infoRow}>
-            <Ionicons name="calendar-outline" size={14} color={PURPLE} />
-            <Text style={styles.infoTxt}>{fmtDate(data.scheduled_at)}</Text>
+          <View style={styles.metaStrip}>
+            <View style={styles.metaItem}>
+              <Ionicons name="calendar-outline" size={14} color={ACCENT} />
+              <Text style={styles.metaItemTxt}>{fmtDate(data.scheduled_at)}</Text>
+            </View>
+            {data.teacher?.name ? (
+              <View style={styles.metaItem}>
+                <Ionicons name="person-circle-outline" size={14} color={ACCENT} />
+                <Text style={styles.metaItemTxt}>{data.teacher.name}</Text>
+              </View>
+            ) : isPending ? (
+              <View style={styles.metaItem}>
+                <Ionicons name="hourglass-outline" size={14} color="#F59E0B" />
+                <Text style={[styles.metaItemTxt, { color: '#FDE68A' }]}>جاري تعيين المعلم…</Text>
+              </View>
+            ) : null}
           </View>
 
-          {data.teacher?.name ? (
-            <View style={styles.infoRow}>
-              <Ionicons name="person-circle-outline" size={14} color={PURPLE} />
-              <Text style={styles.infoTxt}>مع {data.teacher.name}</Text>
-            </View>
-          ) : isPending ? (
-            <View style={styles.infoRow}>
-              <Ionicons name="hourglass-outline" size={14} color={C.warning} />
-              <Text style={[styles.infoTxt, { color: C.warning }]}>جاري تعيين المعلم…</Text>
-            </View>
-          ) : null}
+          <View style={styles.deco1} />
+          <View style={styles.deco2} />
+        </LinearGradient>
 
-          {/* PDF chip — bottom of hero */}
-          {lesson?.pdf_url ? (
-            <TouchableOpacity
-              style={styles.pdfChip}
-              activeOpacity={0.8}
-              onPress={() => Linking.openURL(lesson.pdf_url!)}
-            >
-              <Ionicons name="document-text" size={15} color={PURPLE} />
-              <Text style={styles.pdfChipTxt}>مادة الدرس PDF</Text>
-              <Ionicons name="open-outline" size={13} color={PURPLE} />
-            </TouchableOpacity>
-          ) : (
-            <View style={[styles.pdfChip, { opacity: 0.4 }]}>
-              <Ionicons name="document-text-outline" size={15} color={C.gray} />
-              <Text style={[styles.pdfChipTxt, { color: C.gray }]}>لا يوجد PDF بعد</Text>
-            </View>
-          )}
+        {/* ════════════════════════════════════════════════════════
+            CARDS
+        ════════════════════════════════════════════════════════ */}
+        <View style={styles.cards}>
+          <Card
+            icon="clipboard-outline"
+            title="نشاط ما قبل الحصة"
+            locked
+            lockedMsg="هذه الميزة ستكون متاحة قريباً 🚀"
+          />
+          <Card
+            icon="videocam-outline"
+            title="الحصة الحية"
+            locked
+            lockedMsg={isPending ? 'ستُفعَّل تلقائياً بمجرد قبول المعلم 🎯' : 'لم تُعقد هذه الحصة'}
+          />
+          <Card
+            icon="help-circle-outline"
+            title="كويز ما بعد الدرس"
+            locked
+            lockedMsg="الكويز يُفتح فقط بعد إتمام الحصة 🔐"
+          />
         </View>
-
-        {/* ──────────────────────────────────────────────────────────────
-            نشاط ما قبل الحصة
-        ────────────────────────────────────────────────────────────── */}
-        <Card
-          icon="clipboard-outline"
-          title="نشاط ما قبل الحصة"
-          locked
-          lockedMsg="هذه الميزة ستكون متاحة قريباً 🚀"
-        />
-
-        {/* ──────────────────────────────────────────────────────────────
-            الحصة الحية
-        ────────────────────────────────────────────────────────────── */}
-        <Card
-          icon="videocam-outline"
-          title="الحصة الحية"
-          locked
-          lockedMsg={
-            isPending
-              ? 'ستُفعَّل تلقائياً بمجرد قبول المعلم 🎯'
-              : 'لم تُعقد هذه الحصة'
-          }
-        />
-
-        {/* ──────────────────────────────────────────────────────────────
-            كويز
-        ────────────────────────────────────────────────────────────── */}
-        <Card
-          icon="help-circle-outline"
-          title="كويز ما بعد الدرس"
-          locked
-          lockedMsg="الكويز يُفتح فقط بعد إتمام الحصة 🔐"
-        />
-
       </ScrollView>
-    </SafeAreaView>
+
+      {/* ════════════════════════════════════════════════════════
+          PDF FAB — bottom right
+      ════════════════════════════════════════════════════════ */}
+      {lesson?.pdf_url && (
+        <TouchableOpacity
+          style={[styles.fab, { bottom: insets.bottom + 24 }]}
+          activeOpacity={0.85}
+          onPress={() => Linking.openURL(lesson.pdf_url!)}
+        >
+          <LinearGradient
+            colors={[PURPLE, G_BOTTOM]}
+            start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+            style={styles.fabGrad}
+          >
+            <Ionicons name="document-text" size={22} color="#fff" />
+            <Text style={styles.fabTxt}>PDF</Text>
+          </LinearGradient>
+        </TouchableOpacity>
+      )}
+    </View>
   );
 }
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
-
 const styles = StyleSheet.create({
-  scroll:   { padding: 16, paddingBottom: 48, gap: 14 },
-  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12 },
-  errTxt:   { fontSize: 16, color: C.grayDark, fontWeight: '600', textAlign: 'center' },
-  retryBtn: { marginTop: 8, paddingHorizontal: 24, paddingVertical: 10, backgroundColor: PURPLE, borderRadius: 12 },
+  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 14 },
+  errTxt:   { color: '#fff', fontSize: 16, fontWeight: '700', textAlign: 'center' },
+  retryBtn: { marginTop: 8, paddingHorizontal: 28, paddingVertical: 12, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 14, borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.5)' },
   retryTxt: { color: '#fff', fontWeight: '700', fontSize: 14 },
 
-  hero: { backgroundColor: CARD_BG, borderRadius: 24, padding: 20, ...shadow.sm },
-
-  pdfChip: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    alignSelf: 'flex-start',
-    backgroundColor: '#EDE9FF',
-    paddingHorizontal: 14, paddingVertical: 8,
-    borderRadius: 20, marginTop: 14,
-    borderWidth: 1, borderColor: '#D8D0FF',
+  hero: {
+    paddingHorizontal: 24, paddingBottom: 40,
+    borderBottomLeftRadius: 32, borderBottomRightRadius: 32,
+    overflow: 'hidden', position: 'relative',
   },
-  pdfChipTxt: { fontSize: 13, fontWeight: '700', color: PURPLE },
-
-  statusBadge: {
-    flexDirection: 'row', alignItems: 'center', gap: 5,
-    position: 'absolute', top: 20, right: 20,
-    paddingHorizontal: 10, paddingVertical: 4,
-    borderRadius: 20,
+  backBtn: {
+    width: 38, height: 38, borderRadius: 19,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    justifyContent: 'center', alignItems: 'center',
+    marginBottom: 16, alignSelf: 'flex-start',
   },
-  statusDot: { width: 7, height: 7, borderRadius: 4 },
-  statusTxt: { fontSize: 11, fontWeight: '700' },
+  heroSub:   { fontSize: 13, color: ACCENT, fontWeight: '600', textAlign: 'right', marginTop: 16, marginBottom: 6 },
+  heroTitle: { fontSize: 26, fontWeight: '900', color: '#fff', textAlign: 'right', lineHeight: 36, marginBottom: 8 },
+  heroMeta:  { fontSize: 13, color: 'rgba(255,255,255,0.65)', textAlign: 'right', marginBottom: 20 },
+  metaStrip: { flexDirection: 'row', flexWrap: 'wrap', gap: 14, justifyContent: 'flex-end' },
+  metaItem:  { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  metaItemTxt: { fontSize: 13, color: 'rgba(255,255,255,0.82)', fontWeight: '500' },
 
-  heroSub:   { fontSize: 13, color: PURPLE, fontWeight: '600', textAlign: 'right', marginBottom: 4 },
-  heroTitle: { fontSize: 24, fontWeight: '900', color: C.navy, textAlign: 'right', lineHeight: 34, marginBottom: 6 },
-  heroMeta:  { fontSize: 13, color: C.grayMid, textAlign: 'right', marginBottom: 4 },
-  heroDivider: { height: 1, backgroundColor: '#F3EFFF', marginVertical: 14 },
-  infoRow:   { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
-  infoTxt:   { fontSize: 13, color: C.grayMid, flex: 1, textAlign: 'right' },
+  deco1: { position: 'absolute', width: 180, height: 180, borderRadius: 90, backgroundColor: 'rgba(255,255,255,0.07)', top: -40, left: -50 },
+  deco2: { position: 'absolute', width: 120, height: 120, borderRadius: 60, backgroundColor: 'rgba(255,255,255,0.05)', bottom: 10, left: 30 },
 
-  card:      { backgroundColor: CARD_BG, borderRadius: 18, padding: 18, ...shadow.sm },
-  cardLocked: { opacity: 0.6 },
-  cardRow:   { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
-  cardTitle: { flex: 1, fontSize: 15, fontWeight: '700', color: C.navy, textAlign: 'right' },
-  lockChip:  { width: 22, height: 22, borderRadius: 11, backgroundColor: '#F3F4F6', justifyContent: 'center', alignItems: 'center', marginLeft: 4 },
-  lockedMsg: { fontSize: 13, color: C.grayMid, textAlign: 'right', lineHeight: 20 },
+  cards: { padding: 16, gap: 14, marginTop: -16 },
+
+  fab: { position: 'absolute', right: 20, borderRadius: 28, elevation: 8, shadowColor: PURPLE, shadowOpacity: 0.4, shadowRadius: 12, shadowOffset: { width: 0, height: 4 } },
+  fabGrad: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 18, paddingVertical: 14, borderRadius: 28 },
+  fabTxt: { color: '#fff', fontSize: 14, fontWeight: '800', letterSpacing: 0.5 },
 });
