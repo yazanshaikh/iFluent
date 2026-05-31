@@ -157,7 +157,11 @@ class BookingController extends Controller
 
         // ── Resolve teacher (private mode) ────────────────────────────────────
         $targetTeacherId = null;
-        $type = SessionRequest::TYPE_CORE;
+
+        // Assessment lessons use TYPE_DEMO so they appear in CRM Trial Bookings
+        $type = ($lesson && $lesson->is_assessment)
+            ? SessionRequest::TYPE_DEMO
+            : SessionRequest::TYPE_CORE;
 
         if (!empty($validated['teacher_code'])) {
             $teacher = \App\Models\Teacher::where('teacher_code', $validated['teacher_code'])
@@ -170,7 +174,9 @@ class BookingController extends Controller
             }
 
             $targetTeacherId = $teacher->user_id;
-            $type = SessionRequest::TYPE_PRIVATE;
+            if (!$lesson?->is_assessment) {
+                $type = SessionRequest::TYPE_PRIVATE;
+            }
         }
 
         $sessionRequest = SessionRequest::create([
