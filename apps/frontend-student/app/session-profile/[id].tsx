@@ -174,16 +174,20 @@ export default function SessionProfileScreen() {
           end={{ x: 1, y: 1 }}
           style={[styles.hero, { paddingTop: insets.top + 16 }]}
         >
-          {/* Back button */}
-          <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
-            <Ionicons name="chevron-back" size={22} color="#fff" />
-          </TouchableOpacity>
+          {/* ── Row: back + status ── */}
+          <View style={styles.heroTopRow}>
+            <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+              <Ionicons name="chevron-back" size={22} color="#fff" />
+            </TouchableOpacity>
+            <StatusPill status={data.status} />
+          </View>
 
-          {/* Status pill */}
-          <StatusPill status={data.status} />
+          {/* ── Label: حصة اليوم — centered, light-blue glow ── */}
+          <View style={styles.subWrap}>
+            <Text style={styles.heroSub}>حصة اليوم رح تكون عن ✨</Text>
+          </View>
 
-          {/* Title */}
-          <Text style={styles.heroSub}>حصة اليوم رح تكون عن ✨</Text>
+          {/* ── Lesson title ── */}
           <Text style={styles.heroTitle} numberOfLines={3}>
             {lesson.title ?? ''}
           </Text>
@@ -315,14 +319,37 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: 28,
     borderBottomRightRadius: 28,
   },
+  heroTopRow: {
+    flexDirection: 'row', alignItems: 'center',
+    justifyContent: 'space-between', marginBottom: 20,
+  },
   backBtn: {
     width: 38, height: 38, borderRadius: 19,
     backgroundColor: 'rgba(255,255,255,0.18)',
     justifyContent: 'center', alignItems: 'center',
-    marginBottom: 16,
-    alignSelf: 'flex-start',
   },
-  heroSub:   { fontSize: 12, color: ACCENT, fontWeight: '600', textAlign: 'right', marginTop: 10, marginBottom: 4 },
+  subWrap: {
+    alignSelf: 'center',
+    backgroundColor: 'rgba(147, 210, 255, 0.18)',
+    borderWidth: 1,
+    borderColor: 'rgba(147, 210, 255, 0.45)',
+    borderRadius: 22,
+    paddingHorizontal: 18, paddingVertical: 8,
+    marginBottom: 14,
+    shadowColor: '#60C8FF',
+    shadowOpacity: 0.7,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 6,
+  },
+  heroSub: {
+    fontSize: 14,
+    color: '#E0F4FF',
+    fontWeight: '700',
+    textAlign: 'center',
+    letterSpacing: 0.3,
+    fontFamily: Platform.select({ ios: 'Al Nile', android: 'serif' }),
+  },
   heroTitle: { fontSize: 20, fontWeight: '900', color: '#fff', textAlign: 'right', lineHeight: 28, marginBottom: 6 },
   heroMeta:  { fontSize: 12, color: 'rgba(255,255,255,0.65)', textAlign: 'right', marginBottom: 14 },
 
