@@ -553,11 +553,17 @@ export default function ProcessOrdersPage() {
                         order={order}
                         copiedId={copiedId}
                         onCopy={handleCopy}
-                        onApprove={(id) => approveMutation.mutate({
-                          id,
-                          fromId: range.from ? Number(range.from) : undefined,
-                          toId:   range.to   ? Number(range.to)   : undefined,
-                        })}
+                        onApprove={(id) => {
+                          const fromNum = range.from ? Number(range.from) : undefined;
+                          const toNum   = range.to   ? Number(range.to)   : undefined;
+                          // Warn if only one field is filled — both required or neither
+                          if ((fromNum && !toNum) || (!fromNum && toNum)) {
+                            alert('يرجى إدخال كلا الحقلين: من درس # وإلى درس #');
+                            return;
+                          }
+                          // lessons_count computed on backend from actual DB rows
+                          approveMutation.mutate({ id, fromId: fromNum, toId: toNum });
+                        }}
                         onReject={(id) => { setRejectTarget(id); setRejectReason(''); }}
                         onViewReceipt={(url) => setReceiptViewUrl(url)}
                         isAdmin={isAdmin}

@@ -70,20 +70,34 @@ class SubscriptionController extends Controller
             $fromId = $validated['from_lesson_id'] ?? null;
             $toId   = $validated['to_lesson_id']   ?? null;
 
+            // ── Calculate lessons_count dynamically from the lesson range ─────
+            // If both IDs are provided, count = number of lessons between them.
+            // Uses DB to count actual lessons in that ID range (accounts for
+            // gaps in IDs across units/levels) instead of simple subtraction.
+            if ($fromId && $toId) {
+                $lessonsCount = \App\Models\Lesson::whereBetween('id', [
+                    min($fromId, $toId),
+                    max($fromId, $toId),
+                ])->count();
+            } else {
+                // No range specified — keep the original lessons_count
+                $lessonsCount = $subscription->lessons_count;
+            }
+
             $subscription->update([
                 'status'            => Subscription::STATUS_ACTIVE,
                 'approved_by'       => $request->user()->id,
                 'approved_at'       => now(),
                 'activated_at'      => now(),
                 'expires_at'        => now()->addMonths($subscription->months_count),
-                // Lesson range — current starts at the first lesson
+                'lessons_count'     => $lessonsCount,
                 'from_lesson_id'    => $fromId,
                 'to_lesson_id'      => $toId,
-                'current_lesson_id' => $fromId, // pointer starts at the beginning
+                'current_lesson_id' => $fromId,
             ]);
 
-            // ── Credit the student's lesson balance ───────────────────────────
-            $subscription->student->user->increment('lesson_credits', $subscription->lessons_count);
+            // ── Credit the student's lesson balance (dynamic count) ───────────
+            $subscription->student->user->increment('lesson_credits', $lessonsCount);
 
             // Update lead → subscriber
             $lead = $subscription->student->lead;
