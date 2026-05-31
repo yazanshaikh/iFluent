@@ -23,6 +23,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { sessionsApi, type SessionProfile } from '@/api/sessions';
+import { fixStorageUrl } from '@/api/client';
 import { C, shadow } from '@/theme';
 
 // ─── Tokens ───────────────────────────────────────────────────────────────────
@@ -273,24 +274,19 @@ export default function SessionProfileScreen() {
           </Card>
 
           {/* ── PDF — تحت الكويز، على اليمين ── */}
-          <View style={styles.pdfRow}>
-            {lesson.pdf_url ? (
+          {fixStorageUrl(lesson.pdf_url) && (
+            <View style={styles.pdfRow}>
               <TouchableOpacity
                 style={styles.pdfBtn}
                 activeOpacity={0.8}
-                onPress={() => Linking.openURL(lesson.pdf_url!)}
+                onPress={() => Linking.openURL(fixStorageUrl(lesson.pdf_url)!)}
               >
                 <Ionicons name="document-text" size={18} color={PURPLE} />
-                <Text style={styles.pdfBtnTxt}>مادة الدرس</Text>
-                <Ionicons name="open-outline" size={14} color={PURPLE} />
+                <Text style={styles.pdfBtnTxt}>تحميل مادة الدرس</Text>
+                <Ionicons name="download-outline" size={15} color={PURPLE} />
               </TouchableOpacity>
-            ) : (
-              <View style={[styles.pdfBtn, { opacity: 0.4 }]}>
-                <Ionicons name="document-text-outline" size={18} color={C.gray} />
-                <Text style={[styles.pdfBtnTxt, { color: C.gray }]}>لا يوجد PDF</Text>
-              </View>
-            )}
-          </View>
+            </View>
+          )}
 
         </View>
       </ScrollView>

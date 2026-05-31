@@ -46,3 +46,28 @@ client.interceptors.response.use(
 );
 
 export default client;
+
+/**
+ * Fix PDF URLs that were stored with localhost:PORT in the database.
+ * Replaces the host with the actual API server host so the URL works
+ * on real devices and EAS builds.
+ *
+ * e.g. http://localhost:8000/storage/lessons/x.pdf
+ *   → http://192.168.0.106:8000/storage/lessons/x.pdf
+ */
+export function fixStorageUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  try {
+    const apiBase  = BASE_URL.replace(/\/api\/v1\/?$/, ''); // strip /api/v1
+    const parsed   = new URL(url);
+    const isLocal  = parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1';
+    if (!isLocal) return url; // already a real URL, leave as-is
+    const apiParsed = new URL(apiBase);
+    parsed.hostname = apiParsed.hostname;
+    parsed.port     = apiParsed.port;
+    parsed.protocol = apiParsed.protocol;
+    return parsed.toString();
+  } catch {
+    return url;
+  }
+}
