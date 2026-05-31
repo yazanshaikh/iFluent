@@ -177,7 +177,7 @@ export default function SessionProfileScreen() {
           {/* Title */}
           <Text style={styles.heroSub}>حصة اليوم رح تكون عن ✨</Text>
           <Text style={styles.heroTitle} numberOfLines={3}>
-            {lesson.title ?? 'حصة فردية'}
+            {lesson.title ?? ''}
           </Text>
 
           {/* Unit · Level */}
@@ -307,10 +307,10 @@ const styles = StyleSheet.create({
 
   // ── Hero ──────────────────────────────────────────────────────────────────
   hero: {
-    paddingHorizontal: 24,
-    paddingBottom: 40,
-    borderBottomLeftRadius: 32,
-    borderBottomRightRadius: 32,
+    paddingHorizontal: 20,
+    paddingBottom: 24,
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
   },
   backBtn: {
     width: 38, height: 38, borderRadius: 19,
@@ -319,9 +319,9 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     alignSelf: 'flex-start',
   },
-  heroSub:   { fontSize: 13, color: ACCENT, fontWeight: '600', textAlign: 'right', marginTop: 16, marginBottom: 6 },
-  heroTitle: { fontSize: 26, fontWeight: '900', color: '#fff', textAlign: 'right', lineHeight: 36, marginBottom: 8 },
-  heroMeta:  { fontSize: 13, color: 'rgba(255,255,255,0.65)', textAlign: 'right', marginBottom: 20 },
+  heroSub:   { fontSize: 12, color: ACCENT, fontWeight: '600', textAlign: 'right', marginTop: 10, marginBottom: 4 },
+  heroTitle: { fontSize: 20, fontWeight: '900', color: '#fff', textAlign: 'right', lineHeight: 28, marginBottom: 6 },
+  heroMeta:  { fontSize: 12, color: 'rgba(255,255,255,0.65)', textAlign: 'right', marginBottom: 14 },
 
   metaStrip: { flexDirection: 'row', flexWrap: 'wrap', gap: 14, justifyContent: 'flex-end' },
   metaItem:  { flexDirection: 'row', alignItems: 'center', gap: 6 },
