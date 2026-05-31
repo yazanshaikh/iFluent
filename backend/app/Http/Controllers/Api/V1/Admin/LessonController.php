@@ -19,6 +19,29 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
  */
 class LessonController extends Controller
 {
+    // ─── List All Active Lessons (lesson-range picker) ────────────────────────
+
+    /**
+     * GET /admin/lessons
+     * All active regular lessons, ordered by curriculum position.
+     * Used by CRM to populate from_lesson_id / to_lesson_id dropdowns.
+     */
+    public function index(): AnonymousResourceCollection
+    {
+        $lessons = Lesson::with(['unit.level'])
+            ->active()
+            ->regular()
+            ->get()
+            ->sortBy(fn($l) => [
+                $l->unit->level->order ?? 999,
+                $l->unit->order        ?? 999,
+                $l->order              ?? 999,
+            ])
+            ->values();
+
+        return LessonResource::collection($lessons);
+    }
+
     // ─── List Assessment Lessons ──────────────────────────────────────────────
     // Accessible by CC/SS via /crm/assessment-lessons (read-only there).
     // Also accessible by admin via /admin/assessment-lessons for management.

@@ -127,6 +127,7 @@ Route::middleware(['auth:sanctum', 'role:super_admin,cc,ss'])
         // CC/SS need to see them to pick one for demo bookings.
         // Editing nearpod content is ADMIN ONLY (moved to /admin group below).
         Route::get('assessment-lessons', [AdminLessonController::class, 'assessments']);
+        Route::get('lessons',            [AdminLessonController::class, 'index']);        // lesson-range picker
     });
 
 // ─── Admin Only ───────────────────────────────────────────────────────────────

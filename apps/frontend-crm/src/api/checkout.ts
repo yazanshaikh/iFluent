@@ -3,6 +3,14 @@ import publicApi from './publicClient';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
+export interface LessonOption {
+  id:    number;
+  title: string;
+  order: number;
+  unit:  { id: number; name: string };
+  level: { id: number; code: string; name: string };
+}
+
 export interface PurchaseCoursePayload {
   lessons_count: number;
   amount_paid:   number;
@@ -114,6 +122,17 @@ export const checkoutApi = {
     client
       .patch('/admin/settings', { settings: { price_per_lesson: price } })
       .then((r) => r.data),
+};
+
+// ─── Lessons API ─────────────────────────────────────────────────────────────
+
+export const lessonsApi = {
+  /** Fetch all active lessons ordered by level → unit → lesson order.
+   *  Used in CRM to populate from/to lesson dropdowns. */
+  getAll: () =>
+    client
+      .get<{ data: LessonOption[] }>('/admin/lessons')
+      .then((r) => r.data.data),
 };
 
 // ─── Public API (no auth) ─────────────────────────────────────────────────────

@@ -1,7 +1,7 @@
 import axios from 'axios';
-import { useRef, useState, useEffect } from 'react';
+import { useRef, useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { checkoutApi, type PendingOrder } from '@/api/checkout';
+import { checkoutApi, lessonsApi, type PendingOrder, type LessonOption } from '@/api/checkout';
 import { useAuthStore } from '@/stores/authStore';
 import { invoiceFullUrl } from '@/lib/appUrl';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -384,6 +384,13 @@ export default function ProcessOrdersPage() {
   const [receiptViewUrl, setReceiptViewUrl] = useState<string | null>(null);
   // lesson range for approve
   const [lessonRangeMap, setLessonRangeMap] = useState<Record<number, { from: string; to: string }>>({});
+
+  // fetch all lessons for the dropdowns (once)
+  const { data: allLessons = [] } = useQuery<LessonOption[]>({
+    queryKey: ['all-lessons'],
+    queryFn:  lessonsApi.getAll,
+    staleTime: 5 * 60_000,
+  });
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // pending_screenshot orders (employee's own, or all for admin)
@@ -569,35 +576,45 @@ export default function ProcessOrdersPage() {
                         isAdmin={isAdmin}
                         isApprovalSection
                       />
-                      {/* ── Lesson Range ── */}
-                      <div className="flex items-center gap-2 px-1 pb-1" dir="rtl">
-                        <span className="text-xs text-muted-foreground whitespace-nowrap">نطاق الدروس:</span>
-                        <input
-                          type="number"
-                          min={1}
-                          placeholder="من درس #"
+                      {/* ── Lesson Range dropdowns ── */}
+                      <div className="flex flex-wrap items-center gap-2 px-1 pb-2 bg-muted/30 rounded-lg p-2" dir="rtl">
+                        <span className="text-xs font-medium text-muted-foreground whitespace-nowrap">نطاق الدروس:</span>
+                        <select
                           value={range.from}
                           onChange={(e) => setLessonRangeMap((prev) => ({
                             ...prev,
                             [order.id]: { ...range, from: e.target.value },
                           }))}
-                          className="w-28 rounded-md border border-input bg-background px-2 py-1 text-sm text-right"
-                        />
+                          className="flex-1 min-w-[160px] rounded-md border border-input bg-background px-2 py-1 text-sm text-right"
+                        >
+                          <option value="">— من درس —</option>
+                          {allLessons.map((l) => (
+                            <option key={l.id} value={String(l.id)}>
+                              {l.level.code} · {l.title}
+                            </option>
+                          ))}
+                        </select>
                         <span className="text-xs text-muted-foreground">→</span>
-                        <input
-                          type="number"
-                          min={1}
-                          placeholder="إلى درس #"
+                        <select
                           value={range.to}
                           onChange={(e) => setLessonRangeMap((prev) => ({
                             ...prev,
                             [order.id]: { ...range, to: e.target.value },
                           }))}
-                          className="w-28 rounded-md border border-input bg-background px-2 py-1 text-sm text-right"
-                        />
+                          className="flex-1 min-w-[160px] rounded-md border border-input bg-background px-2 py-1 text-sm text-right"
+                        >
+                          <option value="">— إلى درس —</option>
+                          {allLessons
+                            .filter((l) => !range.from || l.id >= Number(range.from))
+                            .map((l) => (
+                              <option key={l.id} value={String(l.id)}>
+                                {l.level.code} · {l.title}
+                              </option>
+                            ))}
+                        </select>
                         {range.from && range.to && (
-                          <span className="text-xs text-green-600 font-medium">
-                            {Number(range.to) - Number(range.from) + 1} درس
+                          <span className="text-xs font-semibold text-green-600 bg-green-50 px-2 py-1 rounded">
+                            {allLessons.filter((l) => l.id >= Number(range.from) && l.id <= Number(range.to)).length} درس
                           </span>
                         )}
                       </div>
