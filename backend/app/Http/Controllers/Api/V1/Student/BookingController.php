@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1\Student;
 use App\Http\Controllers\Controller;
 use App\Models\Lesson;
 use App\Models\SessionRequest;
+use App\Models\Student;
 use App\Models\Subscription;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
@@ -74,20 +75,26 @@ class BookingController extends Controller
             }
         } else {
             // ── Auto-assign lesson from active subscription ───────────────────
-            // If the student has no explicit lesson_id, we pick the current
-            // lesson from their active subscription (if any).
-            $activeSubscription = Subscription::where('student_id', $student->id)
-                ->where('status', Subscription::STATUS_ACTIVE)
-                ->whereNotNull('current_lesson_id')
-                ->latest('activated_at')
-                ->first();
+            // IMPORTANT: Subscription.student_id = students.id (NOT users.id)
+            $studentProfile = Student::where('user_id', $student->id)->first();
 
-            // ── Check if subscription is exhausted (reached to_lesson_id) ──────
-            $exhaustedSubscription = Subscription::where('student_id', $student->id)
-                ->where('status', Subscription::STATUS_ACTIVE)
-                ->whereNotNull('to_lesson_id')   // has a lesson range
-                ->whereNull('current_lesson_id') // but pointer is null = exhausted
-                ->exists();
+            $activeSubscription   = null;
+            $exhaustedSubscription = false;
+
+            if ($studentProfile) {
+                $activeSubscription = Subscription::where('student_id', $studentProfile->id)
+                    ->where('status', Subscription::STATUS_ACTIVE)
+                    ->whereNotNull('current_lesson_id')
+                    ->latest('activated_at')
+                    ->first();
+
+                // ── Check if subscription is exhausted ────────────────────────
+                $exhaustedSubscription = Subscription::where('student_id', $studentProfile->id)
+                    ->where('status', Subscription::STATUS_ACTIVE)
+                    ->whereNotNull('to_lesson_id')
+                    ->whereNull('current_lesson_id')
+                    ->exists();
+            }
 
             if ($exhaustedSubscription) {
                 return response()->json([
@@ -220,11 +227,15 @@ class BookingController extends Controller
         $lesson = $sessionRequest->lesson()->with(['unit.level', 'level'])->first();
 
         if (!$lesson) {
-            // Fallback: get lesson from student's active subscription
-            $activeSubscription = Subscription::where('student_id', $student->id)
-                ->where('status', Subscription::STATUS_ACTIVE)
-                ->latest('activated_at')
-                ->first();
+            // Fallback: get lesson from student's active subscription.
+            // IMPORTANT: Subscription.student_id = students.id (NOT users.id)
+            $studentProfile     = Student::where('user_id', $student->id)->first();
+            $activeSubscription = $studentProfile
+                ? Subscription::where('student_id', $studentProfile->id)
+                    ->where('status', Subscription::STATUS_ACTIVE)
+                    ->latest('activated_at')
+                    ->first()
+                : null;
 
             if ($activeSubscription) {
                 // Priority A: current_lesson_id (set after lesson range approval)

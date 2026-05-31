@@ -232,12 +232,16 @@ class SessionController extends Controller
             }
 
             // ── attended: advance subscription lesson pointer ─────────────────
+            // IMPORTANT: Subscription.student_id = students.id (NOT users.id)
             if ($session->lesson_id) {
-                $subscription = \App\Models\Subscription::where('student_id', $session->student_id)
-                    ->where('status', \App\Models\Subscription::STATUS_ACTIVE)
-                    ->where('current_lesson_id', $session->lesson_id)
-                    ->latest('activated_at')
-                    ->first();
+                $studentProfile = \App\Models\Student::where('user_id', $session->student_id)->first();
+                $subscription   = $studentProfile
+                    ? \App\Models\Subscription::where('student_id', $studentProfile->id)
+                        ->where('status', \App\Models\Subscription::STATUS_ACTIVE)
+                        ->where('current_lesson_id', $session->lesson_id)
+                        ->latest('activated_at')
+                        ->first()
+                    : null;
 
                 if ($subscription) {
                     $subscription->advanceToNextLesson();
