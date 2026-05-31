@@ -182,10 +182,15 @@ export default function SessionProfileScreen() {
             <StatusPill status={data.status} />
           </View>
 
-          {/* ── Label: حصة اليوم — centered, light-blue glow ── */}
-          <View style={styles.subWrap}>
+          {/* ── Label: حصة اليوم — gradient top→bottom ── */}
+          <LinearGradient
+            colors={['rgba(147,210,255,0.45)', 'rgba(147,210,255,0.08)']}
+            start={{ x: 0.5, y: 0 }}
+            end={{ x: 0.5, y: 1 }}
+            style={styles.subWrap}
+          >
             <Text style={styles.heroSub}>حصة اليوم رح تكون عن</Text>
-          </View>
+          </LinearGradient>
 
           {/* ── Lesson title ── */}
           <Text style={styles.heroTitle} numberOfLines={3}>
@@ -326,16 +331,13 @@ const styles = StyleSheet.create({
   },
   subWrap: {
     alignSelf: 'center',
-    backgroundColor: 'rgba(147, 210, 255, 0.15)',
     borderRadius: 22,
     paddingHorizontal: 20, paddingVertical: 9,
     marginBottom: 14,
-    // glow — iOS
     shadowColor: '#93D2FF',
     shadowOpacity: 1,
     shadowRadius: 24,
     shadowOffset: { width: 0, height: 0 },
-    // glow — Android
     elevation: 12,
   },
   heroSub: {

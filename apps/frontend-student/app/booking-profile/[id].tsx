@@ -174,9 +174,14 @@ export default function BookingProfileScreen() {
           </View>
 
           {/* ── Label ── */}
-          <View style={styles.subWrap}>
+          <LinearGradient
+            colors={['rgba(147,210,255,0.45)', 'rgba(147,210,255,0.08)']}
+            start={{ x: 0.5, y: 0 }}
+            end={{ x: 0.5, y: 1 }}
+            style={styles.subWrap}
+          >
             <Text style={styles.heroSub}>حصة اليوم رح تكون عن</Text>
-          </View>
+          </LinearGradient>
 
           <Text style={styles.heroTitle} numberOfLines={3}>
             {lesson?.title ?? ''}
@@ -265,7 +270,6 @@ const styles = StyleSheet.create({
   },
   subWrap: {
     alignSelf: 'center',
-    backgroundColor: 'rgba(147, 210, 255, 0.15)',
     borderRadius: 22,
     paddingHorizontal: 20, paddingVertical: 9,
     marginBottom: 14,
