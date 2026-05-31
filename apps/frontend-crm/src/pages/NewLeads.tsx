@@ -314,11 +314,11 @@ export default function NewLeadsPage() {
       cell: ({ row }) => row.original.demo_session?.scheduled_at ? (
         <span className="text-xs text-primary font-medium">
           {new Date(row.original.demo_session.scheduled_at).toLocaleDateString('ar-JO', {
-            day: 'numeric', month: 'short',
+            day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Amman',
           })}
           {' '}
           {new Date(row.original.demo_session.scheduled_at).toLocaleTimeString('ar-JO', {
-            hour: '2-digit', minute: '2-digit',
+            hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Amman',
           })}
         </span>
       ) : (

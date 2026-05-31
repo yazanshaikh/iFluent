@@ -39,13 +39,6 @@ class BookingController extends Controller
             'notes'        => ['sometimes', 'nullable', 'string', 'max:300'],
         ]);
 
-        // Guard: student must have available lesson credits
-        if ($student->lesson_credits < 1) {
-            return response()->json([
-                'message' => 'لا يوجد رصيد حصص متاح. يرجى التواصل مع الإدارة لتجديد اشتراكك.',
-            ], 403);
-        }
-
         // ── Lesson-specific booking ───────────────────────────────────────────
         $lesson = null;
         if (!empty($validated['lesson_id'])) {
@@ -53,6 +46,13 @@ class BookingController extends Controller
 
             if (!$lesson->is_active) {
                 return response()->json(['message' => 'This lesson is not available.'], 422);
+            }
+
+            // Credits guard: skip for assessment lessons (free evaluation for non-subscribers)
+            if (!$lesson->is_assessment && $student->lesson_credits < 1) {
+                return response()->json([
+                    'message' => 'لا يوجد رصيد حصص متاح. يرجى التواصل مع الإدارة لتجديد اشتراكك.',
+                ], 403);
             }
 
             if (!$lesson->is_assessment) {
@@ -75,6 +75,13 @@ class BookingController extends Controller
                 return response()->json(['message' => 'You already have a pending booking for this lesson.'], 422);
             }
         } else {
+            // Quick booking (no lesson_id) always requires credits
+            if ($student->lesson_credits < 1) {
+                return response()->json([
+                    'message' => 'لا يوجد رصيد حصص متاح. يرجى التواصل مع الإدارة لتجديد اشتراكك.',
+                ], 403);
+            }
+
             // ── Auto-assign lesson from active subscription ───────────────────
             // IMPORTANT: Subscription.student_id = students.id (NOT users.id)
             $studentProfile = Student::where('user_id', $student->id)->first();
