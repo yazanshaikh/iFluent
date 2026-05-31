@@ -301,7 +301,7 @@ export default function NewLeadsPage() {
       header: ({ column }) => <SortableHeader column={column} label="تاريخ الإضافة" />,
       cell: ({ row }) => (
         <span className="text-muted-foreground text-xs">
-          {new Date(row.original.created_at).toLocaleDateString('ar-SA', {
+          {new Date(row.original.created_at).toLocaleDateString('ar-JO', {
             day: 'numeric', month: 'short', year: 'numeric',
           })}
         </span>
@@ -313,11 +313,11 @@ export default function NewLeadsPage() {
       enableSorting: false,
       cell: ({ row }) => row.original.demo_session?.scheduled_at ? (
         <span className="text-xs text-primary font-medium">
-          {new Date(row.original.demo_session.scheduled_at).toLocaleDateString('ar-SA', {
+          {new Date(row.original.demo_session.scheduled_at).toLocaleDateString('ar-JO', {
             day: 'numeric', month: 'short',
           })}
           {' '}
-          {new Date(row.original.demo_session.scheduled_at).toLocaleTimeString('ar-SA', {
+          {new Date(row.original.demo_session.scheduled_at).toLocaleTimeString('ar-JO', {
             hour: '2-digit', minute: '2-digit',
           })}
         </span>
