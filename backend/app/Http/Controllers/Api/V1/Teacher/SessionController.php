@@ -182,21 +182,56 @@ class SessionController extends Controller
             ], 422);
         }
 
+        // ── Validate attendance status (required) ─────────────────────────────
+        $request->validate([
+            'attendance_status' => [
+                'required',
+                'string',
+                \Illuminate\Validation\Rule::in([
+                    Session::ATTENDANCE_ATTENDED,
+                    Session::ATTENDANCE_ABSENT,
+                    Session::ATTENDANCE_TEACHER_ABSENT,
+                ]),
+            ],
+        ]);
+
+        $attendance = $request->input('attendance_status');
+
         if ($session->daily_room_name) {
             $this->daily->deleteRoom($session->daily_room_name);
         }
 
         $endedAt = now();
 
-        DB::transaction(function () use ($session, $endedAt) {
+        DB::transaction(function () use ($session, $endedAt, $attendance) {
             $session->update([
-                'status'   => Session::STATUS_COMPLETED,
-                'ended_at' => $endedAt,
+                'status'            => Session::STATUS_COMPLETED,
+                'ended_at'          => $endedAt,
+                'attendance_status' => $attendance,
             ]);
 
-            // ── Advance subscription current_lesson_id ────────────────────────
-            // After a session completes, move the student's lesson pointer
-            // forward so the next booking auto-assigns the next lesson.
+            // ── Conditional logic based on attendance ─────────────────────────
+            //
+            // attended      → advance lesson pointer + deduct credit
+            // absent        → deduct credit only  (lesson stays for next time)
+            // teacher_absent → do nothing          (no penalty for student)
+            //
+            if ($attendance === Session::ATTENDANCE_TEACHER_ABSENT) {
+                // غاب المعلم — الحصة كأنها لم تكن، لا خصم ولا تقدم
+                return;
+            }
+
+            // Both attended + absent: deduct one lesson credit
+            if ($session->student_id) {
+                $session->student->decrement('lesson_credits');
+            }
+
+            if ($attendance === Session::ATTENDANCE_ABSENT) {
+                // غاب الطالب — خصم الرصيد لكن يبقى على نفس الدرس
+                return;
+            }
+
+            // ── attended: advance subscription lesson pointer ─────────────────
             if ($session->lesson_id) {
                 $subscription = \App\Models\Subscription::where('student_id', $session->student_id)
                     ->where('status', \App\Models\Subscription::STATUS_ACTIVE)
@@ -206,9 +241,6 @@ class SessionController extends Controller
 
                 if ($subscription) {
                     $subscription->advanceToNextLesson();
-
-                    // Decrement student's lesson_credits
-                    $session->student->decrement('lesson_credits');
                 }
             }
 

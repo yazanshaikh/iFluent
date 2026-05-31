@@ -16,11 +16,17 @@ class Session extends Model
     const STATUS_COMPLETED = 'completed';
     const STATUS_CANCELLED = 'cancelled';
 
+    // ─── Attendance Constants ─────────────────────────────────────────────────
+    const ATTENDANCE_ATTENDED       = 'attended';       // حضر الطالب  → advance + deduct
+    const ATTENDANCE_ABSENT         = 'absent';         // غاب الطالب  → deduct only
+    const ATTENDANCE_TEACHER_ABSENT = 'teacher_absent'; // غاب المعلم  → nothing
+
     protected $fillable = [
         'lesson_id',
         'teacher_id',
         'student_id',
         'status',
+        'attendance_status',
         'daily_room_name',
         'daily_room_url',
         'nearpod_pin',
