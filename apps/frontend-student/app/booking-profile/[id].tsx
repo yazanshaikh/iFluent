@@ -2,10 +2,10 @@
  * Booking Profile — بروفايل الحجز (قبل قبول المعلم)
  * Auto-redirects to session-profile once session is created.
  */
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
-  ScrollView, ActivityIndicator, Linking, Platform,
+  ScrollView, ActivityIndicator, Linking, Platform, Alert,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
@@ -14,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { sessionsApi, type BookingProfile } from '@/api/sessions';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { fixStorageUrl } from '@/api/client';
 import { C, shadow } from '@/theme';
 
@@ -71,9 +72,31 @@ const cardSt = StyleSheet.create({
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function BookingProfileScreen() {
   const router    = useRouter();
+  const qc        = useQueryClient();
   const insets    = useSafeAreaInsets();
   const { id }    = useLocalSearchParams<{ id: string }>();
   const bookingId = Number(id);
+
+  const cancelMutation = useMutation({
+    mutationFn: () => sessionsApi.cancelBooking(bookingId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['booking-profile', bookingId] });
+      qc.invalidateQueries({ queryKey: ['bookings'] });
+      router.back();
+    },
+    onError: () => Alert.alert('خطأ', 'تعذّر إلغاء الحجز. يرجى المحاولة مرة أخرى.'),
+  });
+
+  const handleCancel = () => {
+    Alert.alert(
+      'إلغاء الحجز',
+      'هل أنت متأكد من إلغاء هذا الحجز؟',
+      [
+        { text: 'تراجع', style: 'cancel' },
+        { text: 'إلغاء الحجز', style: 'destructive', onPress: () => cancelMutation.mutate() },
+      ],
+    );
+  };
 
   const { data, isLoading, isError, refetch } = useQuery<BookingProfile>({
     queryKey: ['booking-profile', bookingId],
@@ -221,6 +244,36 @@ export default function BookingProfileScreen() {
             locked
             lockedMsg="الكويز يُفتح فقط بعد إتمام الحصة 🔐"
           />
+
+          {/* زر الإلغاء — فقط لما status = pending (قبل قبول المعلم) */}
+          {data.status === 'pending' && (
+            <TouchableOpacity
+              style={styles.cancelBtn}
+              activeOpacity={0.8}
+              onPress={handleCancel}
+              disabled={cancelMutation.isPending}
+            >
+              {cancelMutation.isPending ? (
+                <ActivityIndicator size="small" color="#EF4444" />
+              ) : (
+                <>
+                  <Ionicons name="close-circle-outline" size={18} color="#EF4444" />
+                  <Text style={styles.cancelTxt}>إلغاء الحجز</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          )}
+
+          {/* رسالة توضيحية لما المعلم وافق */}
+          {data.status === 'confirmed' && (
+            <View style={styles.confirmedNote}>
+              <Ionicons name="lock-closed-outline" size={15} color="#6B7280" />
+              <Text style={styles.confirmedNoteTxt}>
+                لا يمكن إلغاء الحجز بعد موافقة المعلم
+              </Text>
+            </View>
+          )}
+
         </View>
 
       </ScrollView>
@@ -325,4 +378,18 @@ const styles = StyleSheet.create({
 
   // ── Cards ─────────────────────────────────────────────────────────────────
   cards: { padding: 16, gap: 14, marginTop: -12 },
+
+  cancelBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 8, paddingVertical: 14, borderRadius: 16,
+    borderWidth: 1.5, borderColor: '#FCA5A5',
+    backgroundColor: '#FFF5F5',
+  },
+  cancelTxt: { fontSize: 15, fontWeight: '700', color: '#EF4444' },
+
+  confirmedNote: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 6, paddingVertical: 10,
+  },
+  confirmedNoteTxt: { fontSize: 12, color: '#6B7280', textAlign: 'center' },
 });
