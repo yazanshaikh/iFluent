@@ -202,9 +202,9 @@ export default function SessionProfileScreen() {
             )}
           </View>
 
-          {/* Decorative circle */}
-          <View style={styles.deco1} />
-          <View style={styles.deco2} />
+          {/* Decorative circles — pointerEvents none so they don't block touches */}
+          <View style={styles.deco1} pointerEvents="none" />
+          <View style={styles.deco2} pointerEvents="none" />
         </LinearGradient>
 
         {/* ════════════════════════════════════════════════════════

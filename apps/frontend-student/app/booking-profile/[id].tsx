@@ -194,8 +194,8 @@ export default function BookingProfileScreen() {
             ) : null}
           </View>
 
-          <View style={styles.deco1} />
-          <View style={styles.deco2} />
+          <View style={styles.deco1} pointerEvents="none" />
+          <View style={styles.deco2} pointerEvents="none" />
         </LinearGradient>
 
         {/* ════════════════════════════════════════════════════════
