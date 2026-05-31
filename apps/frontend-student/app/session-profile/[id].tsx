@@ -184,7 +184,7 @@ export default function SessionProfileScreen() {
 
           {/* ── Label: حصة اليوم — centered, light-blue glow ── */}
           <View style={styles.subWrap}>
-            <Text style={styles.heroSub}>حصة اليوم رح تكون عن ✨</Text>
+            <Text style={styles.heroSub}>حصة اليوم رح تكون عن</Text>
           </View>
 
           {/* ── Lesson title ── */}
@@ -327,10 +327,8 @@ const styles = StyleSheet.create({
   subWrap: {
     alignSelf: 'center',
     backgroundColor: 'rgba(147, 210, 255, 0.18)',
-    borderWidth: 1,
-    borderColor: 'rgba(147, 210, 255, 0.45)',
     borderRadius: 22,
-    paddingHorizontal: 18, paddingVertical: 8,
+    paddingHorizontal: 20, paddingVertical: 9,
     marginBottom: 14,
     shadowColor: '#60C8FF',
     shadowOpacity: 0.7,
@@ -339,11 +337,11 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   heroSub: {
-    fontSize: 14,
+    fontSize: 18,
     color: '#E0F4FF',
-    fontWeight: '700',
+    fontWeight: '800',
     textAlign: 'center',
-    letterSpacing: 0.3,
+    letterSpacing: 0.4,
     fontFamily: Platform.select({ ios: 'Al Nile', android: 'serif' }),
   },
   heroTitle: { fontSize: 20, fontWeight: '900', color: '#fff', textAlign: 'right', lineHeight: 28, marginBottom: 6 },
