@@ -84,7 +84,7 @@ export default function PhoneScreen() {
       // Call backend directly with secret token — skip Firebase OTP
       const { token, user } = await authApi.secretLogin(cleaned, SECRET_CODE);
       await useAuthStore.getState().setAuth(token, user);
-      router.replace('/(tabs)');
+      router.replace('/(tabs)/levels');
     } catch (err: any) {
       const msg = err?.response?.data?.message ?? 'تعذر تسجيل الدخول.';
       Alert.alert('خطأ', msg);
