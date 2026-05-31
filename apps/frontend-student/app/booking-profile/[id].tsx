@@ -215,28 +215,29 @@ export default function BookingProfileScreen() {
             locked
             lockedMsg="الكويز يُفتح فقط بعد إتمام الحصة 🔐"
           />
+
+          {/* ── PDF — تحت الكويز، على اليمين ── */}
+          <View style={styles.pdfRow}>
+            {lesson?.pdf_url ? (
+              <TouchableOpacity
+                style={styles.pdfBtn}
+                activeOpacity={0.8}
+                onPress={() => Linking.openURL(lesson.pdf_url!)}
+              >
+                <Ionicons name="document-text" size={18} color={PURPLE} />
+                <Text style={styles.pdfBtnTxt}>مادة الدرس</Text>
+                <Ionicons name="open-outline" size={14} color={PURPLE} />
+              </TouchableOpacity>
+            ) : (
+              <View style={[styles.pdfBtn, { opacity: 0.4 }]}>
+                <Ionicons name="document-text-outline" size={18} color={C.gray} />
+                <Text style={[styles.pdfBtnTxt, { color: C.gray }]}>لا يوجد PDF</Text>
+              </View>
+            )}
+          </View>
+
         </View>
       </ScrollView>
-
-      {/* ════════════════════════════════════════════════════════
-          PDF FAB — bottom right
-      ════════════════════════════════════════════════════════ */}
-      {lesson?.pdf_url && (
-        <TouchableOpacity
-          style={[styles.fab, { bottom: insets.bottom + 24 }]}
-          activeOpacity={0.85}
-          onPress={() => Linking.openURL(lesson.pdf_url!)}
-        >
-          <LinearGradient
-            colors={[PURPLE, G_BOTTOM]}
-            start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-            style={styles.fabGrad}
-          >
-            <Ionicons name="document-text" size={22} color="#fff" />
-            <Text style={styles.fabTxt}>PDF</Text>
-          </LinearGradient>
-        </TouchableOpacity>
-      )}
     </View>
   );
 }
@@ -270,7 +271,13 @@ const styles = StyleSheet.create({
 
   cards: { padding: 16, gap: 14, marginTop: -16 },
 
-  fab: { position: 'absolute', right: 20, borderRadius: 28, elevation: 8, shadowColor: PURPLE, shadowOpacity: 0.4, shadowRadius: 12, shadowOffset: { width: 0, height: 4 } },
-  fabGrad: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 18, paddingVertical: 14, borderRadius: 28 },
-  fabTxt: { color: '#fff', fontSize: 14, fontWeight: '800', letterSpacing: 0.5 },
+  pdfRow: { alignItems: 'flex-end' },
+  pdfBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: '#EDE9FF',
+    paddingHorizontal: 14, paddingVertical: 9,
+    borderRadius: 20,
+    borderWidth: 1.5, borderColor: '#C4B5FD',
+  },
+  pdfBtnTxt: { fontSize: 13, fontWeight: '700', color: PURPLE },
 });
