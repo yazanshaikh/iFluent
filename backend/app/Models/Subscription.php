@@ -150,10 +150,25 @@ class Subscription extends Model
         $currentIndex = $lessonsInRange->search(fn($l) => $l->id === $this->current_lesson_id);
 
         if ($currentIndex === false) {
+            // Current lesson not found in range — mark as exhausted
+            $this->update(['current_lesson_id' => null]);
             return null;
         }
 
-        $nextLesson = $lessonsInRange->get($currentIndex + 1); // null if exhausted
+        // ── Explicit boundary check ───────────────────────────────────────────
+        // If current lesson IS the last lesson (to_lesson_id), the package
+        // is exhausted — set current_lesson_id to null and stop booking.
+        if ($this->current_lesson_id === $this->to_lesson_id) {
+            $this->update(['current_lesson_id' => null]);
+            return null;
+        }
+
+        $nextLesson = $lessonsInRange->get($currentIndex + 1); // null if end of array
+
+        // Double-safety: if somehow next lesson is beyond to_lesson_id, null it out
+        if ($nextLesson && !$lessonsInRange->contains('id', $nextLesson->id)) {
+            $nextLesson = null;
+        }
 
         $this->update(['current_lesson_id' => $nextLesson?->id]);
 

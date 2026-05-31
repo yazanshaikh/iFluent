@@ -82,6 +82,19 @@ class BookingController extends Controller
                 ->latest('activated_at')
                 ->first();
 
+            // ── Check if subscription is exhausted (reached to_lesson_id) ──────
+            $exhaustedSubscription = Subscription::where('student_id', $student->id)
+                ->where('status', Subscription::STATUS_ACTIVE)
+                ->whereNotNull('to_lesson_id')   // has a lesson range
+                ->whereNull('current_lesson_id') // but pointer is null = exhausted
+                ->exists();
+
+            if ($exhaustedSubscription) {
+                return response()->json([
+                    'message' => 'لقد أكملت جميع دروس باقتك الحالية. يرجى التواصل مع الإدارة لتجديد الاشتراك.',
+                ], 403);
+            }
+
             if ($activeSubscription && $activeSubscription->hasRemainingLessons()) {
                 $lesson = $activeSubscription->currentLesson;
 
