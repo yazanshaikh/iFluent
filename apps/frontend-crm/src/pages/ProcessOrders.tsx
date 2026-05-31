@@ -220,6 +220,7 @@ function OrderCard({
   copiedId,
   onCopy,
   onUpload,
+  onCancel,
   onApprove,
   onReject,
   onViewReceipt,
@@ -230,6 +231,7 @@ function OrderCard({
   copiedId: string | null;
   onCopy: (text: string, id: string) => void;
   onUpload?: (order: PendingOrder) => void;
+  onCancel?: (id: number) => void;
   onApprove?: (id: number) => void;
   onReject?: (id: number) => void;
   onViewReceipt?: (url: string) => void;
@@ -326,6 +328,17 @@ function OrderCard({
               رفع وصل الدفع
             </Button>
           )}
+          {!isApprovalSection && onCancel && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-1.5 border-red-300 text-red-600 hover:bg-red-50"
+              onClick={() => onCancel(order.id)}
+            >
+              <XCircle className="h-3.5 w-3.5" />
+              إلغاء الفاتورة
+            </Button>
+          )}
 
           {isApprovalSection && isAdmin && (
             <>
@@ -408,6 +421,20 @@ export default function ProcessOrdersPage() {
     staleTime: 30_000,
   });
 
+
+  const cancelInvoiceMutation = useMutation({
+    mutationFn: (id: number) => checkoutApi.cancelInvoice(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['process-orders'] }),
+    onError: (err: unknown) => {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      alert(msg || 'تعذر إلغاء الفاتورة.');
+    },
+  });
+
+  const handleCancelInvoice = (id: number) => {
+    if (!confirm('هل تريد إلغاء هذه الفاتورة؟ لا يمكن التراجع.')) return;
+    cancelInvoiceMutation.mutate(id);
+  };
 
   const uploadMutation = useMutation({
     mutationFn: ({ id, file }: { id: number; file: File }) =>
@@ -510,6 +537,7 @@ export default function ProcessOrdersPage() {
                   copiedId={copiedId}
                   onCopy={handleCopy}
                   onUpload={(o) => { setUploadTarget(o); setSelectedFile(null); setUploadError(''); }}
+                  onCancel={handleCancelInvoice}
                   isAdmin={isAdmin}
                   isApprovalSection={false}
                 />

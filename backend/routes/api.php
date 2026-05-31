@@ -120,6 +120,7 @@ Route::middleware(['auth:sanctum', 'role:super_admin,cc,ss'])
         // ── Process Orders — upload receipt on behalf of customer ──────────────
         Route::get ('process-orders',                               [ProcessOrderController::class,  'index']);
         Route::post('process-orders/{subscription}/upload-receipt', [ProcessOrderController::class,  'uploadReceipt']);
+        Route::post('process-orders/{subscription}/cancel',         [CheckoutController::class,       'cancel']);
 
         // ── Paid Students ──────────────────────────────────────────────────────
         Route::get('paid-students', [PaidStudentController::class, 'index']);

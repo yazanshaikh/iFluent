@@ -76,6 +76,29 @@ class CheckoutController extends Controller
         ], 201);
     }
 
+    /**
+     * POST /crm/process-orders/{subscription}/cancel
+     * Cancel a subscription that is still pending_screenshot (before receipt uploaded).
+     * Only the employee who created it (or admin) can cancel.
+     */
+    public function cancel(Subscription $subscription, \Illuminate\Http\Request $request): \Illuminate\Http\JsonResponse
+    {
+        $user = $request->user();
+
+        if ($subscription->status !== Subscription::STATUS_PENDING_SCREENSHOT) {
+            return response()->json(['message' => 'يمكن إلغاء الفاتورة فقط قبل رفع وصل الدفع.'], 422);
+        }
+
+        // CC/SS can only cancel their own invoices
+        if (($user->isCC() || $user->isSS()) && $subscription->activated_by !== $user->id) {
+            return response()->json(['message' => 'Forbidden.'], 403);
+        }
+
+        $subscription->update(['status' => Subscription::STATUS_CANCELLED]);
+
+        return response()->json(['message' => 'تم إلغاء الفاتورة بنجاح.']);
+    }
+
     private function ensureStudentExists(Lead $lead): Student
     {
         if ($lead->student) {

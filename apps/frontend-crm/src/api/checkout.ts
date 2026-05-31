@@ -112,6 +112,10 @@ export const checkoutApi = {
   rejectOrder: (id: number, reason?: string) =>
     client.post(`/admin/subscriptions/${id}/reject`, { reason }).then((r) => r.data),
 
+  /** CC/SS: cancel invoice before receipt uploaded (pending_screenshot only) */
+  cancelInvoice: (id: number) =>
+    client.post(`/crm/process-orders/${id}/cancel`).then((r) => r.data),
+
   /** Get current price_per_lesson from public settings */
   getPricePerLesson: () =>
     client
