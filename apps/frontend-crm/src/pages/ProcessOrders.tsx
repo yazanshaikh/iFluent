@@ -382,6 +382,8 @@ export default function ProcessOrdersPage() {
   const [rejectTarget,   setRejectTarget]   = useState<number | null>(null);
   const [rejectReason,   setRejectReason]   = useState('');
   const [receiptViewUrl, setReceiptViewUrl] = useState<string | null>(null);
+  // lesson range for approve
+  const [lessonRangeMap, setLessonRangeMap] = useState<Record<number, { from: string; to: string }>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // pending_screenshot orders (employee's own, or all for admin)
@@ -415,7 +417,11 @@ export default function ProcessOrdersPage() {
   });
 
   const approveMutation = useMutation({
-    mutationFn: (id: number) => checkoutApi.approveOrder(id),
+    mutationFn: ({ id, fromId, toId }: { id: number; fromId?: number; toId?: number }) =>
+      checkoutApi.approveOrder(id, {
+        from_lesson_id: fromId || null,
+        to_lesson_id:   toId   || null,
+      }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['pending-approval'] }),
   });
 
@@ -539,19 +545,59 @@ export default function ProcessOrdersPage() {
           ) : (
             <>
               <div className="space-y-3">
-                {approvalOrders.map((order) => (
-                  <OrderCard
-                    key={order.id}
-                    order={order}
-                    copiedId={copiedId}
-                    onCopy={handleCopy}
-                    onApprove={(id) => approveMutation.mutate(id)}
-                    onReject={(id) => { setRejectTarget(id); setRejectReason(''); }}
-                    onViewReceipt={(url) => setReceiptViewUrl(url)}
-                    isAdmin={isAdmin}
-                    isApprovalSection
-                  />
-                ))}
+                {approvalOrders.map((order) => {
+                  const range = lessonRangeMap[order.id] ?? { from: '', to: '' };
+                  return (
+                    <div key={order.id} className="space-y-2">
+                      <OrderCard
+                        order={order}
+                        copiedId={copiedId}
+                        onCopy={handleCopy}
+                        onApprove={(id) => approveMutation.mutate({
+                          id,
+                          fromId: range.from ? Number(range.from) : undefined,
+                          toId:   range.to   ? Number(range.to)   : undefined,
+                        })}
+                        onReject={(id) => { setRejectTarget(id); setRejectReason(''); }}
+                        onViewReceipt={(url) => setReceiptViewUrl(url)}
+                        isAdmin={isAdmin}
+                        isApprovalSection
+                      />
+                      {/* ── Lesson Range ── */}
+                      <div className="flex items-center gap-2 px-1 pb-1" dir="rtl">
+                        <span className="text-xs text-muted-foreground whitespace-nowrap">نطاق الدروس:</span>
+                        <input
+                          type="number"
+                          min={1}
+                          placeholder="من درس #"
+                          value={range.from}
+                          onChange={(e) => setLessonRangeMap((prev) => ({
+                            ...prev,
+                            [order.id]: { ...range, from: e.target.value },
+                          }))}
+                          className="w-28 rounded-md border border-input bg-background px-2 py-1 text-sm text-right"
+                        />
+                        <span className="text-xs text-muted-foreground">→</span>
+                        <input
+                          type="number"
+                          min={1}
+                          placeholder="إلى درس #"
+                          value={range.to}
+                          onChange={(e) => setLessonRangeMap((prev) => ({
+                            ...prev,
+                            [order.id]: { ...range, to: e.target.value },
+                          }))}
+                          className="w-28 rounded-md border border-input bg-background px-2 py-1 text-sm text-right"
+                        />
+                        {range.from && range.to && (
+                          <span className="text-xs text-green-600 font-medium">
+                            {Number(range.to) - Number(range.from) + 1} درس
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
 
               {pendingApproval?.meta && pendingApproval.meta.last_page > 1 && (

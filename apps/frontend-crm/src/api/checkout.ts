@@ -90,9 +90,11 @@ export const checkoutApi = {
       )
       .then((r) => r.data),
 
-  /** Admin: approve a subscription → activates the student */
-  approveOrder: (id: number) =>
-    client.post(`/admin/subscriptions/${id}/approve`).then((r) => r.data),
+  /** Admin: approve a subscription → activates the student.
+   *  from_lesson_id + to_lesson_id define the lesson range for this package.
+   *  current_lesson_id is set automatically = from_lesson_id on the backend. */
+  approveOrder: (id: number, payload?: { from_lesson_id?: number | null; to_lesson_id?: number | null }) =>
+    client.post(`/admin/subscriptions/${id}/approve`, payload ?? {}).then((r) => r.data),
 
   /** Admin: reject a subscription with optional reason */
   rejectOrder: (id: number, reason?: string) =>
