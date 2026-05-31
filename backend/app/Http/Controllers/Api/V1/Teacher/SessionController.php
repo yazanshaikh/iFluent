@@ -194,6 +194,24 @@ class SessionController extends Controller
                 'ended_at' => $endedAt,
             ]);
 
+            // ── Advance subscription current_lesson_id ────────────────────────
+            // After a session completes, move the student's lesson pointer
+            // forward so the next booking auto-assigns the next lesson.
+            if ($session->lesson_id) {
+                $subscription = \App\Models\Subscription::where('student_id', $session->student_id)
+                    ->where('status', \App\Models\Subscription::STATUS_ACTIVE)
+                    ->where('current_lesson_id', $session->lesson_id)
+                    ->latest('activated_at')
+                    ->first();
+
+                if ($subscription) {
+                    $subscription->advanceToNextLesson();
+
+                    // Decrement student's lesson_credits
+                    $session->student->decrement('lesson_credits');
+                }
+            }
+
             // ── Auto-credit teacher commission (10-minute rule) ───────────────
             // Commission is only credited if BOTH teacher and student were present
             // AND the student was in the session for at least 10 minutes.

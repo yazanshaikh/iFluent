@@ -5,9 +5,11 @@ namespace App\Http\Controllers\Api\V1\Student;
 use App\Http\Controllers\Controller;
 use App\Models\Lesson;
 use App\Models\SessionRequest;
+use App\Models\Subscription;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Student Session Booking
@@ -71,17 +73,46 @@ class BookingController extends Controller
                 return response()->json(['message' => 'You already have a pending booking for this lesson.'], 422);
             }
         } else {
-            // Quick booking: block if already has a pending core session soon
-            $alreadyPending = SessionRequest::where('student_id', $student->id)
-                ->whereIn('type', [SessionRequest::TYPE_CORE, SessionRequest::TYPE_PRIVATE])
-                ->where('status', SessionRequest::STATUS_PENDING)
-                ->where('requested_at_utc', '>', now())
-                ->exists();
+            // ── Auto-assign lesson from active subscription ───────────────────
+            // If the student has no explicit lesson_id, we pick the current
+            // lesson from their active subscription (if any).
+            $activeSubscription = Subscription::where('student_id', $student->id)
+                ->where('status', Subscription::STATUS_ACTIVE)
+                ->whereNotNull('current_lesson_id')
+                ->latest('activated_at')
+                ->first();
 
-            if ($alreadyPending) {
-                return response()->json([
-                    'message' => 'لديك حجز حصة نشط بالفعل. يرجى انتظار تأكيد الموعد الحالي.',
-                ], 422);
+            if ($activeSubscription && $activeSubscription->hasRemainingLessons()) {
+                $lesson = $activeSubscription->currentLesson;
+
+                if ($lesson) {
+                    // Prevent duplicate pending booking for same lesson
+                    $alreadyPending = SessionRequest::where('student_id', $student->id)
+                        ->where('lesson_id', $lesson->id)
+                        ->where('status', SessionRequest::STATUS_PENDING)
+                        ->exists();
+
+                    if ($alreadyPending) {
+                        return response()->json([
+                            'message' => 'لديك حجز نشط بالفعل لهذا الدرس. يرجى انتظار تأكيد الموعد الحالي.',
+                        ], 422);
+                    }
+                }
+            } else {
+                $lesson = null;
+
+                // No subscription lesson range — fall back to plain quick booking
+                $alreadyPending = SessionRequest::where('student_id', $student->id)
+                    ->whereIn('type', [SessionRequest::TYPE_CORE, SessionRequest::TYPE_PRIVATE])
+                    ->where('status', SessionRequest::STATUS_PENDING)
+                    ->where('requested_at_utc', '>', now())
+                    ->exists();
+
+                if ($alreadyPending) {
+                    return response()->json([
+                        'message' => 'لديك حجز حصة نشط بالفعل. يرجى انتظار تأكيد الموعد الحالي.',
+                    ], 422);
+                }
             }
         }
 

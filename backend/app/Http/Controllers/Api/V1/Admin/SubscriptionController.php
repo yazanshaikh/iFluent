@@ -59,19 +59,30 @@ class SubscriptionController extends Controller
             ], 422);
         }
 
-        DB::transaction(function () use ($request, $subscription) {
+        // ── Validate lesson range (optional but recommended) ──────────────────
+        $validated = $request->validate([
+            'from_lesson_id' => ['nullable', 'integer', 'exists:lessons,id'],
+            'to_lesson_id'   => ['nullable', 'integer', 'exists:lessons,id'],
+        ]);
+
+        DB::transaction(function () use ($request, $subscription, $validated) {
+
+            $fromId = $validated['from_lesson_id'] ?? null;
+            $toId   = $validated['to_lesson_id']   ?? null;
 
             $subscription->update([
-                'status'       => Subscription::STATUS_ACTIVE,
-                'approved_by'  => $request->user()->id,
-                'approved_at'  => now(),
-                'activated_at' => now(),
-                'expires_at'   => now()->addMonths($subscription->months_count),
+                'status'            => Subscription::STATUS_ACTIVE,
+                'approved_by'       => $request->user()->id,
+                'approved_at'       => now(),
+                'activated_at'      => now(),
+                'expires_at'        => now()->addMonths($subscription->months_count),
+                // Lesson range — current starts at the first lesson
+                'from_lesson_id'    => $fromId,
+                'to_lesson_id'      => $toId,
+                'current_lesson_id' => $fromId, // pointer starts at the beginning
             ]);
 
             // ── Credit the student's lesson balance ───────────────────────────
-            // lesson_credits drives the app screen (subscribed vs non-subscribed)
-            // and is decremented each time a session is completed.
             $subscription->student->user->increment('lesson_credits', $subscription->lessons_count);
 
             // Update lead → subscriber
