@@ -58,13 +58,8 @@ class StudentAuthController extends Controller
         ]);
 
         DB::transaction(function () use ($data) {
-            // Create or update Lead record in CRM
-            $lead = Lead::firstOrCreate(
-                ['phone' => $data['phone']],
-                ['name'  => $data['name']],
-            );
-
-            // Create User + Student so they can log in immediately
+            // Create User + Student — NO Lead yet.
+            // A Lead is created only when the student books an assessment session.
             $user = User::create([
                 'name'  => $data['name'],
                 'phone' => $data['phone'],
@@ -73,7 +68,7 @@ class StudentAuthController extends Controller
 
             Student::create([
                 'user_id' => $user->id,
-                'lead_id' => $lead->id,
+                'lead_id' => null,
             ]);
         });
 

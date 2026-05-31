@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1\Student;
 
 use App\Http\Controllers\Controller;
+use App\Models\Lead;
 use App\Models\Lesson;
 use App\Models\SessionRequest;
 use App\Models\Student;
@@ -163,6 +164,33 @@ class BookingController extends Controller
             'requested_at_utc'  => $validated['scheduled_at'],
             'status'            => SessionRequest::STATUS_PENDING,
         ]);
+
+        // ── Create / update Lead only for assessment session bookings ──────────
+        // Regular core/private sessions do NOT create a Lead.
+        // Assessment sessions (is_assessment = true) signal that the student
+        // is being evaluated → appear in CRM New Leads with appointment date.
+        if ($lesson && $lesson->is_assessment) {
+            $studentProfile = Student::where('user_id', $student->id)->first();
+
+            $lead = Lead::firstOrCreate(
+                ['phone' => $student->phone],
+                [
+                    'name'   => $student->name,
+                    'source' => 'app_assessment',
+                    'status' => Lead::STATUS_NEW,
+                ],
+            );
+
+            // Save appointment date on the lead
+            $lead->update(['scheduled_at' => $validated['scheduled_at']]);
+
+            // Link the session request and student profile to the lead
+            $sessionRequest->update(['lead_id' => $lead->id]);
+
+            if ($studentProfile && !$studentProfile->lead_id) {
+                $studentProfile->update(['lead_id' => $lead->id]);
+            }
+        }
 
         return response()->json([
             'message' => $type === SessionRequest::TYPE_PRIVATE
