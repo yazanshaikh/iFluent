@@ -189,18 +189,14 @@ export default function BookingProfileScreen() {
             </Text>
           )}
 
-          <View style={styles.metaStrip}>
-            <View style={styles.metaItem}>
-              <Ionicons name="calendar-outline" size={14} color={ACCENT} />
-              <Text style={styles.metaItemTxt}>{fmtDate(data.scheduled_at)}</Text>
-            </View>
-            {data.teacher?.name ? (
+          {data.teacher?.name && (
+            <View style={styles.metaStrip}>
               <View style={styles.metaItem}>
                 <Ionicons name="person-circle-outline" size={14} color={ACCENT} />
                 <Text style={styles.metaItemTxt}>{data.teacher.name}</Text>
               </View>
-            ) : null}
-          </View>
+            </View>
+          )}
 
           <View style={styles.deco1} pointerEvents="none" />
           <View style={styles.deco2} pointerEvents="none" />

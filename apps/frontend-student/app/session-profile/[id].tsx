@@ -200,19 +200,15 @@ export default function SessionProfileScreen() {
             </Text>
           )}
 
-          {/* Meta row */}
-          <View style={styles.metaStrip}>
-            <View style={styles.metaItem}>
-              <Ionicons name="calendar-outline" size={14} color={ACCENT} />
-              <Text style={styles.metaItemTxt}>{fmtDate(data.scheduled_at)}</Text>
-            </View>
-            {data.teacher?.name && (
+          {/* Teacher only */}
+          {data.teacher?.name && (
+            <View style={styles.metaStrip}>
               <View style={styles.metaItem}>
                 <Ionicons name="person-circle-outline" size={14} color={ACCENT} />
                 <Text style={styles.metaItemTxt}>{data.teacher.name}</Text>
               </View>
-            )}
-          </View>
+            </View>
+          )}
 
           {/* Decorative circles — pointerEvents none so they don't block touches */}
           <View style={styles.deco1} pointerEvents="none" />
