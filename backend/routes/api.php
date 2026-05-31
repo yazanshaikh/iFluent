@@ -220,6 +220,9 @@ Route::middleware(['auth:sanctum', 'role:student'])
         Route::post('lessons/{lesson}/quiz/submit', [StudentQuizController::class, 'submit']);
         Route::get ('progress',                     [StudentQuizController::class, 'progress']);
 
+        // ── Assessment lessons list (for non-subscribed students) ────────────
+        Route::get('assessment-lessons', [StudentLessonController::class, 'assessmentLessons']);
+
         // ── Session Booking ────────────────────────────────────────────────────
         Route::get   ('bookings',                          [StudentBookingController::class, 'index']);
         Route::post  ('bookings',                          [StudentBookingController::class, 'store']);

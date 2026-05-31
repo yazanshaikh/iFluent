@@ -5,7 +5,9 @@ namespace App\Http\Controllers\Api\V1\Student;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\Api\V1\LevelResource;
 use App\Http\Resources\Api\V1\UnitResource;
+use App\Models\Lesson;
 use App\Models\Level;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
@@ -28,6 +30,28 @@ class LessonController extends Controller
             ->get();
 
         return UnitResource::collection($units);
+    }
+
+    // ─── List Assessment Lessons ──────────────────────────────────────────────
+
+    /**
+     * GET /student/assessment-lessons
+     * Returns active assessment lessons so a non-subscribed student
+     * can pick one to book a free evaluation session.
+     */
+    public function assessmentLessons(): JsonResponse
+    {
+        $lessons = Lesson::with('level')
+            ->assessment()
+            ->active()
+            ->get()
+            ->map(fn($l) => [
+                'id'    => $l->id,
+                'title' => $l->title,
+                'level' => $l->level ? ['id' => $l->level->id, 'code' => $l->level->code, 'name' => $l->level->name] : null,
+            ]);
+
+        return response()->json(['data' => $lessons]);
     }
 
     // ─── List All Levels (public curriculum structure) ────────────────────────
