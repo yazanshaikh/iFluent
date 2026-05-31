@@ -83,13 +83,13 @@ function Card({
       {!locked && <View style={[cardStyles.bar, { backgroundColor: accent ?? PURPLE }]} />}
       <View style={cardStyles.inner}>
         <View style={cardStyles.header}>
-          <LinearGradient
-            colors={locked ? ['#E5E7EB', '#D1D5DB'] : [accent ?? PURPLE, G_BOTTOM]}
-            start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-            style={cardStyles.iconWrap}
-          >
-            <Ionicons name={icon as any} size={17} color="#fff" />
-          </LinearGradient>
+          <View style={[cardStyles.iconWrap, locked && { shadowOpacity: 0 }]}>
+            <Ionicons
+              name={icon as any}
+              size={22}
+              color={locked ? C.gray : (accent ?? PURPLE)}
+            />
+          </View>
           <Text style={[cardStyles.title, locked && { color: C.gray }]}>{title}</Text>
           {locked && (
             <View style={cardStyles.lockBubble}>
@@ -109,7 +109,7 @@ const cardStyles = StyleSheet.create({
   bar:        { width: 4 },
   inner:      { flex: 1, padding: 18 },
   header:     { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 },
-  iconWrap:   { width: 36, height: 36, borderRadius: 12, justifyContent: 'center', alignItems: 'center', shadowColor: PURPLE, shadowOpacity: 0.35, shadowRadius: 6, shadowOffset: { width: 0, height: 3 }, elevation: 4 },
+  iconWrap:   { justifyContent: 'center', alignItems: 'center', shadowColor: PURPLE, shadowOpacity: 0.7, shadowRadius: 8, shadowOffset: { width: 0, height: 0 }, elevation: 6 },
   title:      { flex: 1, fontSize: 15, fontWeight: '700', color: C.navy, textAlign: 'right' },
   lockBubble: { width: 22, height: 22, borderRadius: 11, backgroundColor: '#F3F4F6', justifyContent: 'center', alignItems: 'center' },
   lockedMsg:  { fontSize: 13, color: C.grayMid, textAlign: 'right', lineHeight: 20 },
