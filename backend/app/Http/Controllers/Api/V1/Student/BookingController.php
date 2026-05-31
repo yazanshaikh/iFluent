@@ -213,7 +213,32 @@ class BookingController extends Controller
             return response()->json(['message' => 'Forbidden.'], 403);
         }
 
+        // ── Resolve lesson ────────────────────────────────────────────────────
+        // Priority 1: lesson attached directly to the booking request
+        // Priority 2: current_lesson_id from the student's active subscription
+        //             (covers bookings made before lesson range was configured)
         $lesson = $sessionRequest->lesson()->with(['unit.level', 'level'])->first();
+
+        if (!$lesson) {
+            // Fallback: get lesson from student's active subscription
+            $activeSubscription = Subscription::where('student_id', $student->id)
+                ->where('status', Subscription::STATUS_ACTIVE)
+                ->latest('activated_at')
+                ->first();
+
+            if ($activeSubscription) {
+                // Priority A: current_lesson_id (set after lesson range approval)
+                if ($activeSubscription->current_lesson_id) {
+                    $lesson = $activeSubscription->currentLesson()
+                        ->with(['unit.level', 'level'])->first();
+                }
+                // Priority B: from_lesson_id (lesson range set but not started)
+                elseif ($activeSubscription->from_lesson_id) {
+                    $lesson = $activeSubscription->fromLesson()
+                        ->with(['unit.level', 'level'])->first();
+                }
+            }
+        }
 
         $lessonData = null;
         if ($lesson) {
