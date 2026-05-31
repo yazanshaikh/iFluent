@@ -243,7 +243,7 @@ export default function WelcomeScreen() {
           {/* CTA */}
           <TouchableOpacity
             style={styles.ctaBtn}
-            onPress={() => setShowModal(true)}
+            onPress={() => router.push('/(auth)/phone')}
             activeOpacity={0.85}
           >
             <Text style={styles.ctaTxt}>ابدأ الآن</Text>
