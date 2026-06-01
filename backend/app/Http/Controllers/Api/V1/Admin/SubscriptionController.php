@@ -65,10 +65,36 @@ class SubscriptionController extends Controller
             'to_lesson_id'   => ['nullable', 'integer', 'exists:lessons,id'],
         ]);
 
-        DB::transaction(function () use ($request, $subscription, $validated) {
+        $fromId = $validated['from_lesson_id'] ?? null;
+        $toId   = $validated['to_lesson_id']   ?? null;
 
-            $fromId = $validated['from_lesson_id'] ?? null;
-            $toId   = $validated['to_lesson_id']   ?? null;
+        // ── Prevent overlapping lesson ranges ─────────────────────────────────
+        // A student cannot subscribe to lessons they already have (active or completed).
+        if ($fromId && $toId) {
+            $newMin = min($fromId, $toId);
+            $newMax = max($fromId, $toId);
+
+            $overlapping = $subscription->student->subscriptions()
+                ->whereIn('status', [Subscription::STATUS_ACTIVE])
+                ->whereNotNull('from_lesson_id')
+                ->whereNotNull('to_lesson_id')
+                ->where('id', '!=', $subscription->id) // exclude self
+                ->where(fn($q) =>
+                    // overlap: existing_from <= new_max AND existing_to >= new_min
+                    $q->where('from_lesson_id', '<=', $newMax)
+                      ->where('to_lesson_id',   '>=', $newMin)
+                )
+                ->first();
+
+            if ($overlapping) {
+                $msg = "الطالب مشترك بالفعل في نطاق يتداخل مع هذا الاختيار"
+                     . " (درس #{$overlapping->from_lesson_id} → #{$overlapping->to_lesson_id})."
+                     . " يرجى اختيار دروس لم يسبق الاشتراك فيها.";
+                return response()->json(['message' => $msg], 422);
+            }
+        }
+
+        DB::transaction(function () use ($request, $subscription, $validated, $fromId, $toId) {
 
             // ── Calculate lessons_count dynamically from the lesson range ─────
             // If both IDs are provided, count = number of lessons between them.
@@ -197,16 +223,22 @@ class SubscriptionController extends Controller
         }
 
         DB::transaction(function () use ($request, $subscription) {
-            // 1. Cancel subscription & zero out credits
-            $subscription->update(['status' => Subscription::STATUS_CANCELLED]);
-            $subscription->student->user->update(['lesson_credits' => 0]);
+            $student = $subscription->student;
 
-            // 2. Revert lead status → in_progress (back in pipeline)
-            $lead = $subscription->student->lead;
+            // 1. Cancel ALL active subscriptions for this student (not just the clicked one)
+            $student->subscriptions()
+                ->where('status', Subscription::STATUS_ACTIVE)
+                ->update(['status' => Subscription::STATUS_CANCELLED]);
+
+            // 2. Zero out ALL lesson credits
+            $student->user->update(['lesson_credits' => 0]);
+
+            // 3. Revert lead status → in_progress (back in pipeline)
+            $lead = $student->lead;
             if ($lead) {
                 $lead->update(['status' => Lead::STATUS_IN_PROGRESS]);
 
-                // 3. Save reason as a lead remark
+                // 4. Save reason as a lead remark
                 $lead->remarks()->create([
                     'content'  => '❌ تم إلغاء الاشتراك — السبب: ' . $request->reason,
                     'staff_id' => $request->user()->id,
