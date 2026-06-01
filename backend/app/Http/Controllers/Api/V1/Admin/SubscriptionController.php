@@ -161,6 +161,45 @@ class SubscriptionController extends Controller
     }
 
     /**
+     * POST /admin/subscriptions/{subscription}/cancel-subscription
+     * Admin cancels an active subscription:
+     *   - marks subscription as cancelled
+     *   - revokes student's remaining lesson_credits
+     *   - reverts lead status from subscriber → in_progress
+     *   - saves cancellation reason as a lead remark
+     */
+    public function cancelSubscription(Request $request, Subscription $subscription): JsonResponse
+    {
+        $request->validate([
+            'reason' => ['required', 'string', 'min:5', 'max:500'],
+        ]);
+
+        if (!$subscription->isActive()) {
+            return response()->json(['message' => 'الاشتراك غير نشط.'], 422);
+        }
+
+        DB::transaction(function () use ($request, $subscription) {
+            // 1. Cancel subscription & zero out credits
+            $subscription->update(['status' => Subscription::STATUS_CANCELLED]);
+            $subscription->student->user->update(['lesson_credits' => 0]);
+
+            // 2. Revert lead status → in_progress (back in pipeline)
+            $lead = $subscription->student->lead;
+            if ($lead) {
+                $lead->update(['status' => Lead::STATUS_IN_PROGRESS]);
+
+                // 3. Save reason as a lead remark
+                $lead->remarks()->create([
+                    'content'     => '❌ تم إلغاء الاشتراك — السبب: ' . $request->reason,
+                    'created_by'  => $request->user()->id,
+                ]);
+            }
+        });
+
+        return response()->json(['message' => 'تم إلغاء الاشتراك بنجاح.']);
+    }
+
+    /**
      * GET /admin/subscriptions/{subscription}/screenshot
      * Serve the private payment screenshot securely.
      */

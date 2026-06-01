@@ -152,9 +152,10 @@ Route::middleware(['auth:sanctum', 'role:super_admin'])
         // ── Subscription Approvals ─────────────────────────────────────────────
         Route::get ('subscriptions',                             [AdminSubscriptionController::class, 'index']);
         Route::get ('subscriptions/pending',                     [AdminSubscriptionController::class, 'pending']);
-        Route::post('subscriptions/{subscription}/approve',      [AdminSubscriptionController::class, 'approve']);
-        Route::post('subscriptions/{subscription}/reject',       [AdminSubscriptionController::class, 'reject']);
-        Route::get ('subscriptions/{subscription}/screenshot',   [AdminSubscriptionController::class, 'screenshot'])
+        Route::post('subscriptions/{subscription}/approve',             [AdminSubscriptionController::class, 'approve']);
+        Route::post('subscriptions/{subscription}/reject',              [AdminSubscriptionController::class, 'reject']);
+        Route::post('subscriptions/{subscription}/cancel-subscription', [AdminSubscriptionController::class, 'cancelSubscription']);
+        Route::get ('subscriptions/{subscription}/screenshot',          [AdminSubscriptionController::class, 'screenshot'])
             ->name('admin.subscription.screenshot');
 
         // ── Student Unit Enrollment ────────────────────────────────────────────

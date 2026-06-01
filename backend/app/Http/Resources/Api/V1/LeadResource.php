@@ -72,6 +72,7 @@ class LeadResource extends JsonResource
                         ? \App\Models\Lesson::find($sub->to_lesson_id, ['id','title'])
                         : null;
                     return [
+                        'id'             => $sub->id,
                         'activated_at'   => $sub->activated_at?->setTimezone('Asia/Amman')->toDateTimeString(),
                         'amount_paid'    => $sub->amount_paid,
                         'lessons_count'  => $sub->lessons_count,

@@ -56,6 +56,7 @@ export interface Lead {
   converted_at:        string | null;
   converted_by:        { id: number; name: string } | null;
   active_subscription?: {
+    id:            number;
     activated_at:  string | null;
     amount_paid:   number;
     lessons_count: number | null;
@@ -158,6 +159,12 @@ export const leadsApi = {
 
   cancelDemo: (sessionRequestId: number) =>
     api.post<{ message: string }>(`/crm/demo-requests/${sessionRequestId}/cancel`).then(r => r.data),
+
+  cancelSubscription: (subscriptionId: number, reason: string) =>
+    api.post<{ message: string }>(
+      `/admin/subscriptions/${subscriptionId}/cancel-subscription`,
+      { reason }
+    ).then(r => r.data),
 
   changeDemoLesson: (sessionRequestId: number, lessonId: number) =>
     api.patch<{ message: string; lesson: { id: number; title: string } }>(

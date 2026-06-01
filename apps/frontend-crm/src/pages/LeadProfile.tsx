@@ -397,6 +397,21 @@ export default function LeadProfilePage() {
     },
   });
 
+  const [cancelSubOpen,   setCancelSubOpen]   = useState(false);
+  const [cancelSubReason, setCancelSubReason] = useState('');
+
+  const cancelSubMutation = useMutation({
+    mutationFn: ({ subId, reason }: { subId: number; reason: string }) =>
+      leadsApi.cancelSubscription(subId, reason),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['lead', leadId] });
+      qc.invalidateQueries({ queryKey: ['lead-demo-requests', leadId] });
+      setCancelSubOpen(false);
+      setCancelSubReason('');
+    },
+    onError: (err: any) => alert(err?.response?.data?.message ?? 'تعذر إلغاء الاشتراك'),
+  });
+
   const [changeLessonTarget, setChangeLessonTarget] = useState<number | null>(null);
   const [selectedLessonId,   setSelectedLessonId]   = useState<number | null>(null);
 
@@ -604,6 +619,17 @@ export default function LeadProfilePage() {
         </div>
         <div className="flex items-center gap-2 flex-wrap justify-end">
           {lead.status === 'subscriber' ? (
+            <div className="flex items-center gap-2">
+            {/* Cancel subscription — admin only */}
+            {isAdmin && lead.active_subscription && (
+              <Button
+                size="sm" variant="outline"
+                className="text-destructive hover:text-destructive border-red-300 text-xs h-7 px-2"
+                onClick={() => { setCancelSubOpen(true); setCancelSubReason(''); }}
+              >
+                إلغاء الاشتراك
+              </Button>
+            )}
             <div className="relative group">
               <button
                 className="flex items-center gap-2 rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-1.5 hover:bg-emerald-100 transition-colors cursor-pointer dark:bg-emerald-950/30 dark:border-emerald-800"
@@ -659,6 +685,7 @@ export default function LeadProfilePage() {
                 </div>
               )}
             </div>
+            </div> {/* end flex wrapper */}
           ) : (
             <Badge variant={STATUS_VARIANT[lead.status]} className="text-sm px-3 py-1">
               {STATUS_LABELS[lead.status]}
@@ -1434,6 +1461,47 @@ export default function LeadProfilePage() {
             </DialogFooter>
           </div>
         )}
+      </DialogContent>
+    </Dialog>
+
+    {/* ── Cancel Subscription Dialog (admin only) ── */}
+    <Dialog open={cancelSubOpen} onOpenChange={setCancelSubOpen}>
+      <DialogContent className="max-w-md" dir="rtl">
+        <DialogHeader>
+          <DialogTitle className="text-right text-destructive">إلغاء الاشتراك</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
+          <p className="text-sm text-muted-foreground">
+            سيتم إلغاء الاشتراك النشط وإعادة الطالب إلى حالة "قيد التنفيذ".
+            سيتم حفظ السبب في ملاحظات الليدة.
+          </p>
+          <div className="space-y-2">
+            <Label htmlFor="cancel-reason">سبب الإلغاء <span className="text-destructive">*</span></Label>
+            <Textarea
+              id="cancel-reason"
+              value={cancelSubReason}
+              onChange={e => setCancelSubReason(e.target.value)}
+              placeholder="اكتب سبب إلغاء الاشتراك..."
+              rows={3}
+              className="text-right"
+            />
+          </div>
+        </div>
+        <DialogFooter className="flex gap-2 justify-start">
+          <Button
+            variant="destructive"
+            disabled={cancelSubReason.trim().length < 5 || cancelSubMutation.isPending}
+            onClick={() => {
+              if (!lead.active_subscription) return;
+              cancelSubMutation.mutate({ subId: lead.active_subscription.id, reason: cancelSubReason.trim() });
+            }}
+          >
+            {cancelSubMutation.isPending ? 'جاري الإلغاء…' : 'تأكيد الإلغاء'}
+          </Button>
+          <Button variant="outline" onClick={() => setCancelSubOpen(false)}>
+            تراجع
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
     </>
