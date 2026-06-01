@@ -150,12 +150,37 @@ class LeadController extends Controller
             $status     = Lead::STATUS_NEW;
         }
 
-        $lead = Lead::create([
-            ...$request->safe()->except('assigned_to'),
-            'status'             => $status,
-            'assigned_to'        => $assignedTo,
-            'first_assigned_to'  => $assignedTo,
-        ]);
+        $lead = DB::transaction(function () use ($request, $status, $assignedTo) {
+            // 1. Create the Lead record
+            $lead = Lead::create([
+                ...$request->safe()->except('assigned_to'),
+                'status'            => $status,
+                'assigned_to'       => $assignedTo,
+                'first_assigned_to' => $assignedTo,
+            ]);
+
+            // 2. Create User account (student role) so they can log in via the app
+            $phone = $request->validated()['phone'];
+            $user  = User::firstOrCreate(
+                ['phone' => $phone],
+                [
+                    'name' => $request->validated()['name'],
+                    'role' => User::ROLE_STUDENT,
+                ]
+            );
+
+            // 3. Create Student profile linking user ↔ lead
+            if (!$user->student) {
+                \App\Models\Student::create([
+                    'user_id' => $user->id,
+                    'lead_id' => $lead->id,
+                ]);
+            } elseif (!$user->student->lead_id) {
+                $user->student->update(['lead_id' => $lead->id]);
+            }
+
+            return $lead;
+        });
 
         return new LeadResource($lead->load('assignedTo'));
     }
