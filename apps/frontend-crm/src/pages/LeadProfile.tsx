@@ -604,16 +604,60 @@ export default function LeadProfilePage() {
         </div>
         <div className="flex items-center gap-2 flex-wrap justify-end">
           {lead.status === 'subscriber' ? (
-            <div className="flex items-center gap-2 rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-1.5 dark:bg-emerald-950/30 dark:border-emerald-800">
-              <UserCheck className="h-4 w-4 text-emerald-600 shrink-0" />
-              <div className="text-sm leading-tight">
-                <span className="font-semibold text-emerald-700 dark:text-emerald-400">مشتري</span>
-                {lead.converted_by && (
-                  <span className="text-emerald-600/80 dark:text-emerald-500 mr-1.5">
-                    — بواسطة <span className="font-medium">{lead.converted_by.name}</span>
-                  </span>
-                )}
-              </div>
+            <div className="relative group">
+              <button
+                className="flex items-center gap-2 rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-1.5 hover:bg-emerald-100 transition-colors cursor-pointer dark:bg-emerald-950/30 dark:border-emerald-800"
+                onClick={() => {}} // triggers group-hover tooltip
+              >
+                <UserCheck className="h-4 w-4 text-emerald-600 shrink-0" />
+                <div className="text-sm leading-tight text-right">
+                  <span className="font-semibold text-emerald-700 dark:text-emerald-400">مشتري ◂</span>
+                  {lead.converted_by && (
+                    <span className="text-emerald-600/80 dark:text-emerald-500 mr-1.5">
+                      — بواسطة <span className="font-medium">{lead.converted_by.name}</span>
+                    </span>
+                  )}
+                </div>
+              </button>
+
+              {/* Purchase details dropdown */}
+              {lead.active_subscription && (
+                <div className="absolute left-0 top-full mt-1 z-50 hidden group-hover:block w-72 rounded-xl border bg-white shadow-lg p-4 text-right dark:bg-zinc-900 dark:border-zinc-700">
+                  <p className="text-xs font-bold text-emerald-700 mb-3 border-b pb-2">تفاصيل الاشتراك</p>
+                  <div className="space-y-2 text-sm">
+                    {lead.active_subscription.activated_at && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">تاريخ الشراء</span>
+                        <span className="font-medium">
+                          {new Date(lead.active_subscription.activated_at).toLocaleDateString('ar-JO', {
+                            day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Amman',
+                          })}
+                        </span>
+                      </div>
+                    )}
+                    {lead.active_subscription.from_lesson && lead.active_subscription.to_lesson && (
+                      <div className="flex justify-between items-start gap-2">
+                        <span className="text-muted-foreground shrink-0">الكورس</span>
+                        <span className="font-medium text-xs text-right leading-snug">
+                          {lead.active_subscription.from_lesson.title}
+                          <span className="text-muted-foreground mx-1">→</span>
+                          {lead.active_subscription.to_lesson.title}
+                        </span>
+                      </div>
+                    )}
+                    {lead.active_subscription.lessons_count && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">عدد الدروس</span>
+                        <span className="font-medium">{lead.active_subscription.lessons_count} درس</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between border-t pt-2 mt-1">
+                      <span className="text-muted-foreground">المبلغ المدفوع</span>
+                      <span className="font-bold text-emerald-700">{lead.active_subscription.amount_paid} د.أ</span>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
             <Badge variant={STATUS_VARIANT[lead.status]} className="text-sm px-3 py-1">

@@ -56,6 +56,30 @@ class LeadResource extends JsonResource
                     return ['id' => $sub->activatedBy->id, 'name' => $sub->activatedBy->name];
                 }
             ),
+            'active_subscription'  => $this->when(
+                $this->status === 'subscriber' && $this->relationLoaded('student'),
+                function () {
+                    $sub = $this->student?->subscriptions
+                        ?->where('status', 'active')
+                        ->sortByDesc('id')
+                        ->first();
+                    if (!$sub) return null;
+                    // Resolve lesson titles
+                    $fromLesson = $sub->from_lesson_id
+                        ? \App\Models\Lesson::find($sub->from_lesson_id, ['id','title'])
+                        : null;
+                    $toLesson = $sub->to_lesson_id
+                        ? \App\Models\Lesson::find($sub->to_lesson_id, ['id','title'])
+                        : null;
+                    return [
+                        'activated_at'   => $sub->activated_at?->setTimezone('Asia/Amman')->toDateTimeString(),
+                        'amount_paid'    => $sub->amount_paid,
+                        'lessons_count'  => $sub->lessons_count,
+                        'from_lesson'    => $fromLesson ? ['id' => $fromLesson->id, 'title' => $fromLesson->title] : null,
+                        'to_lesson'      => $toLesson   ? ['id' => $toLesson->id,   'title' => $toLesson->title]   : null,
+                    ];
+                }
+            ),
             'created_at'           => $this->created_at->toIso8601String(),
         ];
     }

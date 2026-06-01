@@ -55,6 +55,13 @@ export interface Lead {
   moved_to_open_sea_at: string | null;
   converted_at:        string | null;
   converted_by:        { id: number; name: string } | null;
+  active_subscription?: {
+    activated_at:  string | null;
+    amount_paid:   number;
+    lessons_count: number | null;
+    from_lesson:   { id: number; title: string } | null;
+    to_lesson:     { id: number; title: string } | null;
+  } | null;
   created_at:          string;
   updated_at:          string;
   /** الملاحظات تأتي مع الليد eager-loaded من GET /crm/leads/{id} */
