@@ -59,8 +59,27 @@ class BookingController extends Controller
         $validated['scheduled_at'] = $scheduledUtc->toDateTimeString();
 
         // ── Lesson-specific booking ───────────────────────────────────────────
+        // If lesson_id = 'assessment' or not provided and student has no credits,
+        // randomly pick one of the active assessment lessons.
         $lesson = null;
-        if (!empty($validated['lesson_id'])) {
+        $isAssessmentRequest = ($validated['lesson_id'] ?? null) === 'assessment'
+            || (empty($validated['lesson_id']) && $student->lesson_credits < 1);
+
+        if ($isAssessmentRequest) {
+            // Random assessment lesson from the pool (with pdf preferred)
+            $lesson = Lesson::where('is_assessment', true)
+                ->where('is_active', true)
+                ->whereNotNull('pdf_url')
+                ->inRandomOrder()
+                ->first()
+                ?? Lesson::where('is_assessment', true)->where('is_active', true)->inRandomOrder()->first();
+
+            if (!$lesson) {
+                return response()->json(['message' => 'لا تتوفر حصص تقييمية حالياً.'], 422);
+            }
+            // Force validated lesson_id
+            $validated['lesson_id'] = $lesson->id;
+        } elseif (!empty($validated['lesson_id'])) {
             $lesson = Lesson::findOrFail($validated['lesson_id']);
 
             if (!$lesson->is_active) {
