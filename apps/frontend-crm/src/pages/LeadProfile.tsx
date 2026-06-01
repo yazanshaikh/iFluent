@@ -636,12 +636,12 @@ export default function LeadProfilePage() {
                       </div>
                     )}
                     {lead.active_subscription.from_lesson && lead.active_subscription.to_lesson && (
-                      <div className="flex justify-between items-start gap-2">
+                      <div className="flex justify-between items-center gap-2">
                         <span className="text-muted-foreground shrink-0">الكورس</span>
-                        <span className="font-medium text-xs text-right leading-snug">
-                          {lead.active_subscription.from_lesson.title}
+                        <span className="font-medium">
+                          درس {lead.active_subscription.from_lesson.id}
                           <span className="text-muted-foreground mx-1">→</span>
-                          {lead.active_subscription.to_lesson.title}
+                          درس {lead.active_subscription.to_lesson.id}
                         </span>
                       </div>
                     )}
