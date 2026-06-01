@@ -39,6 +39,36 @@ class CheckoutController extends Controller
             ], 422);
         }
 
+        // ── Validate lesson range doesn't overlap existing active subscription ──
+        $fromId = $request->from_lesson_id;
+        $toId   = $request->to_lesson_id;
+
+        if ($fromId && $toId) {
+            $student = $lead->student;
+            if ($student) {
+                $newMin = min($fromId, $toId);
+                $newMax = max($fromId, $toId);
+
+                $overlapping = $student->subscriptions()
+                    ->where('status', \App\Models\Subscription::STATUS_ACTIVE)
+                    ->whereNotNull('from_lesson_id')
+                    ->whereNotNull('to_lesson_id')
+                    ->where(function ($q) use ($newMin, $newMax) {
+                        $q->where('from_lesson_id', '<=', $newMax)
+                          ->where('to_lesson_id',   '>=', $newMin);
+                    })
+                    ->first();
+
+                if ($overlapping) {
+                    return response()->json([
+                        'message' => "الطالب مشترك بالفعل في نطاق يتداخل مع هذا الاختيار"
+                                   . " (درس #{$overlapping->from_lesson_id} → #{$overlapping->to_lesson_id})."
+                                   . " اختر دروساً لم يسبق الاشتراك فيها.",
+                    ], 422);
+                }
+            }
+        }
+
         $paymentAccount = PaymentAccount::nextInRotation();
         $invoiceUuid    = (string) Str::uuid();
 

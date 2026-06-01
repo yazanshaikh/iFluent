@@ -78,12 +78,12 @@ class SubscriptionController extends Controller
                 ->whereIn('status', [Subscription::STATUS_ACTIVE])
                 ->whereNotNull('from_lesson_id')
                 ->whereNotNull('to_lesson_id')
-                ->where('id', '!=', $subscription->id) // exclude self
-                ->where(fn($q) =>
+                ->where('id', '!=', $subscription->id)
+                ->where(function ($q) use ($newMin, $newMax) {
                     // overlap: existing_from <= new_max AND existing_to >= new_min
                     $q->where('from_lesson_id', '<=', $newMax)
-                      ->where('to_lesson_id',   '>=', $newMin)
-                )
+                      ->where('to_lesson_id',   '>=', $newMin);
+                })
                 ->first();
 
             if ($overlapping) {
