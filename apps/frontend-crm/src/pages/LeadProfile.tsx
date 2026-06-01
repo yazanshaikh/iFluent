@@ -685,7 +685,7 @@ export default function LeadProfilePage() {
                 </div>
               )}
             </div>
-            </div> {/* end flex wrapper */}
+            </div>
           ) : (
             <Badge variant={STATUS_VARIANT[lead.status]} className="text-sm px-3 py-1">
               {STATUS_LABELS[lead.status]}
