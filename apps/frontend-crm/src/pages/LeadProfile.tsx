@@ -5,7 +5,7 @@ import {
 } from '@tanstack/react-query';
 import { leadsApi, type LeadStatus, type UpdateLeadPayload, type Remark } from '@/api/leads';
 import { staffApi } from '@/api/staff';
-import { checkoutApi, type InvoiceCreatedResponse } from '@/api/checkout';
+import { checkoutApi, lessonsApi, type InvoiceCreatedResponse } from '@/api/checkout';
 import { invoiceFullUrl } from '@/lib/appUrl';
 import { useAuthStore } from '@/stores/authStore';
 import { STATUS_LABELS, STATUS_VARIANT } from './Leads';
@@ -397,6 +397,33 @@ export default function LeadProfilePage() {
     },
   });
 
+  const [changeLessonTarget, setChangeLessonTarget] = useState<number | null>(null);
+  const [selectedLessonId,   setSelectedLessonId]   = useState<number | null>(null);
+
+  // Fetch assessment lessons for the picker (only when needed)
+  const { data: assessmentLessons = [] } = useQuery({
+    queryKey: ['assessment-lessons-crm'],
+    queryFn:  () =>
+      import('@/api/client').then(m =>
+        m.default.get<{ data: { id: number; title: string }[] }>('/crm/assessment-lessons')
+          .then(r => r.data.data)
+      ),
+    enabled:  changeLessonTarget !== null,
+    staleTime: 5 * 60_000,
+  });
+
+  const changeLessonMutation = useMutation({
+    mutationFn: ({ id, lessonId }: { id: number; lessonId: number }) =>
+      leadsApi.changeDemoLesson(id, lessonId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['lead', leadId] });
+      qc.invalidateQueries({ queryKey: ['lead-demo-requests', leadId] });
+      setChangeLessonTarget(null);
+      setSelectedLessonId(null);
+    },
+    onError: (err: any) => alert(err?.response?.data?.message ?? 'تعذر تغيير الدرس'),
+  });
+
   const resetBooking = () => {
     setBookingOpen(false);
     setTimeout(() => {
@@ -737,19 +764,65 @@ export default function LeadProfilePage() {
                           {SESSION_STATUS_LABEL[req.status] ?? req.status}
                         </Badge>
                         {isPending && (
-                          <Button
-                            size="sm" variant="outline"
-                            className="text-destructive hover:text-destructive text-xs h-6 px-2"
-                            disabled={cancelDemoMutation.isPending}
-                            onClick={() => cancelDemoMutation.mutate(req.id)}
-                          >
-                            {cancelDemoMutation.isPending ? (
-                              <Loader2 className="h-3 w-3 animate-spin" />
-                            ) : 'إلغاء'}
-                          </Button>
+                          <>
+                            <Button
+                              size="sm" variant="outline"
+                              className="text-blue-600 hover:text-blue-700 border-blue-300 text-xs h-6 px-2"
+                              onClick={() => { setChangeLessonTarget(req.id); setSelectedLessonId(null); }}
+                            >
+                              تغيير الدرس
+                            </Button>
+                            <Button
+                              size="sm" variant="outline"
+                              className="text-destructive hover:text-destructive text-xs h-6 px-2"
+                              disabled={cancelDemoMutation.isPending}
+                              onClick={() => cancelDemoMutation.mutate(req.id)}
+                            >
+                              {cancelDemoMutation.isPending ? (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                              ) : 'إلغاء'}
+                            </Button>
+                          </>
                         )}
                       </div>
                     </div>
+
+                    {/* Change lesson inline panel */}
+                    {changeLessonTarget === req.id && (
+                      <div className="space-y-2 pt-2 border-t border-border/50">
+                        <p className="text-xs text-muted-foreground font-medium">اختر درس التقييم:</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {assessmentLessons.length === 0 ? (
+                            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                          ) : assessmentLessons.map((l: any) => (
+                            <button
+                              key={l.id}
+                              onClick={() => setSelectedLessonId(l.id)}
+                              className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
+                                selectedLessonId === l.id
+                                  ? 'bg-blue-600 text-white border-blue-600'
+                                  : 'bg-background border-input hover:border-blue-400'
+                              }`}
+                            >
+                              {l.title}
+                            </button>
+                          ))}
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            className="text-xs h-7 px-3 bg-blue-600 hover:bg-blue-700 text-white"
+                            disabled={!selectedLessonId || changeLessonMutation.isPending}
+                            onClick={() => changeLessonMutation.mutate({ id: req.id, lessonId: selectedLessonId! })}
+                          >
+                            {changeLessonMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : 'حفظ'}
+                          </Button>
+                          <Button size="sm" variant="ghost" className="text-xs h-7" onClick={() => setChangeLessonTarget(null)}>
+                            إلغاء
+                          </Button>
+                        </div>
+                      </div>
+                    )}
 
                     {/* Attendance chips — expired or confirmed sessions with session data */}
                     {showAttendance && (

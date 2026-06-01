@@ -112,7 +112,8 @@ Route::middleware(['auth:sanctum', 'role:super_admin,cc,ss'])
         Route::get ('demo-bookings',                                    [DemoBookingController::class, 'all']);
         Route::get ('leads/{lead}/demo-requests',                      [DemoBookingController::class, 'index']);
         Route::post('leads/{lead}/demo-requests',                      [DemoBookingController::class, 'store']);
-        Route::post('demo-requests/{sessionRequest}/cancel',           [DemoBookingController::class, 'cancel']);
+        Route::post ('demo-requests/{sessionRequest}/cancel',           [DemoBookingController::class, 'cancel']);
+        Route::patch('demo-requests/{sessionRequest}/change-lesson',    [DemoBookingController::class, 'changeLesson']);
 
         // ── Checkout — generate invoice ────────────────────────────────────────
         Route::post('leads/{lead}/checkout', [CheckoutController::class, 'store']);

@@ -152,6 +152,12 @@ export const leadsApi = {
   cancelDemo: (sessionRequestId: number) =>
     api.post<{ message: string }>(`/crm/demo-requests/${sessionRequestId}/cancel`).then(r => r.data),
 
+  changeDemoLesson: (sessionRequestId: number, lessonId: number) =>
+    api.patch<{ message: string; lesson: { id: number; title: string } }>(
+      `/crm/demo-requests/${sessionRequestId}/change-lesson`,
+      { lesson_id: lessonId }
+    ).then(r => r.data),
+
   /** GET /crm/demo-bookings — all demo sessions (CC: own leads; admin: all) */
   listDemoBookings: (params: {
     page?:      number;

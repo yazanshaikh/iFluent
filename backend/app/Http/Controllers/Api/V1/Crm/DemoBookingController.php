@@ -239,4 +239,33 @@ class DemoBookingController extends Controller
 
         return response()->json(['message' => 'Demo request cancelled.']);
     }
+
+    /**
+     * PATCH /crm/demo-requests/{sessionRequest}/change-lesson
+     * Change the assessment lesson (topic) of a pending demo booking.
+     * The student's booking profile reads lesson_id → title + PDF reflect immediately.
+     */
+    public function changeLesson(SessionRequest $sessionRequest, Request $request): JsonResponse
+    {
+        if (!$sessionRequest->isPending()) {
+            return response()->json(['message' => 'يمكن تغيير درس الطلبات المعلقة فقط.'], 422);
+        }
+
+        $validated = $request->validate([
+            'lesson_id' => ['required', 'integer', 'exists:lessons,id'],
+        ]);
+
+        $lesson = \App\Models\Lesson::findOrFail($validated['lesson_id']);
+
+        if (!$lesson->is_assessment) {
+            return response()->json(['message' => 'يجب اختيار حصة تقييمية.'], 422);
+        }
+
+        $sessionRequest->update(['lesson_id' => $lesson->id]);
+
+        return response()->json([
+            'message' => 'تم تغيير موضوع الحصة بنجاح.',
+            'lesson'  => ['id' => $lesson->id, 'title' => $lesson->title],
+        ]);
+    }
 }
