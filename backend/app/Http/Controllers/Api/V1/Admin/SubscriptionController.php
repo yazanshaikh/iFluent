@@ -99,12 +99,30 @@ class SubscriptionController extends Controller
             // ── Credit the student's lesson balance (dynamic count) ───────────
             $subscription->student->user->increment('lesson_credits', $lessonsCount);
 
-            // Update lead → subscriber
+            // Update lead → subscriber + add remark with subscription details
             $lead = $subscription->student->lead;
             if ($lead) {
                 $lead->update([
                     'status'       => Lead::STATUS_SUBSCRIBER,
                     'converted_at' => now(),
+                ]);
+
+                // Build remark content with lesson range
+                if ($fromId && $toId) {
+                    $fromLesson = \App\Models\Lesson::find($fromId);
+                    $toLesson   = \App\Models\Lesson::find($toId);
+                    $remarkText = "✅ تم الاشتراك — من درس #{$fromId}";
+                    if ($fromLesson) $remarkText .= " ({$fromLesson->title})";
+                    $remarkText .= " إلى درس #{$toId}";
+                    if ($toLesson)   $remarkText .= " ({$toLesson->title})";
+                    $remarkText .= " — {$lessonsCount} درس — {$subscription->amount_paid} د.أ";
+                } else {
+                    $remarkText = "✅ تم الاشتراك — {$lessonsCount} درس — {$subscription->amount_paid} د.أ";
+                }
+
+                $lead->remarks()->create([
+                    'content'  => $remarkText,
+                    'staff_id' => $request->user()->id,
                 ]);
             }
 
