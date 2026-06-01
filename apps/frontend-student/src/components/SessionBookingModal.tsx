@@ -45,11 +45,26 @@ const ALL_SLOTS = (() => {
   return slots;
 })();
 
-// Jordan is UTC+3 — get current Jordan hour/minute regardless of device timezone
+// Jordan is UTC+3 — get current Jordan hour/minute
 function jordanNow() {
-  const now      = new Date();
-  const jordan   = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Amman' }));
-  return { h: jordan.getHours(), m: jordan.getMinutes() };
+  const now = new Date();
+  try {
+    // Use Intl.DateTimeFormat — reliable in Hermes (React Native)
+    const fmt = new Intl.DateTimeFormat('en-US', {
+      timeZone:  'Asia/Amman',
+      hour:      'numeric',
+      minute:    'numeric',
+      hour12:    false,
+    });
+    const parts = fmt.formatToParts(now);
+    const h = parseInt(parts.find(p => p.type === 'hour')?.value   ?? '0', 10);
+    const m = parseInt(parts.find(p => p.type === 'minute')?.value ?? '0', 10);
+    // Intl sometimes returns 24 for midnight — normalise
+    return { h: h === 24 ? 0 : h, m };
+  } catch {
+    // Fallback: assume device is set to Jordan time
+    return { h: now.getHours(), m: now.getMinutes() };
+  }
 }
 
 // ── Props ─────────────────────────────────────────────────────────────────────
@@ -87,7 +102,7 @@ export function SessionBookingModal({ visible, credits, onClose, onBooked }: Pro
     const curMin   = h * 60 + m;
     return ALL_SLOTS.filter((s) => {
       const [sh, sm] = s.split(':').map(Number);
-      return sh * 60 + sm > curMin + 30; // must be 30+ min from now
+      return sh * 60 + sm > curMin + 15; // must be 15+ min from now
     });
   }, [dayIdx]);
 
