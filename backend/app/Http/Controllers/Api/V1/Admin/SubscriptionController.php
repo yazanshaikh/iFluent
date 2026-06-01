@@ -190,8 +190,8 @@ class SubscriptionController extends Controller
 
                 // 3. Save reason as a lead remark
                 $lead->remarks()->create([
-                    'content'     => '❌ تم إلغاء الاشتراك — السبب: ' . $request->reason,
-                    'created_by'  => $request->user()->id,
+                    'content'  => '❌ تم إلغاء الاشتراك — السبب: ' . $request->reason,
+                    'staff_id' => $request->user()->id,
                 ]);
             }
         });
