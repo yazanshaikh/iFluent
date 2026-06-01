@@ -223,15 +223,17 @@ class SubscriptionController extends Controller
         }
 
         DB::transaction(function () use ($request, $subscription) {
-            $student = $subscription->student;
+            $student = $subscription->student()->with('user')->first();
 
             // 1. Cancel ALL active subscriptions for this student (not just the clicked one)
-            $student->subscriptions()
+            Subscription::where('student_id', $student->id)
                 ->where('status', Subscription::STATUS_ACTIVE)
                 ->update(['status' => Subscription::STATUS_CANCELLED]);
 
-            // 2. Zero out ALL lesson credits
-            $student->user->update(['lesson_credits' => 0]);
+            // 2. Zero out ALL lesson credits — direct DB query to avoid cache issues
+            DB::table('users')
+                ->where('id', $student->user_id)
+                ->update(['lesson_credits' => 0]);
 
             // 3. Revert lead status → in_progress (back in pipeline)
             $lead = $student->lead;
