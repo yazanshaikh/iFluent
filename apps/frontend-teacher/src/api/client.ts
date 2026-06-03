@@ -1,5 +1,5 @@
 import axios from 'axios';
-import * as SecureStore from 'expo-secure-store';
+import { storage } from '@/utils/storage';
 
 const BASE_URL =
   process.env.EXPO_PUBLIC_API_URL ??
@@ -15,7 +15,7 @@ const client = axios.create({
 });
 
 client.interceptors.request.use(async (config) => {
-  const token = await SecureStore.getItemAsync('teacher_token');
+  const token = await storage.getItem('teacher_token');
   if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
@@ -24,8 +24,8 @@ client.interceptors.response.use(
   (res) => res,
   async (error) => {
     if (error.response?.status === 401) {
-      await SecureStore.deleteItemAsync('teacher_token');
-      await SecureStore.deleteItemAsync('teacher_user');
+      await storage.removeItem('teacher_token');
+      await storage.removeItem('teacher_user');
     }
     return Promise.reject(error);
   },

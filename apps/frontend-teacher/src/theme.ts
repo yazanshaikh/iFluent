@@ -29,18 +29,21 @@ export const C = {
 
 export const shadow = {
   sm: {
-    shadowColor: '#0EA5E9',
+    shadowColor:  '#0EA5E9',
     shadowOpacity: 0.08,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 3,
+    shadowRadius:  8,
+    shadowOffset:  { width: 0, height: 2 },
+    elevation:     3,
+    // web fallback
+    boxShadow: '0 2px 8px rgba(14,165,233,0.08)',
   },
   md: {
-    shadowColor: '#0284C7',
+    shadowColor:  '#0284C7',
     shadowOpacity: 0.14,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 6,
+    shadowRadius:  16,
+    shadowOffset:  { width: 0, height: 4 },
+    elevation:     6,
+    boxShadow: '0 4px 16px rgba(2,132,199,0.14)',
   },
 } as const;
 
