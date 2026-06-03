@@ -15,6 +15,7 @@ export interface StaffMember {
     bio:                     string | null;
     specialization:          string | null;
     commission_rate:         string;
+    balance:                 string | number;
     sessions_count:          number;
     avg_rating:              number | null;
     sessions_count_reset_at: string | null;

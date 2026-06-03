@@ -81,6 +81,39 @@ export default function ProfileScreen() {
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
 
+        {/* Hero stats row */}
+        <View style={styles.statsRow}>
+          {/* Balance */}
+          <View style={[styles.statCard, styles.statCardBalance]}>
+            <Text style={styles.statEmoji}>💰</Text>
+            <Text style={styles.statValue}>{Number(user?.balance ?? 0).toFixed(2)}</Text>
+            <Text style={styles.statLabel}>الرصيد (د.أ)</Text>
+          </View>
+
+          {/* Rating */}
+          <View style={[styles.statCard, styles.statCardRating]}>
+            <Text style={styles.statEmoji}>⭐</Text>
+            <Text style={styles.statValue}>
+              {user?.avg_rating ? user.avg_rating.toFixed(1) : '—'}
+            </Text>
+            <Text style={styles.statLabel}>تقييم الطلاب</Text>
+            {user?.avg_rating && (
+              <View style={styles.starsRow}>
+                {[1,2,3,4,5].map((i) => (
+                  <Text key={i} style={{ fontSize: 10, color: i <= Math.round(user.avg_rating!) ? '#f59e0b' : '#d1d5db' }}>★</Text>
+                ))}
+              </View>
+            )}
+          </View>
+
+          {/* Sessions */}
+          <View style={[styles.statCard, styles.statCardSessions]}>
+            <Text style={styles.statEmoji}>📚</Text>
+            <Text style={styles.statValue}>{user?.sessions_count ?? 0}</Text>
+            <Text style={styles.statLabel}>الحصص المكتملة</Text>
+          </View>
+        </View>
+
         {/* Info Card */}
         <View style={styles.card}>
           <Text style={styles.cardTitle}>بيانات الحساب</Text>
@@ -98,7 +131,7 @@ export default function ProfileScreen() {
           <InfoRow
             icon="wallet-outline"
             label="الرصيد الحالي"
-            value={user?.balance ? `${user.balance} د.أ` : '0 د.أ'}
+            value={`${Number(user?.balance ?? 0).toFixed(2)} د.أ`}
           />
         </View>
 
@@ -133,6 +166,20 @@ const styles = StyleSheet.create({
   codeTxt: { color: '#fff', fontSize: 13, fontWeight: '700', letterSpacing: 1 },
 
   scroll: { padding: 16, gap: 14 },
+
+  statsRow: { flexDirection: 'row', gap: 10 },
+  statCard: {
+    flex: 1, backgroundColor: '#fff', borderRadius: 16,
+    padding: 14, alignItems: 'center', gap: 4,
+    shadowColor: C.sky, shadowOpacity: 0.08, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 3,
+  },
+  statCardBalance: { borderTopWidth: 3, borderTopColor: '#22C55E' },
+  statCardRating:  { borderTopWidth: 3, borderTopColor: '#F59E0B' },
+  statCardSessions:{ borderTopWidth: 3, borderTopColor: C.sky },
+  statEmoji: { fontSize: 22 },
+  statValue: { fontSize: 20, fontWeight: '900', color: C.grayDark },
+  statLabel: { fontSize: 10, color: C.grayMid, textAlign: 'center' },
+  starsRow:  { flexDirection: 'row', gap: 1, marginTop: 2 },
   card:   { backgroundColor: '#fff', borderRadius: 20, padding: 20, ...shadow.sm },
   cardTitle: { fontSize: 15, fontWeight: '800', color: C.skyDark, textAlign: 'right', marginBottom: 16 },
 

@@ -231,7 +231,15 @@ export default function StaffProfilePage() {
 
           {/* Info */}
           <div className="flex-1 min-w-0">
-            <h1 className="text-xl font-bold truncate">{staff?.name ?? '—'}</h1>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="text-xl font-bold truncate">{staff?.name ?? '—'}</h1>
+              {/* Teacher code badge */}
+              {staff?.teacher_profile?.teacher_code && (
+                <span className="text-xs font-mono bg-primary/10 text-primary px-2 py-0.5 rounded-md select-all">
+                  {staff.teacher_profile.teacher_code}
+                </span>
+              )}
+            </div>
             <p className="text-sm text-muted-foreground" dir="ltr">{staff?.email ?? '—'}</p>
           </div>
 
@@ -380,6 +388,43 @@ export default function StaffProfilePage() {
                 </div>
               </>
             )}
+          </CardContent>
+        </Card>
+
+        {/* Balance & Rating Card */}
+        <Card>
+          <CardHeader className="pb-0">
+            <CardTitle className="text-base font-semibold">المالية والتقييم</CardTitle>
+          </CardHeader>
+          <CardContent className="pt-4 space-y-4">
+            {/* Balance */}
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">الرصيد الحالي</p>
+                <p className="text-2xl font-bold text-emerald-600 mt-0.5">
+                  {Number(tp?.balance ?? 0).toFixed(2)} د.أ
+                </p>
+              </div>
+              <div className="h-12 w-12 rounded-full bg-emerald-50 flex items-center justify-center">
+                <span className="text-xl">💰</span>
+              </div>
+            </div>
+
+            <Separator />
+
+            {/* Rating */}
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">تقييم الطلاب</p>
+                <div className="mt-1">
+                  <StarRating rating={tp?.avg_rating} />
+                </div>
+              </div>
+              <div className="text-right">
+                <p className="text-xs text-muted-foreground">تقييم الطلاب فقط</p>
+                <p className="text-xs text-muted-foreground mt-0.5">⭐ من 5</p>
+              </div>
+            </div>
           </CardContent>
         </Card>
 

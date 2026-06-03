@@ -42,17 +42,13 @@ class TeacherAuthController extends Controller
         $token   = $user->createToken('teacher-session', ['teacher'])->plainTextToken;
         $teacher = Teacher::where('user_id', $user->id)->first();
 
+        $avgRating = $teacher
+            ? round(\DB::table('session_ratings')->where('teacher_id', $user->id)->avg('rating') ?? 0, 1)
+            : null;
+
         return response()->json([
             'token' => $token,
-            'user'  => [
-                'id'              => $user->id,
-                'name'            => $user->name,
-                'email'           => $user->email,
-                'role'            => $user->role,
-                'teacher_code'    => $teacher?->teacher_code,
-                'balance'         => (float) ($teacher?->balance ?? 0),
-                'commission_rate' => (float) ($teacher?->commission_rate ?? 0),
-            ],
+            'user'  => $this->buildUserResponse($user, $teacher, $avgRating),
         ]);
     }
 
@@ -64,10 +60,22 @@ class TeacherAuthController extends Controller
 
     public function me(Request $request): JsonResponse
     {
-        $user    = $request->user();
-        $teacher = Teacher::where('user_id', $user->id)->first();
+        $user      = $request->user();
+        $teacher   = Teacher::where('user_id', $user->id)->first();
+        $avgRating = $teacher
+            ? round(\DB::table('session_ratings')->where('teacher_id', $user->id)->avg('rating') ?? 0, 1)
+            : null;
 
-        return response()->json([
+        return response()->json($this->buildUserResponse($user, $teacher, $avgRating));
+    }
+
+    private function buildUserResponse($user, $teacher, $avgRating): array
+    {
+        $sessionsCount = $teacher
+            ? \DB::table('sessions')->where('teacher_id', $user->id)->count()
+            : 0;
+
+        return [
             'id'              => $user->id,
             'name'            => $user->name,
             'email'           => $user->email,
@@ -75,6 +83,8 @@ class TeacherAuthController extends Controller
             'teacher_code'    => $teacher?->teacher_code,
             'balance'         => (float) ($teacher?->balance ?? 0),
             'commission_rate' => (float) ($teacher?->commission_rate ?? 0),
-        ]);
+            'avg_rating'      => $avgRating ?: null,
+            'sessions_count'  => $sessionsCount,
+        ];
     }
 }

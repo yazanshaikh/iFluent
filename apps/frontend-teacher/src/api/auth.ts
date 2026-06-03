@@ -8,6 +8,8 @@ export interface TeacherUser {
   teacher_code?:    string;
   balance?:         number;
   commission_rate?: number;
+  avg_rating?:      number | null;
+  sessions_count?:  number;
 }
 
 export interface LoginResponse {
