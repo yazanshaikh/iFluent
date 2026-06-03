@@ -10,18 +10,18 @@ export interface SessionRequest {
   session_id:   number | null;
 }
 
-const TYPE_ENDPOINT: Record<string, string> = {
-  demo:    'demo',
-  core:    'core',
-  private: 'private',
-  group:   'group',
-};
-
 export const requestsApi = {
-  list: (type: string) =>
-    client
-      .get<{ data: SessionRequest[] }>(`/teacher/requests?type=${TYPE_ENDPOINT[type] ?? type}`)
-      .then((r) => r.data.data),
+  /** GET /teacher/requests?type=demo|core — pending requests for teacher */
+  list: (type: string) => {
+    const params: Record<string, string> = {};
+    if (type === 'demo')    params.type = 'demo';
+    if (type === 'core')    params.type = 'core';
+    if (type === 'private') params.type = 'private';
+    if (type === 'group')   params.type = 'group';
+    return client
+      .get<{ data: SessionRequest[] }>('/teacher/requests', { params })
+      .then((r) => r.data.data ?? []);
+  },
 
   accept: (id: number) =>
     client.post(`/teacher/requests/${id}/accept`).then((r) => r.data),

@@ -1,12 +1,13 @@
 import client from './client';
 
 export interface TeacherUser {
-  id:           number;
-  name:         string;
-  email:        string;
-  teacher_code: string;
-  balance:      number;
-  commission_rate: number;
+  id:               number;
+  name:             string;
+  email:            string;
+  role:             string;
+  teacher_code?:    string;
+  balance?:         number;
+  commission_rate?: number;
 }
 
 export interface LoginResponse {

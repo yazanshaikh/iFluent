@@ -263,6 +263,15 @@ Route::middleware(['auth:sanctum', 'role:student'])
         Route::post  ('notebook/{notebookEntry}/pin', [NotebookController::class, 'togglePin']);
     });
 
+// ─── Teacher Auth (public) ───────────────────────────────────────────────────
+Route::prefix('teacher/auth')->group(function () {
+    Route::post('login',  [\App\Http\Controllers\Api\V1\Auth\TeacherAuthController::class, 'login']);
+    Route::post('logout', [\App\Http\Controllers\Api\V1\Auth\TeacherAuthController::class, 'logout'])
+        ->middleware('auth:sanctum');
+    Route::get('me',      [\App\Http\Controllers\Api\V1\Auth\TeacherAuthController::class, 'me'])
+        ->middleware('auth:sanctum');
+});
+
 // ─── Teacher ──────────────────────────────────────────────────────────────────
 Route::middleware(['auth:sanctum', 'role:teacher'])
     ->prefix('teacher')
