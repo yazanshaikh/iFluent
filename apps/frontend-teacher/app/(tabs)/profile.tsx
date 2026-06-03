@@ -120,9 +120,6 @@ export default function ProfileScreen() {
           {user?.email && (
             <InfoRow icon="mail-outline" label="البريد الإلكتروني" value={user.email} />
           )}
-          {user?.teacher_code && (
-            <InfoRow icon="id-card-outline" label="كود المعلم" value={user.teacher_code} />
-          )}
           <InfoRow
             icon="cash-outline"
             label="نسبة العمولة"
