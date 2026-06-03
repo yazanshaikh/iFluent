@@ -42,12 +42,7 @@ export default function TabsLayout() {
       />
       <Tabs.Screen
         name="earnings"
-        options={{
-          title: 'الأرباح',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="wallet-outline" size={size} color={color} />
-          ),
-        }}
+        options={{ href: null }}
       />
       <Tabs.Screen
         name="profile"
