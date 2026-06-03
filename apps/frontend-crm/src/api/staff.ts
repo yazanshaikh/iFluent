@@ -84,4 +84,11 @@ export const staffApi = {
   /** GET /admin/staff/{id}/demo-bookings — حصص تقييمية محجوزة للمعلم (مستقبلية فقط) */
   teacherDemoBookings: (id: number) =>
     api.get<{ total: number; bookings: TeacherBooking[] }>(`/admin/staff/${id}/demo-bookings`).then((r) => r.data),
+
+  /** PUT /admin/teachers/{id}/commission-rate — تحديث عمولة المعلم */
+  updateCommissionRate: (userId: number, commissionRate: number) =>
+    api.put<{ message: string; commission_rate: number }>(
+      `/admin/teachers/${userId}/commission-rate`,
+      { commission_rate: commissionRate }
+    ).then((r) => r.data),
 };

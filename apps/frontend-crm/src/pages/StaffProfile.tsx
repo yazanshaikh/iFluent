@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
+import { Input } from '@/components/ui/input';
 import {
   Dialog,
   DialogContent,
@@ -113,7 +114,9 @@ export default function StaffProfilePage() {
   const user     = useAuthStore((s) => s.user);
   const staffId  = Number(id);
 
-  const [resetDialogOpen, setResetDialogOpen] = useState(false);
+  const [resetDialogOpen,    setResetDialogOpen]    = useState(false);
+  const [commissionInput,    setCommissionInput]    = useState('');
+  const [commissionEditing,  setCommissionEditing]  = useState(false);
 
   /* ── Auth guard — admin only (hooks first) ── */
   const isAdmin = user?.role === 'super_admin';
@@ -173,6 +176,16 @@ export default function StaffProfilePage() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['staff-member', staffId] });
       setResetDialogOpen(false);
+    },
+  });
+
+  /* ── Update commission mutation ── */
+  const commissionMutation = useMutation({
+    mutationFn: (rate: number) => staffApi.updateCommissionRate(staffId, rate),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['staff-member', staffId] });
+      setCommissionEditing(false);
+      setCommissionInput('');
     },
   });
 
@@ -306,6 +319,64 @@ export default function StaffProfilePage() {
                   >
                     تصفير العداد
                   </Button>
+                </div>
+
+                {/* ── Commission Rate ── */}
+                <Separator />
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium">عمولة الحصة</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        الحالية:{' '}
+                        <span className="font-semibold text-primary">
+                          {tp?.commission_rate ?? '0'} د.أ / حصة
+                        </span>
+                      </p>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setCommissionInput(String(tp?.commission_rate ?? ''));
+                        setCommissionEditing(true);
+                      }}
+                    >
+                      تعديل العمولة
+                    </Button>
+                  </div>
+
+                  {commissionEditing && (
+                    <div className="flex items-center gap-2 mt-2 p-3 bg-muted/40 rounded-lg">
+                      <Input
+                        type="number"
+                        min={0}
+                        step={0.5}
+                        value={commissionInput}
+                        onChange={(e) => setCommissionInput(e.target.value)}
+                        placeholder="مثال: 5"
+                        className="w-32 text-left"
+                        autoFocus
+                      />
+                      <span className="text-sm text-muted-foreground">د.أ / حصة</span>
+                      <Button
+                        size="sm"
+                        disabled={!commissionInput || commissionMutation.isPending}
+                        onClick={() => {
+                          const rate = parseFloat(commissionInput);
+                          if (!isNaN(rate) && rate >= 0) commissionMutation.mutate(rate);
+                        }}
+                      >
+                        {commissionMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'حفظ'}
+                      </Button>
+                      <Button
+                        size="sm" variant="ghost"
+                        onClick={() => { setCommissionEditing(false); setCommissionInput(''); }}
+                      >
+                        إلغاء
+                      </Button>
+                    </div>
+                  )}
                 </div>
               </>
             )}

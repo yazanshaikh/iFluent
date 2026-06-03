@@ -8,6 +8,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '@/stores/authStore';
 import { authApi } from '@/api/auth';
 import { C, shadow } from '@/theme';
@@ -29,8 +30,20 @@ function InfoRow({ icon, label, value }: { icon: string; label: string; value: s
 export default function ProfileScreen() {
   const router    = useRouter();
   const insets    = useSafeAreaInsets();
-  const user      = useAuthStore((s) => s.user);
+  const storeUser = useAuthStore((s) => s.user);
   const clearAuth = useAuthStore((s) => s.clearAuth);
+
+  // Fetch fresh profile on every visit — picks up commission changes from CRM
+  const { data: freshProfile } = useQuery({
+    queryKey:  ['teacher-me'],
+    queryFn:   authApi.me,
+    staleTime: 30_000,
+  });
+
+  // Merge: fresh data takes priority over cached store
+  const user = freshProfile
+    ? { ...storeUser, ...freshProfile }
+    : storeUser;
 
   const handleLogout = () => {
     Alert.alert('تسجيل الخروج', 'هل تريد الخروج من حسابك؟', [
