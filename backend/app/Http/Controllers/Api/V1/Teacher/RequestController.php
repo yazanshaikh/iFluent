@@ -91,6 +91,28 @@ class RequestController extends Controller
             return response()->json(['message' => 'This request is directed to another teacher.'], 403);
         }
 
+        // ── 1-hour gap rule ───────────────────────────────────────────────────
+        // Block if the teacher already has a session within 1 hour of this slot.
+        $slot = $sessionRequest->requested_at_utc;
+        if ($slot) {
+            $conflict = \App\Models\Session::where('teacher_id', $teacher->id)
+                ->whereIn('status', [
+                    \App\Models\Session::STATUS_WAITING,
+                    \App\Models\Session::STATUS_ACTIVE,
+                ])
+                ->whereBetween('scheduled_at', [
+                    $slot->copy()->subMinutes(59),
+                    $slot->copy()->addMinutes(59),
+                ])
+                ->exists();
+
+            if ($conflict) {
+                return response()->json([
+                    'message' => 'لديك حصة أخرى ضمن ساعة من هذا الموعد. يجب أن يفصل بين الحصص ساعة على الأقل.',
+                ], 422);
+            }
+        }
+
         // Use a DB transaction + lock to prevent double-acceptance from pool
         $session = DB::transaction(function () use ($sessionRequest, $teacher) {
             // Re-fetch with lock to prevent race condition on pool requests
