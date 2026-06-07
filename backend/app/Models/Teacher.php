@@ -21,6 +21,8 @@ class Teacher extends Model
         'is_active',
         'zoom_user_id',
         'sessions_count_reset_at',
+        'balance_reset_at',
+        'absences_reset_at',
     ];
 
     protected function casts(): array
@@ -30,6 +32,8 @@ class Teacher extends Model
             'balance'                 => 'decimal:2',
             'is_active'               => 'boolean',
             'sessions_count_reset_at' => 'datetime',
+            'balance_reset_at'        => 'datetime',
+            'absences_reset_at'       => 'datetime',
         ];
     }
 

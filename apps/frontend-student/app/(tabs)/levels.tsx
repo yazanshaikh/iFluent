@@ -16,6 +16,7 @@ import {
   RefreshControl,
   Animated,
   Linking,
+  Alert,
 } from 'react-native';
 import { useRouter, type Router } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
@@ -276,10 +277,10 @@ function CreditsBody({
         <Ionicons name="chevron-back" size={18} color="rgba(255,255,255,0.6)" />
       </TouchableOpacity>
 
-      {/* Book group session */}
+      {/* Book group session — coming soon */}
       <TouchableOpacity
         style={[styles.bookSessionBtn, styles.bookGroupBtn]}
-        onPress={() => router.push('/group-classes' as any)}
+        onPress={() => Alert.alert('قريباً 🚧', 'هذه الميزة غير متاحة حالياً، ترقّب إطلاقها قريباً!')}
         activeOpacity={0.85}
       >
         <View style={[styles.bookSessionIcon, styles.bookGroupIcon]}>

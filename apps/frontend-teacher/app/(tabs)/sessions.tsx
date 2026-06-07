@@ -22,9 +22,25 @@ function fmt(iso: string | null) {
   });
 }
 
+function attendanceLabel(s: TeacherSession): string {
+  if (s.status === 'completed') {
+    if (s.attendance_status === 'teacher_absent') return 'غياب المعلم';
+    if (s.attendance_status === 'absent')         return 'غياب الطالب';
+    return STATUS_LABEL['completed'] ?? 'مكتملة';
+  }
+  return STATUS_LABEL[s.status] ?? s.status;
+}
+
+function attendanceColor(s: TeacherSession): string {
+  if (s.status === 'completed' && s.attendance_status === 'teacher_absent') return C.error;
+  if (s.status === 'completed' && s.attendance_status === 'absent')         return C.warning;
+  return STATUS_COLOR[s.status] ?? C.gray;
+}
+
 function SessionCard({ session, onPress }: { session: TeacherSession; onPress: () => void }) {
-  const color   = STATUS_COLOR[session.status] ?? C.gray;
-  const isActive = session.status === 'active';
+  const color      = attendanceColor(session);
+  const label      = attendanceLabel(session);
+  const isActive   = session.status === 'active';
   const isAccepted = session.status === 'confirmed' || session.status === 'waiting';
 
   return (
@@ -34,7 +50,7 @@ function SessionCard({ session, onPress }: { session: TeacherSession; onPress: (
         <View style={styles.cardHeader}>
           <View style={[styles.badge, { backgroundColor: color + '22' }]}>
             <View style={[styles.badgeDot, { backgroundColor: color }]} />
-            <Text style={[styles.badgeTxt, { color }]}>{STATUS_LABEL[session.status] ?? session.status}</Text>
+            <Text style={[styles.badgeTxt, { color }]}>{label}</Text>
           </View>
           <Text style={styles.cardTime}>{fmt(session.scheduled_at)}</Text>
         </View>
@@ -84,8 +100,8 @@ export default function SessionsScreen() {
   });
 
   const active   = data.filter((s) => s.status === 'active');
-  const upcoming = data.filter((s) => ['confirmed','waiting'].includes(s.status));
-  const past     = data.filter((s) => ['completed','cancelled'].includes(s.status));
+  const upcoming = data.filter((s) => ['confirmed', 'waiting'].includes(s.status));
+  const past     = data.filter((s) => s.status === 'completed'); // cancelled لا تظهر عند المعلم
 
   return (
     <View style={{ flex: 1, backgroundColor: '#F0F9FF' }}>

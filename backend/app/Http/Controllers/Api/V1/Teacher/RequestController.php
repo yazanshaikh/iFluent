@@ -62,7 +62,8 @@ class RequestController extends Controller
         $teacher = $request->user();
 
         $requests = SessionRequest::forTeacher($teacher->id)
-            ->with(['student:id,name', 'lesson:id,title,unit_id,is_assessment', 'lead:id,name'])
+            ->where('status', SessionRequest::STATUS_PENDING)
+            ->with(['student:id,name', 'lesson:id,title,order,is_assessment,nearpod_url,level_id,unit_id', 'lesson.level:id,code,name', 'lesson.unit.level:id,code,name', 'lead:id,name'])
             ->when(
                 $request->filled('type'),
                 fn($q) => $q->where('type', $request->type)
@@ -71,6 +72,31 @@ class RequestController extends Controller
             ->paginate(20);
 
         return response()->json($requests->through(fn($r) => $this->formatRequest($r)));
+    }
+
+    // ─── Show Single Request ──────────────────────────────────────────────────
+
+    public function show(SessionRequest $sessionRequest, Request $request): JsonResponse
+    {
+        $teacher = $request->user();
+
+        // Must be visible to this teacher
+        $canSee = $sessionRequest->target_teacher_id === $teacher->id
+            || (in_array($sessionRequest->type, [SessionRequest::TYPE_CORE, SessionRequest::TYPE_DEMO])
+                && is_null($sessionRequest->assigned_teacher_id));
+
+        if (!$canSee) {
+            return response()->json(['message' => 'Forbidden.'], 403);
+        }
+
+        $sessionRequest->load([
+            'student:id,name',
+            'lesson:id,title,order,is_assessment,nearpod_url,level_id,unit_id',
+            'lesson.level:id,code,name',
+            'lesson.unit.level:id,code,name',
+        ]);
+
+        return response()->json(['data' => $this->formatRequest($sessionRequest)]);
     }
 
     // ─── Accept Request ───────────────────────────────────────────────────────
@@ -113,8 +139,12 @@ class RequestController extends Controller
             }
         }
 
+        $validated = $request->validate([
+            'nearpod_pin' => ['sometimes', 'nullable', 'string', 'max:20'],
+        ]);
+
         // Use a DB transaction + lock to prevent double-acceptance from pool
-        $session = DB::transaction(function () use ($sessionRequest, $teacher) {
+        $session = DB::transaction(function () use ($sessionRequest, $teacher, $validated) {
             // Re-fetch with lock to prevent race condition on pool requests
             $locked = SessionRequest::lockForUpdate()->find($sessionRequest->id);
 
@@ -130,6 +160,7 @@ class RequestController extends Controller
                 'student_id'   => $locked->student_id,
                 'status'       => Session::STATUS_WAITING,
                 'scheduled_at' => $locked->requested_at_utc,
+                'nearpod_pin'  => $validated['nearpod_pin'] ?? null,
             ]);
 
             // Create Daily.co room
@@ -209,17 +240,36 @@ class RequestController extends Controller
 
     private function formatRequest(SessionRequest $r): array
     {
+        // Student age via their linked lead record
+        $age = null;
+        if ($r->student_id) {
+            $studentProfile = \App\Models\Student::where('user_id', $r->student_id)
+                ->with('lead:id,age')
+                ->first();
+            $age = $studentProfile?->lead?->age;
+        }
+
         return [
-            'id'               => $r->id,
-            'type'             => $r->type,
-            'status'           => $r->status,
-            'requested_at'     => $r->requested_at_utc?->toIso8601String(),
-            'student'          => $r->student ? ['id' => $r->student->id, 'name' => $r->student->name] : null,
-            'lead'             => $r->lead ? ['id' => $r->lead->id, 'name' => $r->lead->name] : null,
-            'lesson'           => $r->lesson ? [
-                'id'            => $r->lesson->id,
-                'title'         => $r->lesson->title,
-                'is_assessment' => $r->lesson->is_assessment,
+            'id'                  => $r->id,
+            'type'                => $r->type,
+            'status'              => $r->status,
+            'scheduled_at'        => $r->requested_at_utc?->toIso8601String(),
+            'teacher_gender_pref' => $r->teacher_gender_pref,
+            'student'      => $r->student ? [
+                'id'   => $r->student->id,
+                'name' => $r->student->name,
+                'age'  => $age,
+            ] : null,
+            'lesson'       => $r->lesson ? [
+                'id'           => $r->lesson->id,
+                'title'        => $r->lesson->title,
+                'order'        => $r->lesson->order,
+                'is_assessment'=> $r->lesson->is_assessment,
+                'nearpod_url'  => $r->lesson->nearpod_url,
+                'level'        => ($r->lesson->level ?? $r->lesson->unit?->level) ? [
+                    'code' => ($r->lesson->level ?? $r->lesson->unit->level)->code,
+                    'name' => ($r->lesson->level ?? $r->lesson->unit->level)->name,
+                ] : null,
             ] : null,
         ];
     }

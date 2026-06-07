@@ -17,8 +17,11 @@ export interface StaffMember {
     commission_rate:         string;
     balance:                 string | number;
     sessions_count:          number;
+    absences_count:          number;
     avg_rating:              number | null;
     sessions_count_reset_at: string | null;
+    balance_reset_at:        string | null;
+    absences_reset_at:       string | null;
     is_active:               boolean;
   };
 }
@@ -81,6 +84,9 @@ export const staffApi = {
 
   resetSessions: (id: number) =>
     api.post<{ message: string; reset_at: string }>(`/admin/staff/${id}/reset-sessions`).then((r) => r.data),
+
+  resetBalance: (id: number) =>
+    api.post<{ message: string; reset_at: string }>(`/admin/staff/${id}/reset-balance`).then((r) => r.data),
 
   /** GET /admin/staff/{id}/demo-bookings — حصص تقييمية محجوزة للمعلم (مستقبلية فقط) */
   teacherDemoBookings: (id: number) =>

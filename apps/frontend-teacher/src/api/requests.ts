@@ -1,30 +1,42 @@
 import client from './client';
 
 export interface SessionRequest {
-  id:           number;
-  type:         'demo' | 'core' | 'private' | 'group';
-  status:       string;
-  scheduled_at: string | null;
-  student:      { id: number; name: string } | null;
-  lesson:       { id: number; title: string } | null;
-  session_id:   number | null;
+  id:                   number;
+  type:                 'demo' | 'core' | 'private' | 'group';
+  status:               string;
+  scheduled_at:         string | null;
+  teacher_gender_pref:  'male' | 'female' | null;
+  student: {
+    id:   number;
+    name: string;
+    age:  number | null;
+  } | null;
+  lesson: {
+    id:             number;
+    title:          string;
+    order:          number;
+    is_assessment:  boolean;
+    nearpod_url:    string | null;
+    level: {
+      code: string;
+      name: string;
+    } | null;
+  } | null;
 }
 
 export const requestsApi = {
-  /** GET /teacher/requests?type=demo|core — pending requests for teacher */
-  list: (type: string) => {
-    const params: Record<string, string> = {};
-    if (type === 'demo')    params.type = 'demo';
-    if (type === 'core')    params.type = 'core';
-    if (type === 'private') params.type = 'private';
-    if (type === 'group')   params.type = 'group';
-    return client
-      .get<{ data: SessionRequest[] }>('/teacher/requests', { params })
-      .then((r) => r.data.data ?? []);
-  },
+  list: (type: string) =>
+    client
+      .get<{ data: SessionRequest[] }>('/teacher/requests', { params: type ? { type } : {} })
+      .then((r) => r.data.data ?? []),
 
-  accept: (id: number) =>
-    client.post(`/teacher/requests/${id}/accept`).then((r) => r.data),
+  show: (id: number) =>
+    client
+      .get<{ data: SessionRequest }>(`/teacher/requests/${id}`)
+      .then((r) => r.data.data),
+
+  accept: (id: number, nearpodPin?: string) =>
+    client.post(`/teacher/requests/${id}/accept`, { nearpod_pin: nearpodPin ?? null }).then((r) => r.data),
 
   reject: (id: number, reason?: string) =>
     client.post(`/teacher/requests/${id}/reject`, { reason }).then((r) => r.data),

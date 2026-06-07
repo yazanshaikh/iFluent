@@ -3,11 +3,12 @@ import client from './client';
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface SessionListItem {
-  id:           number;
-  status:       'waiting' | 'active' | 'completed' | 'cancelled';
-  scheduled_at: string | null;
-  started_at:   string | null;
-  ended_at:     string | null;
+  id:                number;
+  status:            'waiting' | 'active' | 'completed' | 'cancelled';
+  attendance_status: 'attended' | 'absent' | 'teacher_absent' | null;
+  scheduled_at:      string | null;
+  started_at:        string | null;
+  ended_at:          string | null;
   lesson: {
     id:    number;
     title: string;
@@ -38,19 +39,21 @@ export interface JoinSessionResponse {
 }
 
 export interface BookingRequest {
-  lesson_id?:         number | null; // optional — null for quick booking
-  scheduled_at:       string;        // "YYYY-MM-DD HH:MM:00"
-  teacher_code?:      string;        // optional — private session
-  notes?:             string;
+  lesson_id?:           number | null;
+  scheduled_at:         string;
+  teacher_code?:        string;
+  teacher_gender_pref?: 'male' | 'female';
+  notes?:               string;
 }
 
 export interface SessionProfile {
-  id:           number;
-  status:       'waiting' | 'active' | 'completed' | 'cancelled';
-  scheduled_at: string | null;
-  started_at:   string | null;
-  ended_at:     string | null;
-  teacher:      { name: string };
+  id:                number;
+  status:            'waiting' | 'active' | 'completed' | 'cancelled';
+  attendance_status: 'attended' | 'absent' | 'teacher_absent' | null;
+  scheduled_at:      string | null;
+  started_at:        string | null;
+  ended_at:          string | null;
+  teacher:           { name: string; teacher_code?: string | null } | null;
   lesson: {
     id:            number;
     title:         string;

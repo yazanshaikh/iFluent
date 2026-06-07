@@ -44,17 +44,28 @@ function fmtDate(iso: string | null) {
 }
 
 const STATUS_META: Record<string, { label: string; color: string; emoji: string }> = {
-  waiting:   { label: 'قريباً',       color: '#F59E0B', emoji: '⏳' },
-  active:    { label: 'نشطة الآن',   color: '#22C55E', emoji: '🟢' },
-  completed: { label: 'مكتملة',       color: '#6B7280', emoji: '✅' },
-  cancelled: { label: 'ملغاة',        color: '#EF4444', emoji: '❌' },
+  waiting:   { label: 'قريباً',         color: '#F59E0B', emoji: '⏳' },
+  active:    { label: 'نشطة الآن',     color: '#22C55E', emoji: '🟢' },
+  completed: { label: 'مكتملة',         color: '#6B7280', emoji: '✅' },
+  cancelled: { label: 'ملغاة',          color: '#EF4444', emoji: '❌' },
 };
+
+function getStatusMeta(status: string, attendance: string | null) {
+  if (status === 'completed') {
+    if (attendance === 'teacher_absent')
+      return { label: 'لم يحضر المعلم', color: '#EF4444', emoji: '😔' };
+    if (attendance === 'absent')
+      return { label: 'لم تحضر',        color: '#F59E0B', emoji: '😔' };
+    return { label: 'مكتملة',           color: '#6B7280', emoji: '✅' };
+  }
+  return STATUS_META[status] ?? { label: status, color: '#fff', emoji: '' };
+}
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 /** Pill badge shown on the gradient hero */
-function StatusPill({ status }: { status: string }) {
-  const meta = STATUS_META[status] ?? { label: status, color: '#fff', emoji: '' };
+function StatusPill({ status, attendance }: { status: string; attendance: string | null }) {
+  const meta = getStatusMeta(status, attendance);
   return (
     <View style={[pillStyles.wrap, { borderColor: meta.color + '88' }]}>
       <Text style={pillStyles.emoji}>{meta.emoji}</Text>
@@ -125,7 +136,7 @@ export default function SessionProfileScreen() {
   const { data, isLoading, isError, refetch } = useQuery<SessionProfile>({
     queryKey:  ['session-profile', sessionId],
     queryFn:   () => sessionsApi.getProfile(sessionId),
-    staleTime: 30_000,
+    staleTime: 0,
   });
 
   // Loading
@@ -154,9 +165,12 @@ export default function SessionProfileScreen() {
 
   const lesson       = data.lesson;
   const isAssessment = lesson?.is_assessment ?? false;
-  const isActive     = data.status === 'active';
-  const isWaiting    = data.status === 'waiting';
-  const isCompleted  = data.status === 'completed';
+  const isActive          = data.status === 'active';
+  const isWaiting         = data.status === 'waiting';
+  const isCompleted       = data.status === 'completed';
+  const isTeacherAbsent   = isCompleted && data.attendance_status === 'teacher_absent';
+  const isStudentAbsent   = isCompleted && data.attendance_status === 'absent';
+  const isProperlyDone    = isCompleted && data.attendance_status === 'attended';
 
   return (
     <View style={{ flex: 1, backgroundColor: '#F4F0FF' }}>
@@ -180,7 +194,7 @@ export default function SessionProfileScreen() {
             <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
               <Ionicons name="chevron-back" size={22} color="#fff" />
             </TouchableOpacity>
-            <StatusPill status={data.status} />
+            <StatusPill status={data.status} attendance={data.attendance_status ?? null} />
           </View>
 
           {/* Assessment label OR regular lesson title+PDF */}
@@ -210,12 +224,19 @@ export default function SessionProfileScreen() {
             </>
           )}
 
-          {/* Teacher */}
+          {/* Teacher card */}
           {data.teacher?.name && (
-            <View style={styles.metaStrip}>
-              <View style={styles.metaItem}>
-                <Ionicons name="person-circle-outline" size={14} color={ACCENT} />
-                <Text style={styles.metaItemTxt}>{data.teacher.name}</Text>
+            <View style={styles.teacherCard}>
+              <View style={styles.teacherAvatar}>
+                <Ionicons name="person" size={22} color={PURPLE} />
+              </View>
+              <View style={styles.teacherInfo}>
+                <Text style={styles.teacherName}>{data.teacher.name}</Text>
+                {data.teacher.teacher_code && (
+                  <View style={styles.teacherCodeBadge}>
+                    <Text style={styles.teacherCodeTxt}>{data.teacher.teacher_code}</Text>
+                  </View>
+                )}
               </View>
             </View>
           )}
@@ -261,10 +282,27 @@ export default function SessionProfileScreen() {
                 <Text style={[styles.stateTitle, { color: '#F59E0B' }]}>الحصة لم تبدأ بعد</Text>
                 <Text style={styles.stateSub}>ستُفعَّل تلقائياً عند بدء المعلم</Text>
               </View>
-            ) : isCompleted ? (
+            ) : isTeacherAbsent ? (
+              <View style={styles.stateBox}>
+                <Text style={styles.stateEmoji}>😔</Text>
+                <Text style={[styles.stateTitle, { color: '#EF4444' }]}>لم يحضر المعلم</Text>
+                <Text style={styles.stateSub}>سيتم التواصل معك من الإدارة</Text>
+              </View>
+            ) : isStudentAbsent ? (
+              <View style={styles.stateBox}>
+                <Text style={styles.stateEmoji}>📚</Text>
+                <Text style={[styles.stateTitle, { color: '#F59E0B' }]}>لم تحضر الحصة</Text>
+                <Text style={styles.stateSub}>يمكنك حجز حصة جديدة من الرئيسية</Text>
+              </View>
+            ) : isProperlyDone ? (
               <View style={styles.stateBox}>
                 <Text style={styles.stateEmoji}>🎓</Text>
                 <Text style={[styles.stateTitle, { color: '#22C55E' }]}>أحسنت! الحصة مكتملة</Text>
+              </View>
+            ) : isCompleted ? (
+              <View style={styles.stateBox}>
+                <Text style={styles.stateEmoji}>✅</Text>
+                <Text style={[styles.stateTitle, { color: '#6B7280' }]}>الحصة منتهية</Text>
               </View>
             ) : (
               <View style={styles.stateBox}>
@@ -348,6 +386,26 @@ const styles = StyleSheet.create({
   metaStrip: { flexDirection: 'row', flexWrap: 'wrap', gap: 14, justifyContent: 'flex-end' },
   metaItem:  { flexDirection: 'row', alignItems: 'center', gap: 6 },
   metaItemTxt: { fontSize: 13, color: 'rgba(255,255,255,0.82)', fontWeight: '500' },
+
+  // Teacher card on hero
+  teacherCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    borderRadius: 16, paddingHorizontal: 14, paddingVertical: 10,
+    alignSelf: 'flex-end', marginTop: 10,
+  },
+  teacherAvatar: {
+    width: 40, height: 40, borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.9)',
+    justifyContent: 'center', alignItems: 'center',
+  },
+  teacherInfo:  { alignItems: 'flex-end', gap: 4 },
+  teacherName:  { fontSize: 14, fontWeight: '800', color: '#fff' },
+  teacherCodeBadge: {
+    backgroundColor: 'rgba(255,255,255,0.25)',
+    borderRadius: 8, paddingHorizontal: 8, paddingVertical: 2,
+  },
+  teacherCodeTxt: { fontSize: 11, fontWeight: '700', color: '#fff', letterSpacing: 0.5 },
 
   // decorative blurred circles
   deco1: {

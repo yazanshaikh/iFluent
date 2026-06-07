@@ -34,6 +34,7 @@ class SessionRequest extends Model
         'rejection_reason',
         'cancellation_reason',
         'session_id',
+        'teacher_gender_pref',
     ];
 
     protected $casts = [

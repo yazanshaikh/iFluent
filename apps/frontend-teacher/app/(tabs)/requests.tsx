@@ -11,9 +11,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
 import { requestsApi, type SessionRequest } from '@/api/requests';
-import { C, shadow, STATUS_COLOR, STATUS_LABEL } from '@/theme';
+import { C, shadow } from '@/theme';
 
 type Tab = 'demo' | 'core' | 'private' | 'group';
 
@@ -33,93 +32,116 @@ function fmt(iso: string | null) {
   });
 }
 
-function RequestCard({ req, onAccept, onReject }: {
-  req: SessionRequest;
-  onAccept: () => void;
-  onReject: () => void;
+function RequestCard({ req, onAccept, accepting }: {
+  req:       SessionRequest;
+  onAccept:  () => void;
+  accepting: boolean;
 }) {
-  const statusColor = STATUS_COLOR[req.status] ?? C.gray;
-  const isPending   = req.status === 'pending';
+  const levelCode  = req.lesson?.level?.code ?? '';
+  const lessonNum  = req.lesson?.order != null ? `درس ${req.lesson.order}` : '';
+  const lessonMeta = [levelCode, lessonNum].filter(Boolean).join('  ·  ');
 
   return (
     <View style={styles.card}>
-      <View style={[styles.cardAccent, { backgroundColor: statusColor }]} />
+      <View style={[styles.cardAccent, { backgroundColor: C.sky }]} />
       <View style={styles.cardBody}>
-        {/* Header row */}
-        <View style={styles.cardHeader}>
-          <View style={[styles.statusBadge, { backgroundColor: statusColor + '22' }]}>
-            <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
-            <Text style={[styles.statusTxt, { color: statusColor }]}>
-              {STATUS_LABEL[req.status] ?? req.status}
-            </Text>
-          </View>
-          <Text style={styles.cardTime}>{fmt(req.scheduled_at)}</Text>
-        </View>
 
-        {/* Student */}
-        <Text style={styles.cardStudent}>{req.student?.name ?? 'طالب'}</Text>
+        {/* Time */}
+        <Text style={styles.cardTime}>{fmt(req.scheduled_at)}</Text>
+
+        {/* Student name + gender pref */}
+        <View style={styles.studentRow}>
+          <Text style={styles.cardStudent}>{req.student?.name ?? 'طالب'}</Text>
+          {req.teacher_gender_pref && (
+            <View style={[styles.genderBadge,
+              req.teacher_gender_pref === 'male' ? styles.genderBadgeMale : styles.genderBadgeFemale
+            ]}>
+              <Text style={styles.genderBadgeTxt}>
+                {req.teacher_gender_pref === 'male' ? '👨 ذكر' : '👩 أنثى'}
+              </Text>
+            </View>
+          )}
+        </View>
 
         {/* Lesson */}
         {req.lesson?.title && (
           <View style={styles.cardMeta}>
             <Ionicons name="book-outline" size={13} color={C.grayMid} />
-            <Text style={styles.cardMetaTxt}>{req.lesson.title}</Text>
+            <Text style={styles.cardMetaTxt} numberOfLines={1}>{req.lesson.title}</Text>
+            {lessonMeta ? (
+              <View style={styles.lessonBadge}>
+                <Text style={styles.lessonBadgeTxt}>{lessonMeta}</Text>
+              </View>
+            ) : null}
           </View>
         )}
 
-        {/* Actions — only for pending */}
-        {isPending && (
-          <View style={styles.cardActions}>
-            <TouchableOpacity style={styles.rejectBtn} onPress={onReject} activeOpacity={0.8}>
-              <Ionicons name="close-circle-outline" size={16} color={C.error} />
-              <Text style={styles.rejectTxt}>رفض</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.acceptBtn} onPress={onAccept} activeOpacity={0.85}>
-              <LinearGradient colors={[C.sky, C.skyDark]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.acceptGrad}>
-                <Ionicons name="checkmark-circle-outline" size={16} color="#fff" />
-                <Text style={styles.acceptTxt}>قبول</Text>
-              </LinearGradient>
-            </TouchableOpacity>
-          </View>
-        )}
+        {/* Accept button */}
+        <TouchableOpacity
+          style={[styles.acceptBtn, accepting && { opacity: 0.6 }]}
+          onPress={onAccept}
+          disabled={accepting}
+          activeOpacity={0.8}
+        >
+          <LinearGradient
+            colors={[C.sky, C.skyDark]}
+            start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+            style={styles.acceptGrad}
+          >
+            {accepting
+              ? <ActivityIndicator color="#fff" size="small" />
+              : <>
+                  <Ionicons name="checkmark-circle-outline" size={17} color="#fff" />
+                  <Text style={styles.acceptTxt}>سحب الحصة</Text>
+                </>
+            }
+          </LinearGradient>
+        </TouchableOpacity>
+
       </View>
     </View>
   );
 }
 
 export default function RequestsScreen() {
-  const router  = useRouter();
   const insets  = useSafeAreaInsets();
   const qc      = useQueryClient();
-  const [tab, setTab] = useState<Tab>('demo');
+  const [tab, setTab] = useState<Tab>('core');
 
-  const { data = [], isLoading, refetch, isFetching } = useQuery({
-    queryKey:  ['requests', tab],
-    queryFn:   () => requestsApi.list(tab),
+  // Fetch ALL requests once — filter client-side per tab + count badges
+  const { data: allData = [], isLoading, refetch, isFetching } = useQuery({
+    queryKey:  ['requests', 'all'],
+    queryFn:   () => requestsApi.list(''),   // no type filter → backend returns all
     staleTime: 30_000,
-    refetchInterval: 60_000,
+    refetchInterval: 30_000,
   });
+
+  const data   = allData.filter((r) => r.type === tab);
+  const counts = {
+    demo:    allData.filter((r) => r.type === 'demo').length,
+    core:    allData.filter((r) => r.type === 'core').length,
+    private: allData.filter((r) => r.type === 'private').length,
+    group:   allData.filter((r) => r.type === 'group').length,
+  };
+
+  const [acceptingId, setAcceptingId] = useState<number | null>(null);
 
   const acceptMutation = useMutation({
     mutationFn: (id: number) => requestsApi.accept(id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['requests'] });
       qc.invalidateQueries({ queryKey: ['sessions'] });
+      setAcceptingId(null);
     },
-    onError: (e: any) => Alert.alert('خطأ', e?.response?.data?.message ?? 'تعذر قبول الطلب'),
+    onError: (e: any) => {
+      setAcceptingId(null);
+      Alert.alert('خطأ', e?.response?.data?.message ?? 'تعذر سحب الطلب');
+    },
   });
 
-  const rejectMutation = useMutation({
-    mutationFn: (id: number) => requestsApi.reject(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['requests'] }),
-    onError: (e: any) => Alert.alert('خطأ', e?.response?.data?.message ?? 'تعذر رفض الطلب'),
-  });
-
-  const handleReject = (id: number) => {
-    Alert.alert('رفض الطلب', 'هل تريد رفض هذا الطلب؟', [
-      { text: 'تراجع', style: 'cancel' },
-      { text: 'رفض', style: 'destructive', onPress: () => rejectMutation.mutate(id) },
-    ]);
+  const handleAccept = (id: number) => {
+    setAcceptingId(id);
+    acceptMutation.mutate(id);
   };
 
   return (
@@ -130,28 +152,38 @@ export default function RequestsScreen() {
         style={[styles.header, { paddingTop: insets.top + 16 }]}
       >
         <Text style={styles.headerTitle}>مركز الطلبات</Text>
-        <Text style={styles.headerSub}>{data.length} طلب معلق</Text>
+        <Text style={styles.headerSub}>{allData.length} طلب معلق</Text>
       </LinearGradient>
 
       {/* Tab Bar */}
       <View style={styles.tabBar}>
-        {TABS.map((t) => (
-          <TouchableOpacity
-            key={t.key}
-            style={[styles.tabItem, tab === t.key && styles.tabItemActive]}
-            onPress={() => setTab(t.key)}
-            activeOpacity={0.8}
-          >
-            <Ionicons
-              name={t.icon as any}
-              size={15}
-              color={tab === t.key ? C.sky : C.grayMid}
-            />
-            <Text style={[styles.tabLabel, tab === t.key && styles.tabLabelActive]}>
-              {t.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
+        {TABS.map((t) => {
+          const cnt = counts[t.key];
+          return (
+            <TouchableOpacity
+              key={t.key}
+              style={[styles.tabItem, tab === t.key && styles.tabItemActive]}
+              onPress={() => setTab(t.key)}
+              activeOpacity={0.8}
+            >
+              <Ionicons
+                name={t.icon as any}
+                size={15}
+                color={tab === t.key ? C.sky : C.grayMid}
+              />
+              <Text style={[styles.tabLabel, tab === t.key && styles.tabLabelActive]}>
+                {t.label}
+              </Text>
+              {cnt > 0 && (
+                <View style={[styles.tabBadge, tab === t.key && styles.tabBadgeActive]}>
+                  <Text style={[styles.tabBadgeTxt, tab === t.key && styles.tabBadgeTxtActive]}>
+                    {cnt}
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          );
+        })}
       </View>
 
       {/* List */}
@@ -166,7 +198,7 @@ export default function RequestsScreen() {
           <ActivityIndicator color={C.sky} style={{ marginTop: 40 }} />
         ) : data.length === 0 ? (
           <View style={styles.empty}>
-            <Ionicons name="inbox-outline" size={52} color={C.skyLight} />
+            <Ionicons name="mail-outline" size={52} color={C.skyLight} />
             <Text style={styles.emptyTxt}>لا توجد طلبات في هذه الفئة</Text>
           </View>
         ) : (
@@ -174,8 +206,8 @@ export default function RequestsScreen() {
             <RequestCard
               key={req.id}
               req={req}
-              onAccept={() => acceptMutation.mutate(req.id)}
-              onReject={() => handleReject(req.id)}
+              onAccept={() => handleAccept(req.id)}
+              accepting={acceptingId === req.id}
             />
           ))
         )}
@@ -201,12 +233,21 @@ const styles = StyleSheet.create({
   },
   tabItem: {
     flex: 1, flexDirection: 'row', alignItems: 'center',
-    justifyContent: 'center', gap: 5,
+    justifyContent: 'center', gap: 4,
     paddingVertical: 9, borderRadius: 12,
   },
   tabItemActive:  { backgroundColor: C.cream },
   tabLabel:       { fontSize: 12, fontWeight: '600', color: C.grayMid },
   tabLabelActive: { color: C.sky, fontWeight: '800' },
+  tabBadge: {
+    minWidth: 16, height: 16, borderRadius: 8,
+    backgroundColor: C.grayLight,
+    justifyContent: 'center', alignItems: 'center',
+    paddingHorizontal: 4,
+  },
+  tabBadgeActive: { backgroundColor: C.sky },
+  tabBadgeTxt:    { fontSize: 9, fontWeight: '800', color: C.grayMid },
+  tabBadgeTxtActive: { color: '#fff' },
 
   scroll: { padding: 16, gap: 12 },
 
@@ -224,21 +265,28 @@ const styles = StyleSheet.create({
   statusTxt:   { fontSize: 11, fontWeight: '700' },
 
   cardTime:    { fontSize: 11, color: C.grayMid },
-  cardStudent: { fontSize: 16, fontWeight: '800', color: C.skyDark, textAlign: 'right', marginBottom: 6 },
+  studentRow:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 8, marginBottom: 6 },
+  cardStudent: { fontSize: 16, fontWeight: '800', color: C.skyDark, textAlign: 'right' },
+  genderBadge: { borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3 },
+  genderBadgeMale:   { backgroundColor: '#EFF6FF' },
+  genderBadgeFemale: { backgroundColor: '#FDF2F8' },
+  genderBadgeTxt:    { fontSize: 11, fontWeight: '700', color: C.skyDark },
 
   cardMeta:    { flexDirection: 'row', alignItems: 'center', gap: 6, justifyContent: 'flex-end', marginBottom: 4 },
   cardMetaTxt: { fontSize: 12, color: C.grayMid },
 
-  cardActions: { flexDirection: 'row', gap: 10, marginTop: 14 },
-  rejectBtn: {
-    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 6, paddingVertical: 11, borderRadius: 12,
-    borderWidth: 1.5, borderColor: C.error + '55',
+  lessonBadge: {
+    backgroundColor: C.sky + '18', borderRadius: 8,
+    paddingHorizontal: 7, paddingVertical: 2, marginRight: 4,
   },
-  rejectTxt:  { fontSize: 14, fontWeight: '700', color: C.error },
-  acceptBtn:  { flex: 2, borderRadius: 12, overflow: 'hidden' },
-  acceptGrad: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 11 },
-  acceptTxt:  { fontSize: 14, fontWeight: '800', color: '#fff' },
+  lessonBadgeTxt: { fontSize: 10, fontWeight: '700', color: C.skyDark },
+
+  acceptBtn:  { marginTop: 12, borderRadius: 12, overflow: 'hidden' },
+  acceptGrad: {
+    flexDirection: 'row', alignItems: 'center',
+    justifyContent: 'center', gap: 7, paddingVertical: 11,
+  },
+  acceptTxt: { fontSize: 14, fontWeight: '800', color: '#fff' },
 
   empty: { alignItems: 'center', gap: 12, marginTop: 60 },
   emptyTxt: { fontSize: 14, color: C.grayMid, fontWeight: '600' },

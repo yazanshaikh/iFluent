@@ -21,6 +21,11 @@ class SessionController extends Controller
                 $request->filled('status'),
                 fn($q) => $q->where('status', $request->status)
             )
+            // Hide completed/cancelled sessions older than 24 hours
+            ->where(function ($q) {
+                $q->whereNotIn('status', [Session::STATUS_COMPLETED, Session::STATUS_CANCELLED])
+                  ->orWhere('ended_at', '>=', now()->subDay());
+            })
             ->orderByDesc('scheduled_at')
             ->paginate(20);
 
@@ -43,6 +48,7 @@ class SessionController extends Controller
             return response()->json(['message' => 'Forbidden.'], 403);
         }
 
+        $session->loadMissing('teacher.teacher'); // load teacher profile for teacher_code
         $lesson = $session->lesson()->with(['unit.level', 'level'])->first();
 
         // Activity unlock: session completed (no score/pass requirement)
@@ -73,14 +79,18 @@ class SessionController extends Controller
         }
 
         return response()->json([
-            'id'           => $session->id,
-            'status'       => $session->status,
-            'scheduled_at' => $session->scheduled_at?->toIso8601String(),
-            'started_at'   => $session->started_at?->toIso8601String(),
-            'ended_at'     => $session->ended_at?->toIso8601String(),
-            'teacher'      => ['name' => $session->teacher?->name],
-            'lesson'       => $lessonData,
-            'quiz_unlocked' => $quizUnlocked,
+            'id'                => $session->id,
+            'status'            => $session->status,
+            'attendance_status' => $session->attendance_status,
+            'scheduled_at'      => $session->scheduled_at?->toIso8601String(),
+            'started_at'        => $session->started_at?->toIso8601String(),
+            'ended_at'          => $session->ended_at?->toIso8601String(),
+            'teacher'           => $session->teacher ? [
+                'name'         => $session->teacher->name,
+                'teacher_code' => $session->teacher->teacher?->teacher_code,
+            ] : null,
+            'lesson'            => $lessonData,
+            'quiz_unlocked'     => $quizUnlocked,
         ]);
     }
 

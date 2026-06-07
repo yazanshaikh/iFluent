@@ -28,6 +28,11 @@ class SessionController extends Controller
         $sessions = Session::forTeacher($request->user()->id)
             ->with(['lesson.unit.level', 'student'])
             ->when($request->filled('status'), fn($q) => $q->where('status', $request->status))
+            // Hide completed/cancelled sessions older than 24 hours
+            ->where(function ($q) {
+                $q->whereNotIn('status', [Session::STATUS_COMPLETED, Session::STATUS_CANCELLED])
+                  ->orWhere('ended_at', '>=', now()->subDay());
+            })
             ->orderByDesc('scheduled_at')
             ->paginate(20);
 
@@ -119,7 +124,7 @@ class SessionController extends Controller
             return response()->json(['message' => 'Forbidden.'], 403);
         }
 
-        return new SessionResource($session->load(['lesson.unit.level', 'student']));
+        return new SessionResource($session->load(['lesson.level', 'lesson.unit.level', 'student']));
     }
 
     // ─── Start Session ────────────────────────────────────────────────────────
@@ -182,26 +187,17 @@ class SessionController extends Controller
             ], 422);
         }
 
-        // ── Validate attendance status (required) ─────────────────────────────
-        $request->validate([
-            'attendance_status' => [
-                'required',
-                'string',
-                \Illuminate\Validation\Rule::in([
-                    Session::ATTENDANCE_ATTENDED,
-                    Session::ATTENDANCE_ABSENT,
-                    Session::ATTENDANCE_TEACHER_ABSENT,
-                ]),
-            ],
-        ]);
+        // ── Auto-determine attendance status ──────────────────────────────────
+        // attended  = student joined AND session lasted ≥ 10 minutes
+        // absent    = student never joined OR session lasted < 10 minutes
+        // (teacher_absent is set by the scheduler, not by the teacher manually)
+        $endedAt = now();
 
-        $attendance = $request->input('attendance_status');
+        $attendance = $this->resolveAttendance($session, $endedAt);
 
         if ($session->daily_room_name) {
             $this->daily->deleteRoom($session->daily_room_name);
         }
-
-        $endedAt = now();
 
         DB::transaction(function () use ($session, $endedAt, $attendance) {
             $session->update([
@@ -258,28 +254,8 @@ class SessionController extends Controller
                 return;
             }
 
-            $teacherProfile = Teacher::where('user_id', $session->teacher_id)->first();
-
-            if ($teacherProfile && $teacherProfile->commission_rate > 0) {
-                $amount = $teacherProfile->commission_rate;
-
-                // Determine session type
-                $sessionType = 'core';
-                $linkedRequest = \App\Models\SessionRequest::where('session_id', $session->id)->first();
-                if ($linkedRequest) {
-                    $sessionType = $linkedRequest->type;
-                }
-
-                TeacherEarning::create([
-                    'teacher_id'   => $session->teacher_id,
-                    'session_id'   => $session->id,
-                    'amount'       => $amount,
-                    'session_type' => $sessionType,
-                    'credited_at'  => $endedAt,
-                ]);
-
-                $teacherProfile->increment('balance', $amount);
-            }
+            // Balance is now calculated dynamically: sessions_count × commission_rate
+            // No need to store it — skip balance increment
         });
 
         return new SessionResource($session->load(['lesson', 'student']));
@@ -303,6 +279,49 @@ class SessionController extends Controller
         ]);
 
         return response()->json(['message' => 'Session cancelled successfully.']);
+    }
+
+    // ─── Release Session (إلغاء السحب) ───────────────────────────────────────
+    // Cancels the session and returns the original request back to the pool.
+    // Blocked if less than 30 minutes remain before the scheduled time.
+
+    public function release(Session $session, Request $request): JsonResponse
+    {
+        if ($session->teacher_id !== $request->user()->id) {
+            return response()->json(['message' => 'Forbidden.'], 403);
+        }
+
+        if (!$session->isWaiting()) {
+            return response()->json([
+                'message' => 'لا يمكن إلغاء السحب — الحصة ليست في حالة انتظار.',
+            ], 422);
+        }
+
+        // Block if less than 30 minutes remain before scheduled time
+        if ($session->scheduled_at && $session->scheduled_at->diffInMinutes(now(), false) > -30) {
+            return response()->json([
+                'message' => 'لا يمكن إلغاء السحب خلال نصف ساعة من موعد الحصة أو بعده.',
+            ], 422);
+        }
+
+        \DB::transaction(function () use ($session) {
+            // Cancel the session with a specific reason so it can be filtered out
+            $session->update([
+                'status'   => Session::STATUS_CANCELLED,
+                'ended_at' => now(),
+            ]);
+
+            // Return the original session request back to the pool
+            \App\Models\SessionRequest::where('session_id', $session->id)
+                ->update([
+                    'status'              => \App\Models\SessionRequest::STATUS_PENDING,
+                    'assigned_teacher_id' => null,
+                    'confirmed_at'        => null,
+                    'session_id'          => null,
+                ]);
+        });
+
+        return response()->json(['message' => 'تم إلغاء السحب وإعادة الطلب للمجموعة.']);
     }
 
     // ─── List Lessons (regular) ───────────────────────────────────────────────
@@ -334,5 +353,25 @@ class SessionController extends Controller
             ->get();
 
         return LessonResource::collection($lessons);
+    }
+
+    // ─── Private Helpers ──────────────────────────────────────────────────────
+
+    /**
+     * Auto-determine attendance status when teacher ends a session.
+     * attended = student joined AND was present for ≥ 10 minutes
+     * absent   = student never joined OR session was too short
+     */
+    private function resolveAttendance(Session $session, \Carbon\Carbon $endedAt): string
+    {
+        if (!$session->student_joined_at) {
+            return Session::ATTENDANCE_ABSENT;
+        }
+
+        $minutes = $session->student_joined_at->diffInMinutes($endedAt);
+
+        return $minutes >= Session::MIN_SESSION_MINUTES
+            ? Session::ATTENDANCE_ATTENDED
+            : Session::ATTENDANCE_ABSENT;
     }
 }

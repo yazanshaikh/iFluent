@@ -35,6 +35,22 @@ const STATUS_COLOR: Record<string, string> = {
   cancelled: C.error,
 };
 
+// Attendance-based label overrides (shown instead of status label when applicable)
+function sessionLabel(status: string, attendance: string | null): string {
+  if (status === 'completed') {
+    if (attendance === 'teacher_absent') return 'لم يحضر المعلم';
+    if (attendance === 'absent')         return 'لم تحضر';
+    return 'مكتملة';
+  }
+  return STATUS_LABEL[status] ?? status;
+}
+
+function sessionColor(status: string, attendance: string | null): string {
+  if (status === 'completed' && attendance === 'teacher_absent') return C.error;
+  if (status === 'completed' && attendance === 'absent')         return C.warning;
+  return STATUS_COLOR[status] ?? C.gray;
+}
+
 function fmt(iso: string | null) {
   if (!iso) return '—';
   return new Date(iso).toLocaleString('ar-SA', {
@@ -87,7 +103,8 @@ function ActiveCard({ session, onJoin }: { session: SessionListItem; onJoin: () 
 
 function SessionCard({ session }: { session: SessionListItem }) {
   const router = useRouter();
-  const color  = STATUS_COLOR[session.status] ?? C.gray;
+  const color  = sessionColor(session.status, session.attendance_status);
+  const label  = sessionLabel(session.status, session.attendance_status);
   const isWait = session.status === 'waiting';
 
   return (
@@ -102,9 +119,7 @@ function SessionCard({ session }: { session: SessionListItem }) {
       <View style={styles.cardBody}>
         <View style={styles.cardTopRow}>
           <View style={[styles.pill, { backgroundColor: color + '20' }]}>
-            <Text style={[styles.pillTxt, { color }]}>
-              {STATUS_LABEL[session.status] ?? session.status}
-            </Text>
+            <Text style={[styles.pillTxt, { color }]}>{label}</Text>
           </View>
           <Text style={styles.cardDate}>
             {fmt(session.scheduled_at ?? session.started_at)}
@@ -143,7 +158,7 @@ function BookingRequestCard({ req }: { req: SessionRequest }) {
 
   const label = isPending   ? 'بانتظار القبول'
               : isConfirmed ? 'مؤكدة'
-              : isExpired   ? 'لم يتم القبول'
+              : isExpired   ? 'لم يقبل أي معلم'
               : isRejected  ? 'مرفوضة'
               : req.status;
 

@@ -147,6 +147,7 @@ Route::middleware(['auth:sanctum', 'role:super_admin'])
         Route::put ('staff/{id}',                  [StaffController::class, 'update']);
         Route::post('staff/{id}/toggle-status',    [StaffController::class, 'toggleStatus']);
         Route::post('staff/{id}/reset-sessions',   [StaffController::class, 'resetSessionsCount']);
+        Route::post('staff/{id}/reset-balance',    [StaffController::class, 'resetBalance']);
         Route::get ('staff/{id}/demo-bookings',    [StaffController::class, 'teacherDemoBookings']);
 
         // ── Subscription Approvals ─────────────────────────────────────────────
@@ -285,6 +286,7 @@ Route::middleware(['auth:sanctum', 'role:teacher'])
         Route::get ('requests',                          [TeacherRequestController::class, 'index']);          // all visible
         Route::get ('requests/pool',                     [TeacherRequestController::class, 'pool']);           // unassigned pool
         Route::get ('requests/private',                  [TeacherRequestController::class, 'privateRequests']); // directed
+        Route::get ('requests/{sessionRequest}',         [TeacherRequestController::class, 'show']);           // single request
         Route::post('requests/{sessionRequest}/accept',  [TeacherRequestController::class, 'accept']);
         Route::post('requests/{sessionRequest}/reject',  [TeacherRequestController::class, 'reject']);
 
@@ -320,6 +322,7 @@ Route::middleware(['auth:sanctum', 'role:teacher'])
         Route::post ('sessions/{session}/start',  [TeacherSessionController::class, 'start']);
         Route::patch('sessions/{session}/pin',    [TeacherSessionController::class, 'updatePin']);
         Route::post ('sessions/{session}/end',    [TeacherSessionController::class, 'end']);
-        Route::post ('sessions/{session}/cancel', [TeacherSessionController::class, 'cancel']);
+        Route::post ('sessions/{session}/cancel',  [TeacherSessionController::class, 'cancel']);
+        Route::post ('sessions/{session}/release', [TeacherSessionController::class, 'release']);
     });
 

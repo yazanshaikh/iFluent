@@ -84,9 +84,10 @@ export function EvalBookingModal({ visible, onClose }: Props) {
   const qc     = useQueryClient();
 
   // Form state
-  const [dayIdx, setDayIdx] = useState(0);
-  const [slot,   setSlot]   = useState<string | null>(null);
-  const [done,   setDone]   = useState(false);
+  const [dayIdx,     setDayIdx]     = useState(0);
+  const [slot,       setSlot]       = useState<string | null>(null);
+  const [genderPref, setGenderPref] = useState<'male' | 'female' | null>(null);
+  const [done,       setDone]       = useState(false);
 
   // Fetch assessment lessons (once)
   const { data: assessLessons = [] } = useQuery<AssessmentLesson[]>({
@@ -111,7 +112,11 @@ export function EvalBookingModal({ visible, onClose }: Props) {
   // Booking mutation — authenticated, creates SessionRequest with student_id
   const bookMutation = useMutation({
     mutationFn: ({ lessonId, scheduled_at }: { lessonId: number; scheduled_at: string }) =>
-      client.post('/student/bookings', { lesson_id: lessonId, scheduled_at }).then(r => r.data),
+      client.post('/student/bookings', {
+        lesson_id: lessonId,
+        scheduled_at,
+        ...(genderPref ? { teacher_gender_pref: genderPref } : {}),
+      }).then(r => r.data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['bookings'] });
       setDone(true);
@@ -294,6 +299,28 @@ export function EvalBookingModal({ visible, onClose }: Props) {
                 </View>
               )}
 
+              {/* Gender preference */}
+              <Text style={[s.label, { marginTop: 20 }]}>
+                جنس المعلم
+                <Text style={{ fontSize: 11, color: '#9CA3AF', fontWeight: '500' }}> (اختياري)</Text>
+              </Text>
+              <View style={s.genderRow}>
+                {(['male', 'female', null] as const).map((g) => {
+                  const active = genderPref === g;
+                  const label  = g === 'male' ? '👨 ذكر' : g === 'female' ? '👩 أنثى' : '🔀 لا يهم';
+                  return (
+                    <TouchableOpacity
+                      key={String(g)}
+                      style={[s.genderPill, active && s.genderPillActive]}
+                      onPress={() => setGenderPref(g)}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={[s.genderTxt, active && s.genderPillActive && s.genderTxtActive]}>{label}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
               {/* Submit */}
               <TouchableOpacity
                 style={[s.submitBtn, !canSubmit && s.submitBtnOff]}
@@ -426,4 +453,10 @@ const s = StyleSheet.create({
   },
   submitBtnOff: { opacity: 0.45 },
   submitTxt: { fontSize: 16, fontWeight: '900', color: C.navy },
+
+  genderRow:       { flexDirection: 'row', gap: 10, marginBottom: 4 },
+  genderPill:      { flex: 1, alignItems: 'center', paddingVertical: 11, borderRadius: 14, borderWidth: 1.5, borderColor: C.border, backgroundColor: C.cream },
+  genderPillActive:{ backgroundColor: C.navy, borderColor: C.navy },
+  genderTxt:       { fontSize: 13, fontWeight: '700', color: C.navy },
+  genderTxtActive: { color: C.white },
 });

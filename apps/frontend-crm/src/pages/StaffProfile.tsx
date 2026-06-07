@@ -179,6 +179,12 @@ export default function StaffProfilePage() {
     },
   });
 
+  /* ── Reset balance mutation ── */
+  const resetBalanceMutation = useMutation({
+    mutationFn: () => staffApi.resetBalance(staffId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['staff-member', staffId] }),
+  });
+
   /* ── Update commission mutation ── */
   const commissionMutation = useMutation({
     mutationFn: (rate: number) => staffApi.updateCommissionRate(staffId, rate),
@@ -300,6 +306,12 @@ export default function StaffProfilePage() {
                 <p className="text-muted-foreground text-xs mt-0.5">عدد الحصص</p>
               </div>
               <div className="text-center">
+                <p className="text-2xl font-bold text-destructive">
+                  {tp?.absences_count ?? 0}
+                </p>
+                <p className="text-muted-foreground text-xs mt-0.5">غيابات المعلم</p>
+              </div>
+              <div className="text-center">
                 <StarRating rating={tp?.avg_rating} />
                 <p className="text-muted-foreground text-xs mt-1">متوسط التقييم</p>
               </div>
@@ -404,9 +416,27 @@ export default function StaffProfilePage() {
                 <p className="text-2xl font-bold text-emerald-600 mt-0.5">
                   {Number(tp?.balance ?? 0).toFixed(2)} د.أ
                 </p>
+                {tp?.balance_reset_at && (
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    آخر تصفير: {new Date(tp.balance_reset_at).toLocaleDateString('ar-SA', { day: 'numeric', month: 'short', year: 'numeric' })}
+                  </p>
+                )}
               </div>
-              <div className="h-12 w-12 rounded-full bg-emerald-50 flex items-center justify-center">
-                <span className="text-xl">💰</span>
+              <div className="flex flex-col items-end gap-2">
+                <div className="h-12 w-12 rounded-full bg-emerald-50 flex items-center justify-center">
+                  <span className="text-xl">💰</span>
+                </div>
+                {isAdmin && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-xs text-emerald-700 border-emerald-300 hover:bg-emerald-50"
+                    disabled={resetBalanceMutation.isPending}
+                    onClick={() => resetBalanceMutation.mutate()}
+                  >
+                    {resetBalanceMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : 'تصفير الرصيد'}
+                  </Button>
+                )}
               </div>
             </div>
 

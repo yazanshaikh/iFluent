@@ -10,6 +10,7 @@ export interface TeacherUser {
   commission_rate?: number;
   avg_rating?:      number | null;
   sessions_count?:  number;
+  absences_count?:  number;
 }
 
 export interface LoginResponse {

@@ -116,7 +116,21 @@
       "Bash(ls /Users/yazan/Documents/crm_iFluent/backend/app/Models/)",
       "Bash(CLAUDE_CODE_TMPDIR=/tmp docker exec ifluent_app php artisan tinker '--execute= *)",
       "Bash(CLAUDE_CODE_TMPDIR=/tmp docker exec ifluent_app php artisan route:list --name=admin)",
-      "Bash(grep \"lessons$\")"
+      "Bash(grep \"lessons$\")",
+      "Bash(grep \"POST.*leads$\")",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(json.dumps\\({k:v for k,v in d['expo'].items\\(\\) if k in ['name','slug','version','orientation','newArchEnabled','extra']}, indent=2\\)\\)\")",
+      "Bash(node -p \"require\\('/Users/yazan/Documents/crm_iFluent/node_modules/expo-secure-store/package.json'\\).version\")",
+      "Bash(cp ../frontend-student/assets/icon.png assets/icon.png)",
+      "Bash(cp ../frontend-student/assets/splash-icon.png assets/splash-icon.png)",
+      "Bash(cp ../frontend-student/assets/adaptive-icon.png assets/adaptive-icon.png)",
+      "Bash(cp ../frontend-student/assets/favicon.png assets/favicon.png)",
+      "Bash(CLAUDE_CODE_TMPDIR=/tmp grep -r \"teacher/requests\" /Users/yazan/Documents/crm_iFluent/routes/)",
+      "Bash(ls /private/tmp/claude-501/ 2>/dev/null | head -5)",
+      "Bash(curl -s -X POST http://localhost:8000/api/v1/teacher/auth/login -H 'Content-Type: application/json' -H 'Accept: application/json' -d '{\"email\":\"test5@ifluent.jo\",\"password\":\"password\"}')",
+      "Bash(curl -s -X POST http://localhost:8000/api/v1/teacher/auth/login -H 'Content-Type: application/json' -H 'Accept: application/json' -d '{\"email\":\"test5@ifluent.jo\",\"password\":\"test5###333\"}')",
+      "Bash(grep -v \"^$\\\\|Psy\")",
+      "Bash(grep -v \"^$\\\\|Psy\\\\|>>>\")",
+      "Bash(curl -s http://localhost:8000/api/v1/teacher/requests?type=private -H 'Accept: application/json' -H 'Authorization: Bearer 265|VOyP0eH5DuPHnQGzuLASXtNXlMq3CXix3tPzktaPdeab')"
     ]
   }
 }

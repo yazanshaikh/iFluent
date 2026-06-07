@@ -2,7 +2,7 @@
  * Profile — حسابي
  */
 import {
-  View, Text, TouchableOpacity, StyleSheet, Alert, ScrollView,
+  View, Text, TouchableOpacity, Pressable, StyleSheet, Alert, ScrollView,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -33,11 +33,11 @@ export default function ProfileScreen() {
   const storeUser = useAuthStore((s) => s.user);
   const clearAuth = useAuthStore((s) => s.clearAuth);
 
-  // Fetch fresh profile on every visit — picks up commission changes from CRM
+  // Always fresh — picks up resets from CRM immediately on tab visit
   const { data: freshProfile } = useQuery({
     queryKey:  ['teacher-me'],
     queryFn:   authApi.me,
-    staleTime: 30_000,
+    staleTime: 0,
   });
 
   // Merge: fresh data takes priority over cached store
@@ -45,19 +45,10 @@ export default function ProfileScreen() {
     ? { ...storeUser, ...freshProfile }
     : storeUser;
 
-  const handleLogout = () => {
-    Alert.alert('تسجيل الخروج', 'هل تريد الخروج من حسابك؟', [
-      { text: 'تراجع', style: 'cancel' },
-      {
-        text: 'خروج',
-        style: 'destructive',
-        onPress: async () => {
-          try { await authApi.logout(); } catch {}
-          await clearAuth();
-          router.replace('/(auth)/login');
-        },
-      },
-    ]);
+  const handleLogout = async () => {
+    try { await authApi.logout(); } catch {}
+    await clearAuth();
+    router.replace('/');
   };
 
   return (
@@ -79,7 +70,10 @@ export default function ProfileScreen() {
         )}
       </LinearGradient>
 
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + 80 }]}
+        showsVerticalScrollIndicator={false}
+      >
 
         {/* Hero stats row */}
         <View style={styles.statsRow}>
@@ -112,6 +106,13 @@ export default function ProfileScreen() {
             <Text style={styles.statValue}>{user?.sessions_count ?? 0}</Text>
             <Text style={styles.statLabel}>الحصص المكتملة</Text>
           </View>
+
+          {/* Absences */}
+          <View style={[styles.statCard, styles.statCardAbsences]}>
+            <Text style={styles.statEmoji}>🚫</Text>
+            <Text style={[styles.statValue, { color: '#EF4444' }]}>{user?.absences_count ?? 0}</Text>
+            <Text style={styles.statLabel}>غيابات</Text>
+          </View>
         </View>
 
         {/* Info Card */}
@@ -123,7 +124,7 @@ export default function ProfileScreen() {
           <InfoRow
             icon="cash-outline"
             label="نسبة العمولة"
-            value={user?.commission_rate ? `${user.commission_rate} د.أ / حصة` : '—'}
+            value={user?.commission_rate != null ? `${user.commission_rate} د.أ / حصة` : '—'}
           />
           <InfoRow
             icon="wallet-outline"
@@ -133,12 +134,14 @@ export default function ProfileScreen() {
         </View>
 
         {/* Logout */}
-        <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout} activeOpacity={0.85}>
+        <Pressable
+          style={({ pressed }) => [styles.logoutBtn, pressed && { opacity: 0.7 }]}
+          onPress={handleLogout}
+        >
           <Ionicons name="log-out-outline" size={20} color={C.error} />
           <Text style={styles.logoutTxt}>تسجيل الخروج</Text>
-        </TouchableOpacity>
+        </Pressable>
 
-        <View style={{ height: 20 }} />
       </ScrollView>
     </View>
   );
@@ -164,18 +167,19 @@ const styles = StyleSheet.create({
 
   scroll: { padding: 16, gap: 14 },
 
-  statsRow: { flexDirection: 'row', gap: 10 },
+  statsRow: { flexDirection: 'row', gap: 8 },
   statCard: {
-    flex: 1, backgroundColor: '#fff', borderRadius: 16,
-    padding: 14, alignItems: 'center', gap: 4,
+    flex: 1, backgroundColor: '#fff', borderRadius: 14,
+    padding: 10, alignItems: 'center', gap: 3,
     shadowColor: C.sky, shadowOpacity: 0.08, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 3,
   },
-  statCardBalance: { borderTopWidth: 3, borderTopColor: '#22C55E' },
-  statCardRating:  { borderTopWidth: 3, borderTopColor: '#F59E0B' },
-  statCardSessions:{ borderTopWidth: 3, borderTopColor: C.sky },
-  statEmoji: { fontSize: 22 },
-  statValue: { fontSize: 20, fontWeight: '900', color: C.grayDark },
-  statLabel: { fontSize: 10, color: C.grayMid, textAlign: 'center' },
+  statCardBalance:  { borderTopWidth: 3, borderTopColor: '#22C55E' },
+  statCardRating:   { borderTopWidth: 3, borderTopColor: '#F59E0B' },
+  statCardSessions: { borderTopWidth: 3, borderTopColor: C.sky },
+  statCardAbsences: { borderTopWidth: 3, borderTopColor: '#EF4444' },
+  statEmoji: { fontSize: 18 },
+  statValue: { fontSize: 18, fontWeight: '900', color: C.grayDark },
+  statLabel: { fontSize: 9, color: C.grayMid, textAlign: 'center' },
   starsRow:  { flexDirection: 'row', gap: 1, marginTop: 2 },
   card:   { backgroundColor: '#fff', borderRadius: 20, padding: 20, ...shadow.sm },
   cardTitle: { fontSize: 15, fontWeight: '800', color: C.skyDark, textAlign: 'right', marginBottom: 16 },

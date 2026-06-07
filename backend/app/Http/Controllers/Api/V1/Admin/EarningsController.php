@@ -64,7 +64,8 @@ class EarningsController extends Controller
             'commission_rate' => ['required', 'numeric', 'min:0', 'max:9999.99'],
         ]);
 
-        $teacher = Teacher::findOrFail($id);
+        // $id can be either Teacher.id or Teacher.user_id — support both
+        $teacher = Teacher::where('user_id', $id)->orWhere('id', $id)->firstOrFail();
         $teacher->update(['commission_rate' => $validated['commission_rate']]);
 
         return response()->json([

@@ -165,8 +165,23 @@ class StaffController extends Controller
         if (!$user->isTeacher() || !$user->teacher) {
             return response()->json(['message' => 'Not a teacher.'], 422);
         }
-        $user->teacher->update(['sessions_count_reset_at' => now()]);
-        return response()->json(['message' => 'Sessions count reset.', 'reset_at' => now()->toDateTimeString()]);
+        $now = now();
+        $user->teacher->update([
+            'sessions_count_reset_at' => $now,
+            'absences_reset_at'       => $now,   // reset absences together with sessions
+        ]);
+        return response()->json(['message' => 'Sessions count reset.', 'reset_at' => $now->toDateTimeString()]);
+    }
+
+    public function resetBalance(int $id): JsonResponse
+    {
+        $user = User::with('teacher')->findOrFail($id);
+        if (!$user->isTeacher() || !$user->teacher) {
+            return response()->json(['message' => 'Not a teacher.'], 422);
+        }
+        $now = now();
+        $user->teacher->update(['balance_reset_at' => $now]);
+        return response()->json(['message' => 'Balance reset.', 'reset_at' => $now->toDateTimeString()]);
     }
 
     // ─── Teacher: Upcoming Demo Bookings ─────────────────────────────────────

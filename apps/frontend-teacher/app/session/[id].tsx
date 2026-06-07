@@ -1,27 +1,26 @@
 /**
- * Session Details Screen
- * Shows full session info + Start Session button
+ * Session Profile — بروفايل الحصة
+ * Same design as request profile but for an already-accepted session.
+ * Teacher can: view lesson/student info, open Nearpod, set PIN, then start.
  */
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity,
-  ScrollView, ActivityIndicator, Alert,
+  View, Text, ScrollView, TouchableOpacity, Pressable, TextInput,
+  StyleSheet, ActivityIndicator, Alert, Linking, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { sessionsApi } from '@/api/sessions';
-import { C, shadow, STATUS_COLOR, STATUS_LABEL } from '@/theme';
+import { sessionsApi, type TeacherSession } from '@/api/sessions';
+import { C, shadow } from '@/theme';
 
 function InfoRow({ icon, label, value }: { icon: string; label: string; value: string }) {
   return (
     <View style={styles.infoRow}>
-      <View style={[styles.infoIcon, { backgroundColor: C.cream }]}>
-        <Ionicons name={icon as any} size={18} color={C.sky} />
-      </View>
-      <View style={styles.infoText}>
+      <Ionicons name={icon as any} size={16} color={C.sky} />
+      <View style={{ flex: 1 }}>
         <Text style={styles.infoLabel}>{label}</Text>
         <Text style={styles.infoValue}>{value}</Text>
       </View>
@@ -39,24 +38,51 @@ function fmt(iso: string | null) {
 }
 
 export default function SessionDetailScreen() {
-  const router = useRouter();
-  const insets = useSafeAreaInsets();
-  const qc     = useQueryClient();
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id }    = useLocalSearchParams<{ id: string }>();
+  const router    = useRouter();
+  const insets    = useSafeAreaInsets();
+  const qc        = useQueryClient();
   const sessionId = Number(id);
+  const [pin, setPin] = useState('');
 
-  const { data: session, isLoading } = useQuery({
+  const { data: session, isLoading } = useQuery<TeacherSession>({
     queryKey: ['session', sessionId],
     queryFn:  () => sessionsApi.get(sessionId),
     staleTime: 15_000,
   });
 
+  // Pre-fill PIN if already saved
+  useEffect(() => {
+    if (session?.nearpod_pin && !pin) setPin(session.nearpod_pin);
+  }, [session?.nearpod_pin]);
+
+  // Save Nearpod PIN
+  const pinMutation = useMutation({
+    mutationFn: (p: string) => sessionsApi.setNearpodPin(sessionId, p),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['session', sessionId] }),
+    onError:   (e: any) => Alert.alert('خطأ', e?.response?.data?.message ?? 'تعذر حفظ PIN'),
+  });
+
+  // Release session back to pool
+  const releaseMutation = useMutation({
+    mutationFn: () => sessionsApi.release(sessionId),
+    onSuccess:  () => {
+      qc.invalidateQueries({ queryKey: ['sessions'] });
+      qc.invalidateQueries({ queryKey: ['requests'] });
+      router.back();
+    },
+    onError: (e: any) =>
+      Alert.alert('تعذر إلغاء السحب', e?.response?.data?.message ?? 'حدث خطأ'),
+  });
+
+  const handleRelease = () => releaseMutation.mutate();
+
+  // Start session
   const startMutation = useMutation({
     mutationFn: () => sessionsApi.start(sessionId),
-    onSuccess: () => {
+    onSuccess:  () => {
       qc.invalidateQueries({ queryKey: ['session', sessionId] });
       qc.invalidateQueries({ queryKey: ['sessions'] });
-      // Navigate to classroom
       router.push({ pathname: '/classroom/[id]', params: { id: String(sessionId) } });
     },
     onError: (e: any) =>
@@ -64,151 +90,262 @@ export default function SessionDetailScreen() {
   });
 
   const handleStart = () => {
-    Alert.alert(
-      'بدء الحصة',
-      'سيتم إنشاء غرفة Daily.co وتحويل الحصة للحالة النشطة. هل تريد المتابعة؟',
-      [
-        { text: 'تراجع', style: 'cancel' },
-        { text: 'ابدأ الحصة', onPress: () => startMutation.mutate() },
-      ],
-    );
+    Alert.alert('بدء الحصة', 'هل تريد بدء الحصة الآن؟', [
+      { text: 'تراجع', style: 'cancel' },
+      { text: 'ابدأ', onPress: () => startMutation.mutate() },
+    ]);
+  };
+
+  const openNearpod = () => {
+    const url = session?.lesson?.nearpod_url ?? 'https://nearpod.com';
+    Linking.openURL(url).catch(() => Alert.alert('خطأ', 'تعذر فتح Nearpod'));
   };
 
   if (isLoading || !session) {
     return (
-      <View style={styles.centered}>
+      <View style={styles.center}>
         <Stack.Screen options={{ headerShown: false }} />
-        <ActivityIndicator size="large" color={C.sky} />
+        <ActivityIndicator color={C.sky} size="large" />
       </View>
     );
   }
 
-  const statusColor = STATUS_COLOR[session.status] ?? C.gray;
-  const isActive    = session.status === 'active';
-  const canStart    = session.status === 'confirmed' || session.status === 'waiting';
+  const lesson     = session.lesson;
+  const student    = session.student;
+  const level      = lesson?.level ?? lesson?.unit?.level ?? null;
+  const levelCode  = level?.code ?? '';
+  const lessonNum  = lesson?.order != null ? `درس ${lesson.order}` : '';
+  const isActive   = session.status === 'active';
+  const canStart   = session.status === 'waiting' || session.status === 'confirmed';
+
+  // إلغاء السحب: مسموح فقط لحالة waiting وقبل 30 دقيقة من الموعد
+  const canRelease = session.status === 'waiting' && (() => {
+    if (!session.scheduled_at) return false;
+    const minsUntil = (new Date(session.scheduled_at).getTime() - Date.now()) / 60000;
+    return minsUntil > 30;
+  })();
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#F0F9FF' }}>
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
       <Stack.Screen options={{ headerShown: false }} />
+      <View style={{ flex: 1, backgroundColor: '#F0F9FF' }}>
 
-      {/* Header */}
-      <LinearGradient
-        colors={[C.sky, C.skyDark]}
-        style={[styles.header, { paddingTop: insets.top + 12 }]}
-      >
-        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
-          <Ionicons name="chevron-back" size={22} color="#fff" />
-        </TouchableOpacity>
-        <View style={[styles.statusBadge, { borderColor: statusColor + '66' }]}>
-          <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
-          <Text style={[styles.statusTxt, { color: statusColor }]}>
-            {STATUS_LABEL[session.status] ?? session.status}
-          </Text>
-        </View>
-        <Text style={styles.studentName}>{session.student?.name ?? 'طالب'}</Text>
-        {session.lesson?.title && (
-          <Text style={styles.lessonName}>{session.lesson.title}</Text>
-        )}
-      </LinearGradient>
-
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        {/* Details Card */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>تفاصيل الحصة</Text>
-          <InfoRow icon="calendar-outline"    label="الموعد"     value={fmt(session.scheduled_at)} />
-          <InfoRow icon="person-outline"      label="الطالب"     value={session.student?.name ?? '—'} />
-          <InfoRow icon="book-outline"        label="الدرس"      value={session.lesson?.title ?? '—'} />
-          {session.started_at && (
-            <InfoRow icon="play-circle-outline" label="بدأت"     value={fmt(session.started_at)} />
-          )}
-          {session.ended_at && (
-            <InfoRow icon="stop-circle-outline" label="انتهت"    value={fmt(session.ended_at)} />
-          )}
-          {session.nearpod_pin && (
-            <InfoRow icon="key-outline"         label="Nearpod PIN" value={session.nearpod_pin} />
-          )}
-          {session.daily_room_url && (
-            <InfoRow icon="link-outline"        label="Daily Room"  value="متاح" />
-          )}
-        </View>
-
-        {/* CTA */}
-        {isActive && (
-          <TouchableOpacity
-            style={styles.classroomBtn}
-            onPress={() => router.push({ pathname: '/classroom/[id]', params: { id: String(sessionId) } })}
-            activeOpacity={0.85}
-          >
-            <LinearGradient colors={[C.success, '#15803d']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.ctaGrad}>
-              <Ionicons name="videocam" size={20} color="#fff" />
-              <Text style={styles.ctaTxt}>العودة للفصل الافتراضي</Text>
-            </LinearGradient>
+        {/* ── Header ── */}
+        <LinearGradient
+          colors={[C.sky, C.skyDark]}
+          style={[styles.header, { paddingTop: insets.top + 12 }]}
+        >
+          <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+            <Ionicons name="chevron-forward" size={22} color="#fff" />
           </TouchableOpacity>
-        )}
+          <View style={{ flex: 1, alignItems: 'flex-end' }}>
+            <Text style={styles.headerTitle}>بروفايل الحصة</Text>
+            {(levelCode || lessonNum) && (
+              <View style={styles.headerBadge}>
+                <Text style={styles.headerBadgeTxt}>
+                  {[levelCode, lessonNum].filter(Boolean).join('  ·  ')}
+                </Text>
+              </View>
+            )}
+          </View>
+        </LinearGradient>
 
-        {canStart && (
-          <TouchableOpacity
-            style={[styles.classroomBtn, startMutation.isPending && { opacity: 0.6 }]}
-            onPress={handleStart}
-            disabled={startMutation.isPending}
-            activeOpacity={0.85}
-          >
-            <LinearGradient colors={[C.sky, C.skyDark]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.ctaGrad}>
-              {startMutation.isPending
-                ? <ActivityIndicator color="#fff" />
+        <ScrollView
+          contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + 40 }]}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* ── Lesson card ── */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>معلومات الحصة</Text>
+            <View style={styles.card}>
+              <InfoRow icon="book-outline"   label="اسم الحصة" value={lesson?.title ?? '—'} />
+              <InfoRow icon="calendar-outline" label="الموعد"  value={fmt(session.scheduled_at)} />
+              {level && (
+                <InfoRow
+                  icon="layers-outline"
+                  label="المستوى"
+                  value={`${level.code} — ${level.name}`}
+                />
+              )}
+              {lesson?.order != null && (
+                <InfoRow icon="list-outline" label="رقم الدرس" value={`${lesson.order}`} />
+              )}
+            </View>
+          </View>
+
+          {/* ── Student card ── */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>معلومات الطالب</Text>
+            <View style={styles.card}>
+              <InfoRow icon="person-outline" label="الاسم" value={student?.name ?? '—'} />
+              {student?.age != null && (
+                <InfoRow icon="calendar-outline" label="العمر" value={`${student.age} سنة`} />
+              )}
+            </View>
+          </View>
+
+          {/* ── Nearpod ── */}
+          {(canStart || isActive) && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Nearpod</Text>
+              <View style={styles.card}>
+                <Text style={styles.nearpodHint}>
+                  افتح Nearpod لإنشاء الحصة والحصول على رقم PIN، ثم أدخله هنا وابدأ الحصة.
+                </Text>
+
+                {/* Open Nearpod */}
+                <TouchableOpacity style={styles.nearpodBtn} onPress={openNearpod} activeOpacity={0.85}>
+                  <LinearGradient
+                    colors={['#6366F1', '#4F46E5']}
+                    start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+                    style={styles.nearpodBtnGrad}
+                  >
+                    <Ionicons name="open-outline" size={18} color="#fff" />
+                    <Text style={styles.nearpodBtnTxt}>فتح في Nearpod</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+
+                {/* PIN input */}
+                <View style={styles.pinRow}>
+                  <Ionicons name="keypad-outline" size={18} color={C.grayMid} />
+                  <TextInput
+                    style={styles.pinInput}
+                    placeholder="أدخل رقم PIN من Nearpod"
+                    placeholderTextColor={C.grayMid}
+                    value={pin}
+                    onChangeText={setPin}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    textAlign="right"
+                  />
+                  <TouchableOpacity
+                    style={[styles.pinSaveBtn, (!pin.trim() || pinMutation.isPending) && { opacity: 0.5 }]}
+                    onPress={() => pin.trim() && pinMutation.mutate(pin.trim())}
+                    disabled={!pin.trim() || pinMutation.isPending}
+                    activeOpacity={0.8}
+                  >
+                    {pinMutation.isPending
+                      ? <ActivityIndicator size="small" color="#fff" />
+                      : <Text style={styles.pinSaveTxt}>حفظ</Text>
+                    }
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          )}
+
+          {/* ── CTA ── */}
+          {isActive ? (
+            <TouchableOpacity
+              style={styles.ctaBtn}
+              onPress={() => router.push({ pathname: '/classroom/[id]', params: { id: String(sessionId) } })}
+              activeOpacity={0.85}
+            >
+              <LinearGradient colors={['#16a34a', '#15803d']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.ctaGrad}>
+                <Ionicons name="videocam" size={22} color="#fff" />
+                <Text style={styles.ctaTxt}>العودة للفصل الافتراضي</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          ) : canStart ? (
+            <TouchableOpacity
+              style={[styles.ctaBtn, startMutation.isPending && { opacity: 0.6 }]}
+              onPress={handleStart}
+              disabled={startMutation.isPending}
+              activeOpacity={0.85}
+            >
+              <LinearGradient colors={[C.sky, C.skyDark]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.ctaGrad}>
+                {startMutation.isPending
+                  ? <ActivityIndicator color="#fff" />
+                  : <>
+                      <Ionicons name="play-circle" size={22} color="#fff" />
+                      <Text style={styles.ctaTxt}>بدء الحصة</Text>
+                    </>
+                }
+              </LinearGradient>
+            </TouchableOpacity>
+          ) : null}
+
+          {/* إلغاء السحب */}
+          {canRelease && (
+            <Pressable
+              style={({ pressed }) => [
+                styles.releaseBtn,
+                pressed && { opacity: 0.7 },
+                releaseMutation.isPending && { opacity: 0.5 },
+              ]}
+              onPress={handleRelease}
+              disabled={releaseMutation.isPending}
+            >
+              {releaseMutation.isPending
+                ? <ActivityIndicator color={C.error} />
                 : <>
-                    <Ionicons name="play-circle" size={20} color="#fff" />
-                    <Text style={styles.ctaTxt}>بدء الحصة</Text>
+                    <Ionicons name="arrow-undo-outline" size={18} color={C.error} />
+                    <Text style={styles.releaseTxt}>إلغاء السحب</Text>
                   </>
               }
-            </LinearGradient>
-          </TouchableOpacity>
-        )}
+            </Pressable>
+          )}
 
-        <View style={{ height: 20 }} />
-      </ScrollView>
-    </View>
+        </ScrollView>
+      </View>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F0F9FF' },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F0F9FF' },
 
   header: {
-    paddingHorizontal: 20, paddingBottom: 28,
-    borderBottomLeftRadius: 28, borderBottomRightRadius: 28,
-    position: 'relative',
+    flexDirection: 'row', alignItems: 'flex-end',
+    paddingHorizontal: 18, paddingBottom: 20, gap: 12,
+    borderBottomLeftRadius: 24, borderBottomRightRadius: 24,
   },
   backBtn: {
     width: 38, height: 38, borderRadius: 19,
     backgroundColor: 'rgba(255,255,255,0.2)',
-    justifyContent: 'center', alignItems: 'center',
-    alignSelf: 'flex-start', marginBottom: 16,
+    justifyContent: 'center', alignItems: 'center', marginBottom: 2,
   },
-  statusBadge: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    alignSelf: 'flex-end', borderWidth: 1.5, borderRadius: 20,
-    paddingHorizontal: 12, paddingVertical: 5,
-    backgroundColor: 'rgba(255,255,255,0.12)',
-    position: 'absolute', top: 20, right: 20,
+  headerTitle:    { fontSize: 20, fontWeight: '900', color: '#fff' },
+  headerBadge:    { backgroundColor: 'rgba(255,255,255,0.25)', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 3, marginTop: 4 },
+  headerBadgeTxt: { fontSize: 12, fontWeight: '700', color: '#fff' },
+
+  scroll:       { padding: 16 },
+  section:      { marginBottom: 16 },
+  sectionTitle: { fontSize: 12, fontWeight: '800', color: C.grayMid, textAlign: 'right', marginBottom: 8, marginRight: 4 },
+  card:         { backgroundColor: '#fff', borderRadius: 18, padding: 16, gap: 14, ...shadow.sm },
+
+  infoRow:   { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  infoLabel: { fontSize: 11, color: C.grayMid, fontWeight: '600', textAlign: 'right' },
+  infoValue: { fontSize: 15, fontWeight: '800', color: C.skyDark, textAlign: 'right', marginTop: 1 },
+
+  nearpodHint:    { fontSize: 13, color: C.grayMid, textAlign: 'right', lineHeight: 20 },
+  nearpodBtn:     { borderRadius: 14, overflow: 'hidden' },
+  nearpodBtnGrad: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 13 },
+  nearpodBtnTxt:  { fontSize: 15, fontWeight: '800', color: '#fff' },
+
+  pinRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    backgroundColor: '#F0F9FF', borderRadius: 12,
+    paddingHorizontal: 14, paddingVertical: 4,
+    borderWidth: 1.5, borderColor: C.skyLight,
   },
-  statusDot: { width: 7, height: 7, borderRadius: 4 },
-  statusTxt: { fontSize: 12, fontWeight: '700' },
-  studentName: { fontSize: 24, fontWeight: '900', color: '#fff', textAlign: 'right' },
-  lessonName:  { fontSize: 14, color: 'rgba(255,255,255,0.8)', textAlign: 'right', marginTop: 4 },
+  pinInput:   { flex: 1, fontSize: 16, fontWeight: '700', color: C.skyDark, paddingVertical: 10 },
+  pinSaveBtn: { backgroundColor: C.sky, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 7, minWidth: 52, alignItems: 'center' },
+  pinSaveTxt: { fontSize: 13, fontWeight: '800', color: '#fff' },
 
-  scroll: { padding: 16, gap: 14 },
+  ctaBtn:  { borderRadius: 18, overflow: 'hidden', marginTop: 8 },
+  ctaGrad: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingVertical: 18 },
+  ctaTxt:  { color: '#fff', fontSize: 17, fontWeight: '900' },
 
-  card:      { backgroundColor: '#fff', borderRadius: 20, padding: 20, ...shadow.sm },
-  cardTitle: { fontSize: 15, fontWeight: '800', color: C.skyDark, textAlign: 'right', marginBottom: 16 },
-
-  infoRow:   { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
-  infoIcon:  { width: 38, height: 38, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
-  infoText:  { flex: 1, alignItems: 'flex-end' },
-  infoLabel: { fontSize: 11, color: C.grayMid },
-  infoValue: { fontSize: 14, fontWeight: '700', color: C.grayDark, marginTop: 2 },
-
-  classroomBtn: { borderRadius: 16, overflow: 'hidden' },
-  ctaGrad:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingVertical: 16 },
-  ctaTxt:       { color: '#fff', fontSize: 16, fontWeight: '800' },
+  releaseBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 8, marginTop: 12, paddingVertical: 14, borderRadius: 16,
+    borderWidth: 1.5, borderColor: C.error + '66',
+    backgroundColor: '#FFF5F5',
+  },
+  releaseTxt: { fontSize: 15, fontWeight: '700', color: C.error },
 });

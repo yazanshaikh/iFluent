@@ -34,9 +34,10 @@ class BookingController extends Controller
 
         $validated = $request->validate([
             'lesson_id'    => ['sometimes', 'nullable', 'integer', 'exists:lessons,id'],
-            'scheduled_at' => ['required', 'date', 'after:now'],
-            'teacher_code' => ['sometimes', 'nullable', 'string'],
-            'notes'        => ['sometimes', 'nullable', 'string', 'max:300'],
+            'scheduled_at'        => ['required', 'date', 'after:now'],
+            'teacher_code'        => ['sometimes', 'nullable', 'string'],
+            'teacher_gender_pref' => ['sometimes', 'nullable', 'string', 'in:male,female'],
+            'notes'               => ['sometimes', 'nullable', 'string', 'max:300'],
         ]);
 
         // ── Parse as Jordan time → convert to UTC for storage ────────────────
@@ -207,13 +208,14 @@ class BookingController extends Controller
         }
 
         $sessionRequest = SessionRequest::create([
-            'type'              => $type,
-            'requested_by'      => $student->id,
-            'student_id'        => $student->id,
-            'lesson_id'         => $lesson?->id,
-            'target_teacher_id' => $targetTeacherId,
-            'requested_at_utc'  => $validated['scheduled_at'],
-            'status'            => SessionRequest::STATUS_PENDING,
+            'type'                => $type,
+            'requested_by'        => $student->id,
+            'student_id'          => $student->id,
+            'lesson_id'           => $lesson?->id,
+            'target_teacher_id'   => $targetTeacherId,
+            'requested_at_utc'    => $validated['scheduled_at'],
+            'status'              => SessionRequest::STATUS_PENDING,
+            'teacher_gender_pref' => $validated['teacher_gender_pref'] ?? null,
         ]);
 
         // ── Create / update Lead only for assessment session bookings ──────────

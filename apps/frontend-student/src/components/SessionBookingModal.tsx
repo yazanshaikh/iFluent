@@ -84,6 +84,7 @@ export function SessionBookingModal({ visible, credits, onClose, onBooked }: Pro
   const [dayIdx,       setDayIdx]       = useState(0);
   const [slot,         setSlot]         = useState<string | null>(null);
   const [teacherCode,  setTeacherCode]  = useState('');
+  const [genderPref,   setGenderPref]   = useState<'male' | 'female' | null>(null);
   const [loading,      setLoading]      = useState(false);
   const [done,         setDone]         = useState(false);
 
@@ -129,6 +130,7 @@ export function SessionBookingModal({ visible, credits, onClose, onBooked }: Pro
       await sessionsApi.book({
         scheduled_at,
         ...(trimCode ? { teacher_code: trimCode } : {}),
+        ...(genderPref ? { teacher_gender_pref: genderPref } : {}),
       });
       setDone(true);
       onBooked();
@@ -143,6 +145,7 @@ export function SessionBookingModal({ visible, credits, onClose, onBooked }: Pro
     setDayIdx(0);
     setSlot(null);
     setTeacherCode('');
+    setGenderPref(null);
     setDone(false);
     onClose();
   };
@@ -257,6 +260,28 @@ export function SessionBookingModal({ visible, credits, onClose, onBooked }: Pro
                   })}
                 </View>
               )}
+
+              {/* Gender preference */}
+              <Text style={[s.label, { marginTop: 20 }]}>
+                جنس المعلم
+                <Text style={s.optionalTag}> (اختياري)</Text>
+              </Text>
+              <View style={s.genderRow}>
+                {(['male', 'female', null] as const).map((g) => {
+                  const active = genderPref === g;
+                  const label  = g === 'male' ? '👨 ذكر' : g === 'female' ? '👩 أنثى' : '🔀 لا يهم';
+                  return (
+                    <TouchableOpacity
+                      key={String(g)}
+                      style={[s.genderPill, active && s.genderPillActive]}
+                      onPress={() => setGenderPref(g)}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={[s.genderTxt, active && s.genderTxtActive]}>{label}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
 
               {/* Optional: specific teacher code */}
               <Text style={[s.label, { marginTop: 20 }]}>
@@ -390,6 +415,17 @@ const s = StyleSheet.create({
     gap: 8, paddingVertical: 15, marginTop: 20, marginBottom: 8, ...shadow.amber,
   },
   submitBtnOff: { opacity: 0.45 },
+
+  // Gender picker
+  genderRow: { flexDirection: 'row', gap: 10, marginBottom: 4 },
+  genderPill: {
+    flex: 1, alignItems: 'center', paddingVertical: 11,
+    borderRadius: 14, borderWidth: 1.5, borderColor: C.border,
+    backgroundColor: C.cream,
+  },
+  genderPillActive: { backgroundColor: C.navy, borderColor: C.navy },
+  genderTxt:        { fontSize: 13, fontWeight: '700', color: C.navy },
+  genderTxtActive:  { color: C.white },
   submitTxt: { fontSize: 16, fontWeight: '900', color: C.navy },
 
   // Success
