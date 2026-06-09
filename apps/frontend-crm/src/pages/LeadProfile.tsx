@@ -51,11 +51,16 @@ const ALL_LESSONS: LessonItem[] = (() => {
 
 /* ── Demo session status display ── */
 const SESSION_STATUS_LABEL: Record<string, string> = {
+  // SessionRequest statuses
   pending:   'بانتظار المعلم',
   confirmed: 'مؤكدة',
   rejected:  'مرفوضة',
   cancelled: 'ملغاة',
   expired:   'منتهية',
+  // Session statuses (from linked session)
+  waiting:   'بانتظار التنفيذ',
+  active:    'نشطة الآن',
+  completed: 'مكتملة',
 };
 const SESSION_STATUS_VARIANT: Record<string, 'default' | 'secondary' | 'success' | 'destructive' | 'outline' | 'warning'> = {
   pending:   'secondary',
@@ -63,7 +68,27 @@ const SESSION_STATUS_VARIANT: Record<string, 'default' | 'secondary' | 'success'
   rejected:  'destructive',
   cancelled: 'outline',
   expired:   'warning',
+  waiting:   'secondary',
+  active:    'success',
+  completed: 'outline',
 };
+
+/** Returns detailed label based on attendance_status when session is completed */
+function getSessionLabel(status: string, attendanceStatus?: string | null): string {
+  if (status === 'completed' || (status === 'expired' && attendanceStatus)) {
+    if (attendanceStatus === 'attended')       return '✅ مكتملة';
+    if (attendanceStatus === 'absent')         return '😔 غاب الطالب';
+    if (attendanceStatus === 'teacher_absent') return '🚫 غاب المعلم';
+  }
+  return SESSION_STATUS_LABEL[status] ?? status;
+}
+
+function getSessionVariant(status: string, attendanceStatus?: string | null): 'default' | 'secondary' | 'success' | 'destructive' | 'outline' | 'warning' {
+  if (attendanceStatus === 'attended')       return 'success';
+  if (attendanceStatus === 'absent')         return 'warning';
+  if (attendanceStatus === 'teacher_absent') return 'destructive';
+  return SESSION_STATUS_VARIANT[status] ?? 'outline';
+}
 
 function RemarksHistory({ remarks, open, onToggle }: { remarks: Remark[]; open: boolean; onToggle: () => void }) {
 
@@ -119,12 +144,13 @@ function RemarksHistory({ remarks, open, onToggle }: { remarks: Remark[]; open: 
 /** الحالات التي يختارها الموظف يدوياً — open_sea وsubscriber تتغير نظامياً */
 const SELECTABLE_STATUSES: LeadStatus[] = ['new', 'in_progress', 'interested', 'not_interested', 'postponed'];
 
-/* ── Time slots 9 AM → 9 PM (13 slots × 4 cols) ── */
-const TIME_SLOTS = Array.from({ length: 13 }, (_, i) => {
-  const hour   = i + 9;                           // 9 … 21
-  const h      = hour > 12 ? hour - 12 : hour;
-  const period = hour < 12 ? 'ص' : 'م';
-  return { hour, label: `${h}:00 ${period}` };
+/* ── Time slots 9 AM → 12 AM (16 slots × 4 cols) ── */
+const TIME_SLOTS = Array.from({ length: 16 }, (_, i) => {
+  const hour   = i + 9;                           // 9 … 24 (00)
+  const display = hour === 24 ? 0 : hour;
+  const h      = display === 0 ? 12 : display > 12 ? display - 12 : display;
+  const period = display < 12 ? 'ص' : 'م';
+  return { hour: hour === 24 ? 0 : hour, label: `${h}:00 ${period}` };
 });
 
 /** هل الـ slot ما زال قابلاً للحجز؟ (30 دقيقة على الأقل من الآن) */
@@ -802,10 +828,12 @@ export default function LeadProfilePage() {
               <p className="text-xs text-muted-foreground font-medium">سجل الحصص التقييمية</p>
               {demoHistory.requests.map((req) => {
                 const d = new Date(req.scheduled_at);
-                const isPending = req.status === 'pending';
-                const isExpired = req.status === 'expired';
+                const isPending  = req.status === 'pending';
+                const isExpired  = req.status === 'expired';
                 const isConfirmed = req.status === 'confirmed';
-                const showAttendance = (isExpired || isConfirmed) && req.attendance;
+                const isDone     = ['completed','expired','cancelled'].includes(req.status);
+                const attendanceStatus = req.attendance?.attendance_status ?? null;
+                const showAttendance = isDone && req.attendance;
                 return (
                   <div
                     key={req.id}
@@ -829,10 +857,10 @@ export default function LeadProfilePage() {
                       </div>
                       <div className="flex items-center gap-1.5 shrink-0">
                         <Badge
-                          variant={SESSION_STATUS_VARIANT[req.status] ?? 'outline'}
+                          variant={getSessionVariant(req.status, attendanceStatus)}
                           className="text-xs"
                         >
-                          {SESSION_STATUS_LABEL[req.status] ?? req.status}
+                          {getSessionLabel(req.status, attendanceStatus)}
                         </Badge>
                         {isPending && (
                           <>

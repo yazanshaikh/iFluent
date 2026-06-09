@@ -2,7 +2,7 @@
  * Upcoming Sessions — حصصي
  */
 import {
-  View, Text, ScrollView, TouchableOpacity,
+  View, Text, ScrollView, TouchableOpacity, Pressable,
   StyleSheet, ActivityIndicator, RefreshControl,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -44,7 +44,7 @@ function SessionCard({ session, onPress }: { session: TeacherSession; onPress: (
   const isAccepted = session.status === 'confirmed' || session.status === 'waiting';
 
   return (
-    <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.85}>
+    <Pressable style={({ pressed }) => [styles.card, pressed && { opacity: 0.85 }]} onPress={onPress}>
       <View style={[styles.cardAccent, { backgroundColor: isActive ? C.success : C.sky }]} />
       <View style={styles.cardBody}>
         <View style={styles.cardHeader}>
@@ -84,7 +84,7 @@ function SessionCard({ session, onPress }: { session: TeacherSession; onPress: (
           )}
         </View>
       </View>
-    </TouchableOpacity>
+    </Pressable>
   );
 }
 

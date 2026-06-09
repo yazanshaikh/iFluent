@@ -12,10 +12,12 @@ use App\Models\Teacher;
 use App\Models\TeacherEarning;
 use App\Models\User;
 use App\Services\DailyCoService;
+use App\Services\SessionAttendanceService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\DB;
+use Carbon\Carbon;
 
 class SessionController extends Controller
 {
@@ -127,6 +129,38 @@ class SessionController extends Controller
         return new SessionResource($session->load(['lesson.level', 'lesson.unit.level', 'student']));
     }
 
+    // ─── Classroom URL (fresh teacher token) ─────────────────────────────────
+    // Called when teacher returns to an already-active session from the sessions list.
+    // Returns a fresh signed Daily.co URL with is_owner=true token.
+
+    public function classroomUrl(Session $session, Request $request): JsonResponse
+    {
+        if ($session->teacher_id !== $request->user()->id) {
+            return response()->json(['message' => 'Forbidden.'], 403);
+        }
+
+        if (!$session->isActive()) {
+            return response()->json(['message' => 'Session is not active.'], 422);
+        }
+
+        $signedUrl = $session->daily_room_url;
+
+        if ($session->daily_room_name) {
+            try {
+                $token     = $this->daily->createMeetingToken($session->daily_room_name, true);
+                $signedUrl = $session->daily_room_url . '?t=' . $token;
+            } catch (\Throwable $e) {
+                Log::warning('classroomUrl: token creation failed', ['error' => $e->getMessage()]);
+            }
+        }
+
+        return response()->json([
+            'session_id'     => $session->id,
+            'daily_room_url' => $signedUrl,
+            'nearpod_pin'    => $session->nearpod_pin,
+        ]);
+    }
+
     // ─── Start Session ────────────────────────────────────────────────────────
 
     public function start(Session $session, Request $request): SessionResource|JsonResponse
@@ -141,17 +175,103 @@ class SessionController extends Controller
             ], 422);
         }
 
-        $room = $this->daily->createRoom($session);
+        // ⚠️ TIMING VALIDATION: Teacher can only start within 15 minutes BEFORE scheduled time
+        $now = now();
+        $scheduledTime = Carbon::parse($session->scheduled_at);
+        $fifteenMinutesBefore = $scheduledTime->copy()->subMinutes(15);
+        $gracePeriod = $scheduledTime->copy()->addMinutes(15);
 
-        $session->update([
-            'status'            => Session::STATUS_ACTIVE,
-            'daily_room_name'   => $room['room_name'],
-            'daily_room_url'    => $room['room_url'],
-            'started_at'        => now(),
-            'teacher_joined_at' => now(),
+        // ❌ Too early: before 15 min window
+        if ($now->isBefore($fifteenMinutesBefore)) {
+            $minutesUntilWindow = $fifteenMinutesBefore->diffInMinutes($now);
+            return response()->json([
+                'message' => 'لا يمكن تفعيل الحصة الآن',
+                'reason' => 'too_early',
+                'details' => "ممكن تفعيل الحصة قبل موعدها بـ 15 دقيقة فقط",
+                'scheduled_at' => $session->scheduled_at,
+                'can_start_at' => $fifteenMinutesBefore->toIso8601String(),
+                'minutes_until_allowed' => $minutesUntilWindow,
+            ], 422);
+        }
+
+        // ❌ Too late: after grace period
+        if ($now->isAfter($gracePeriod)) {
+            $minutesLate = $now->diffInMinutes($gracePeriod);
+            return response()->json([
+                'message' => 'انتهى وقت تفعيل الحصة',
+                'reason' => 'too_late',
+                'details' => "يمكن تفعيل الحصة حتى 15 دقيقة بعد الموعد فقط",
+                'scheduled_at' => $session->scheduled_at,
+                'deadline_was' => $gracePeriod->toIso8601String(),
+                'minutes_late' => $minutesLate,
+            ], 422);
+        }
+
+        // PIN is required to start — teacher must enter and confirm it first
+        $validated = $request->validate([
+            'nearpod_pin' => ['required', 'string', 'max:50'],
         ]);
 
-        return new SessionResource($session->load(['lesson.unit.level', 'student']));
+        $pin = trim($validated['nearpod_pin']);
+
+        // Block if teacher already has another active session
+        $alreadyActive = Session::where('teacher_id', $request->user()->id)
+            ->where('status', Session::STATUS_ACTIVE)
+            ->where('id', '!=', $session->id)
+            ->exists();
+
+        if ($alreadyActive) {
+            return response()->json([
+                'message' => 'لديك حصة نشطة حالياً. يرجى إنهاؤها قبل بدء حصة جديدة.',
+            ], 422);
+        }
+
+        // Atomic: save PIN + mark active (Daily room already created on accept)
+        // Only create a new room if somehow it wasn't created during accept
+        DB::transaction(function () use ($session, $pin) {
+            $update = [
+                'status'            => Session::STATUS_ACTIVE,
+                'nearpod_pin'       => $pin,
+                'started_at'        => now(),
+                'teacher_joined_at' => now(),
+            ];
+
+            // Room not yet created (edge case) — create it now
+            if (empty($session->daily_room_url)) {
+                $room = $this->daily->createRoom($session);
+                $update['daily_room_name'] = $room['room_name'];
+                $update['daily_room_url']  = $room['room_url'];
+            }
+
+            $session->update($update);
+
+            // ✅ Mark teacher as PRESENT (they clicked start)
+            SessionAttendanceService::markTeacherPresent($session);
+        });
+
+        $session->loadMissing(['lesson', 'student']);
+
+        // Generate teacher meeting token (is_owner = true)
+        $teacherToken = null;
+        if ($session->daily_room_name) {
+            try {
+                $teacherToken = $this->daily->createMeetingToken($session->daily_room_name, true);
+            } catch (\Throwable $e) {
+                Log::warning('Could not create teacher token', ['error' => $e->getMessage()]);
+            }
+        }
+
+        // Broadcast to student in real-time — "انضم للحصة" button appears immediately
+        try {
+            broadcast(new \App\Events\SessionActivated($session));
+        } catch (\Throwable) {}
+
+        $resource = (new SessionResource($session->load(['lesson.unit.level', 'student'])))->toArray(request());
+        $resource['daily_token']    = $teacherToken;
+        $resource['daily_room_url'] = $session->daily_room_url
+            . ($teacherToken ? '?t=' . $teacherToken : '');
+
+        return response()->json(['data' => $resource]);
     }
 
     // ─── Update Nearpod PIN ───────────────────────────────────────────────────
@@ -162,13 +282,15 @@ class SessionController extends Controller
             return response()->json(['message' => 'Forbidden.'], 403);
         }
 
-        if (!$session->isActive()) {
-            return response()->json(['message' => 'PIN can only be set on an active session.'], 422);
+        $request->validate(['nearpod_pin' => ['required', 'string', 'max:50']]);
+
+        $session->update(['nearpod_pin' => trim($request->nearpod_pin)]);
+
+        // If session is already active, re-broadcast so student gets the updated PIN
+        if ($session->isActive()) {
+            $session->loadMissing('lesson');
+            broadcast(new \App\Events\SessionActivated($session));
         }
-
-        $request->validate(['nearpod_pin' => ['required', 'string', 'max:20']]);
-
-        $session->update(['nearpod_pin' => $request->nearpod_pin]);
 
         return new SessionResource($session->load(['lesson', 'student']));
     }
@@ -187,60 +309,89 @@ class SessionController extends Controller
             ], 422);
         }
 
-        // ── Auto-determine attendance status ──────────────────────────────────
-        // attended  = student joined AND session lasted ≥ 10 minutes
-        // absent    = student never joined OR session lasted < 10 minutes
-        // (teacher_absent is set by the scheduler, not by the teacher manually)
+        // ── Auto-determine attendance status using new service ────────────────
+        // attended      = teacher_present && student_present
+        // absent        = teacher_present && !student_present
+        // teacher_absent = !teacher_present (set by scheduler or auto-expire)
         $endedAt = now();
 
-        $attendance = $this->resolveAttendance($session, $endedAt);
+        // ✅ Auto-determine attendance from presence flags (no manual input needed)
+        $attendance = SessionAttendanceService::determineAttendanceStatus($session);
 
         if ($session->daily_room_name) {
             $this->daily->deleteRoom($session->daily_room_name);
         }
 
-        DB::transaction(function () use ($session, $endedAt, $attendance) {
+        DB::transaction(function () use ($session, $endedAt, $attendance, $balanceImpact) {
             $session->update([
                 'status'            => Session::STATUS_COMPLETED,
                 'ended_at'          => $endedAt,
+                'teacher_ended_at'  => $endedAt,
                 'attendance_status' => $attendance,
             ]);
 
-            // ── Conditional logic based on attendance ─────────────────────────
-            //
-            // attended      → advance lesson pointer + deduct credit
-            // absent        → deduct credit only  (lesson stays for next time)
-            // teacher_absent → do nothing          (no penalty for student)
-            //
-            if ($attendance === Session::ATTENDANCE_TEACHER_ABSENT) {
-                // غاب المعلم — الحصة كأنها لم تكن، لا خصم ولا تقدم
-                return;
+            // ✅ Update SessionRequest updated_at timestamp so it stays visible in CRM for 24h
+            // The CRM now uses Session.status (completed) instead of SessionRequest.status
+            $sessionRequest = \App\Models\SessionRequest::where('session_id', $session->id)->first();
+            if ($sessionRequest) {
+                $sessionRequest->update([
+                    'updated_at' => $endedAt,  // ← Update timestamp for 24h visibility window
+                ]);
+                \Log::info("SessionRequest timestamp updated after session completion", [
+                    'session_request_id' => $sessionRequest->id,
+                    'session_id' => $session->id,
+                    'session_status' => $session->status,
+                ]);
             }
 
-            // Both attended + absent: deduct one lesson credit
-            if ($session->student_id) {
-                $session->student->decrement('lesson_credits');
+            // ── Credit & lesson advancement rules ─────────────────────────────
+            //
+            // النقطة تُخصم عند الحجز مسبقاً.
+            // عند إنهاء الحصة:
+            //
+            // attended      → النقطة تبقى مخصومة ✅ + تقدم للدرس التالي
+            //
+            // absent        → النقطة تبقى مخصومة ✅ (الطالب مسؤول)
+            //                 لا تقدم (يبقى على نفس الدرس)
+            //
+            // teacher_absent → ترجع النقطة للطالب 🔄 + لا تقدم
+            //
+            if ($attendance === Session::ATTENDANCE_TEACHER_ABSENT) {
+                // المعلم غاب — أرجع النقطة للطالب
+                if ($session->student_id) {
+                    $session->student->increment('lesson_credits');
+                    \Log::info("Credit refunded (teacher_absent)", ['student_id' => $session->student_id]);
+                }
+                return;
             }
 
             if ($attendance === Session::ATTENDANCE_ABSENT) {
-                // غاب الطالب — خصم الرصيد لكن يبقى على نفس الدرس
+                // الطالب غاب — النقطة مخصومة من الحجز، لا تقدم
                 return;
             }
 
-            // ── attended: advance subscription lesson pointer ─────────────────
-            // IMPORTANT: Subscription.student_id = students.id (NOT users.id)
+            // attended — النقطة مخصومة من الحجز، تقدم للدرس التالي
+            // ── Advance lesson pointer (attended only) ────────────────────────
             if ($session->lesson_id) {
                 $studentProfile = \App\Models\Student::where('user_id', $session->student_id)->first();
-                $subscription   = $studentProfile
-                    ? \App\Models\Subscription::where('student_id', $studentProfile->id)
-                        ->where('status', \App\Models\Subscription::STATUS_ACTIVE)
-                        ->where('current_lesson_id', $session->lesson_id)
-                        ->latest('activated_at')
-                        ->first()
-                    : null;
 
-                if ($subscription) {
-                    $subscription->advanceToNextLesson();
+                if ($studentProfile) {
+                    $subscription = \App\Models\Subscription::where('student_id', $studentProfile->id)
+                        ->where('status', \App\Models\Subscription::STATUS_ACTIVE)
+                        ->where('from_lesson_id', '<=', $session->lesson_id)
+                        ->where('to_lesson_id', '>=', $session->lesson_id)
+                        ->whereNotNull('current_lesson_id')
+                        ->latest('activated_at')
+                        ->first();
+
+                    if ($subscription && $subscription->current_lesson_id == $session->lesson_id) {
+                        $nextLesson = $subscription->advanceToNextLesson();
+                        \Log::info("Lesson advanced (attended)", [
+                            'student_id'  => $session->student_id,
+                            'from_lesson' => $session->lesson_id,
+                            'to_lesson'   => $nextLesson?->id ?? 'completed',
+                        ]);
+                    }
                 }
             }
 
@@ -257,6 +408,9 @@ class SessionController extends Controller
             // Balance is now calculated dynamically: sessions_count × commission_rate
             // No need to store it — skip balance increment
         });
+
+        // Broadcast session end to student in real-time
+        broadcast(new \App\Events\SessionEnded($session, $attendance));
 
         return new SessionResource($session->load(['lesson', 'student']));
     }
@@ -373,5 +527,27 @@ class SessionController extends Controller
         return $minutes >= Session::MIN_SESSION_MINUTES
             ? Session::ATTENDANCE_ATTENDED
             : Session::ATTENDANCE_ABSENT;
+    }
+
+    // ─── Raised Hands ─────────────────────────────────────────────────────────
+
+    /**
+     * GET /teacher/sessions/{session}/raised-hands
+     * Returns the latest raise-hand event for this session (from cache).
+     * Teacher app polls this every 5s to show notification.
+     */
+    public function raisedHands(Session $session, Request $request): \Illuminate\Http\JsonResponse
+    {
+        if ($session->teacher_id !== $request->user()->id) {
+            return response()->json(['message' => 'Forbidden.'], 403);
+        }
+
+        $key  = "raised_hand:session:{$session->id}";
+        $data = \Illuminate\Support\Facades\Cache::get($key);
+
+        return response()->json([
+            'raised' => $data !== null,
+            'data'   => $data,
+        ]);
     }
 }

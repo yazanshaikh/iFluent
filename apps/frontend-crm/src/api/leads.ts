@@ -27,9 +27,10 @@ export interface DemoSession {
   teacher?:     { name: string } | null;
   /** بيانات الحضور — تُعبأ فقط عند وجود جلسة مرتبطة (session_id موجود) */
   attendance?:  {
-    teacher_joined: boolean;
-    student_joined: boolean;
-    ended_at: string | null;
+    teacher_joined:    boolean;
+    student_joined:    boolean;
+    attendance_status: 'attended' | 'absent' | 'teacher_absent' | null;
+    ended_at:          string | null;
   } | null;
 }
 

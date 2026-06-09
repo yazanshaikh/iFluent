@@ -11,18 +11,22 @@
  *  └─────────────────────────────┘
  *  FAB ↘ PDF download
  */
-import React from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
   ScrollView, ActivityIndicator, Linking, Platform,
+  Modal, TextInput, Alert,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { sessionsApi, type SessionProfile } from '@/api/sessions';
+import { useMutation } from '@tanstack/react-query';
+import { useAuthStore }  from '@/stores/authStore';
+import { getEcho, disconnectEcho } from '@/lib/echo';
 import { fixStorageUrl } from '@/api/client';
 import { C, shadow } from '@/theme';
 
@@ -126,18 +130,244 @@ const cardStyles = StyleSheet.create({
   lockedMsg:  { fontSize: 13, color: C.grayMid, textAlign: 'right', lineHeight: 20 },
 });
 
+// ─── Star Rating Component ────────────────────────────────────────────────────
+function StarRating({ value, onChange, size = 36 }: { value: number; onChange: (v: number) => void; size?: number }) {
+  return (
+    <View style={{ flexDirection: 'row', gap: 8, justifyContent: 'center' }}>
+      {[1, 2, 3, 4, 5].map((star) => (
+        <TouchableOpacity key={star} onPress={() => onChange(star)} activeOpacity={0.7}>
+          <Ionicons
+            name={star <= value ? 'star' : 'star-outline'}
+            size={size}
+            color={star <= value ? '#F59E0B' : '#D1D5DB'}
+          />
+        </TouchableOpacity>
+      ))}
+    </View>
+  );
+}
+
+// ─── Rating Modal ─────────────────────────────────────────────────────────────
+function RatingModal({
+  visible, teacherName, sessionId,
+  onClose, onSubmitted,
+}: {
+  visible: boolean;
+  teacherName: string;
+  sessionId: number;
+  onClose: () => void;
+  onSubmitted: (stars: number) => void;
+}) {
+  const [stars, setStars] = useState(0);
+  const [notes, setNotes] = useState('');
+
+  const { mutate, isPending } = useMutation({
+    mutationFn: () => sessionsApi.rateSession(sessionId, stars, notes.trim() || undefined),
+    onSuccess: () => {
+      onSubmitted(stars);
+      setStars(0);
+      setNotes('');
+    },
+    onError: (e: any) => {
+      Alert.alert('خطأ', e?.response?.data?.message ?? 'تعذر إرسال التقييم');
+    },
+  });
+
+  const LABELS: Record<number, string> = {
+    1: 'سيء جداً 😞',
+    2: 'سيء 😕',
+    3: 'مقبول 😐',
+    4: 'جيد 🙂',
+    5: 'ممتاز 🌟',
+  };
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <View style={ratingStyles.overlay}>
+        <View style={ratingStyles.sheet}>
+          {/* Handle */}
+          <View style={ratingStyles.handle} />
+
+          <Text style={ratingStyles.emoji}>⭐</Text>
+          <Text style={ratingStyles.title}>قيّم المعلم</Text>
+          <Text style={ratingStyles.sub}>
+            كيف كانت تجربتك مع <Text style={{ fontWeight: '900', color: PURPLE }}>{teacherName}</Text>؟
+          </Text>
+
+          {/* Stars */}
+          <StarRating value={stars} onChange={setStars} size={44} />
+
+          {stars > 0 && (
+            <Text style={ratingStyles.starLabel}>{LABELS[stars]}</Text>
+          )}
+
+          {/* Notes */}
+          <TextInput
+            style={ratingStyles.notesInput}
+            placeholder="ملاحظات إضافية (اختياري)"
+            placeholderTextColor="#9CA3AF"
+            value={notes}
+            onChangeText={setNotes}
+            multiline
+            numberOfLines={3}
+            textAlign="right"
+            textAlignVertical="top"
+          />
+
+          {/* Buttons */}
+          <View style={ratingStyles.btnRow}>
+            <TouchableOpacity style={ratingStyles.skipBtn} onPress={onClose}>
+              <Text style={ratingStyles.skipTxt}>لاحقاً</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[ratingStyles.submitBtn, (stars === 0 || isPending) && { opacity: 0.5 }]}
+              onPress={() => mutate()}
+              disabled={stars === 0 || isPending}
+            >
+              {isPending
+                ? <ActivityIndicator color="#fff" size="small" />
+                : <Text style={ratingStyles.submitTxt}>إرسال التقييم</Text>
+              }
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function SessionProfileScreen() {
   const router    = useRouter();
   const insets    = useSafeAreaInsets();
+  const qc        = useQueryClient();
   const { id }    = useLocalSearchParams<{ id: string }>();
   const sessionId = Number(id);
+  const token     = useAuthStore((s) => s.token);
+  const userId    = useAuthStore((s) => s.user?.id);
+  const hydrated  = useAuthStore((s) => s.hydrated);
 
-  const { data, isLoading, isError, refetch } = useQuery<SessionProfile>({
-    queryKey:  ['session-profile', sessionId],
-    queryFn:   () => sessionsApi.getProfile(sessionId),
-    staleTime: 0,
+  console.log(`[SESSION-PROFILE] Mounted: sessionId=${sessionId}`);
+
+  // Real-time override from WebSocket (while query is stale)
+  const [rtData, setRtData] = useState<Partial<SessionProfile> | null>(null);
+  const [showRating, setShowRating] = useState(false);
+  const [alreadyRated, setAlreadyRated] = useState(false);
+  const ratingShownRef = useRef(false); // prevent showing twice
+
+  // ── Real-time: subscribe to session events via Reverb ─────────────────────
+  useEffect(() => {
+    // ⚠️ CRITICAL GUARD 1: Wait for auth hydration (data loading)
+    if (!hydrated) {
+      console.log('[SESSION-PROFILE] ⏳ Reverb: waiting for auth hydration...');
+      return;  // ← EXIT if not hydrated
+    }
+
+    // ⚠️ CRITICAL GUARD 2: Verify both token AND userId exist
+    if (!token || !userId) {
+      console.log(`[SESSION-PROFILE] ❌ Reverb: blocked (token=${!!token}, userId=${!!userId})`);
+      return;  // ← EXIT if credentials missing
+    }
+
+    // ✅ NOW SAFE: All guards passed, proceed with Reverb connection
+    console.log(`[SESSION-PROFILE] 🔌 Connecting to Reverb: student.${userId}`);
+
+    const cleanupFns: (() => void)[] = [];
+
+    try {
+      // getEcho is now synchronous — native WebSocket, no native modules
+      const echo    = getEcho(token);
+      const channel = echo.private(`student.${userId}`);
+
+      const unsubActivated = channel.listen('.session.activated', (e: any) => {
+        if (e.session_id === sessionId) {
+          setRtData({ status: e.status || 'active' });
+          qc.invalidateQueries({ queryKey: ['session-profile', sessionId] });
+        }
+      });
+
+      const unsubEnded = channel.listen('.session.ended', (e: any) => {
+        if (e.session_id === sessionId) {
+          setRtData({
+            status:            e.status || 'completed',
+            attendance_status: e.attendance_status,
+            ended_at:          e.ended_at,
+            lesson:            e.lesson,
+          });
+          qc.invalidateQueries({ queryKey: ['session-profile', sessionId] });
+          if (e.attendance_status === 'attended' && !ratingShownRef.current) {
+            ratingShownRef.current = true;
+            setTimeout(() => setShowRating(true), 1000);
+          }
+        }
+      });
+
+      if (typeof unsubActivated === 'function') cleanupFns.push(unsubActivated);
+      if (typeof unsubEnded     === 'function') cleanupFns.push(unsubEnded);
+    } catch (err) {
+      // Non-critical — app works via polling even without real-time
+      console.warn('[SESSION-PROFILE] Reverb unavailable:', err instanceof Error ? err.message : 'unknown');
+    }
+
+    return () => {
+      cleanupFns.forEach((fn) => fn());
+    };
+  }, [hydrated, token, userId, sessionId, qc]);
+
+  const { data: rawData, isLoading, isError, refetch } = useQuery<SessionProfile>({
+    queryKey:     ['session-profile', sessionId],
+    queryFn:      async () => {
+      console.log(`[SESSION-PROFILE] API: getProfile(${sessionId})`);
+      return sessionsApi.getProfile(sessionId);
+    },
+    staleTime:    0,
+    // ⏱️ Poll while waiting OR after session ends
+    // - While waiting (status='waiting'): poll every 10s
+    // - While active (status='active'): don't poll (WebSocket handles it)
+    // - After completed (status='completed'): poll once to get final lesson
+    refetchInterval: (q) => {
+      const status = q.state.data?.status;
+      if (status === 'waiting')   return 10_000; // waiting for teacher
+      if (status === 'active')    return 5_000;  // ✅ poll while active — catch when teacher ends
+      if (status === 'completed') return 3_000;  // just ended — get final data
+      return false;
+    },
   });
+
+  // Merge real-time override with query data
+  const data = rawData ? { ...rawData, ...(rtData ?? {}) } : rawData;
+
+  // ✅ When session ends → invalidate sessions list so it updates immediately
+  const prevStatusRef = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    const prev = prevStatusRef.current;
+    const curr = data?.status;
+    if (prev === 'active' && curr === 'completed') {
+      // Session just ended — refresh the sessions tab list
+      qc.invalidateQueries({ queryKey: ['sessions'] });
+      qc.invalidateQueries({ queryKey: ['bookings'] });
+    }
+    prevStatusRef.current = curr;
+  }, [data?.status, qc]);
+
+  // ✅ Auto-show rating modal: attended + not rated + not shown yet
+  useEffect(() => {
+    if (
+      data?.status === 'completed' &&
+      data?.attendance_status === 'attended' &&
+      data?.rating?.rated === false &&
+      !ratingShownRef.current
+    ) {
+      ratingShownRef.current = true;
+      setTimeout(() => setShowRating(true), 800);
+    }
+    // If already rated, sync state
+    if (data?.rating?.rated) {
+      setAlreadyRated(true);
+    }
+  }, [data?.status, data?.attendance_status, data?.rating?.rated]);
+
+  console.log(`[SESSION-PROFILE] Render: loading=${isLoading} error=${isError} status=${data?.status ?? 'none'} rtOverride=${!!rtData}`);
 
   // Loading
   if (isLoading) {
@@ -172,6 +402,12 @@ export default function SessionProfileScreen() {
   const isStudentAbsent   = isCompleted && data.attendance_status === 'absent';
   const isProperlyDone    = isCompleted && data.attendance_status === 'attended';
 
+  // "5 minutes before" — show countdown when close to session time
+  const minsUntil = data.scheduled_at
+    ? (new Date(data.scheduled_at).getTime() - Date.now()) / 60000
+    : null;
+  const isWithin5Min = isWaiting && minsUntil !== null && minsUntil <= 5 && minsUntil > -30;
+
   return (
     <View style={{ flex: 1, backgroundColor: '#F4F0FF' }}>
       <Stack.Screen options={{ headerShown: false }} />
@@ -184,13 +420,13 @@ export default function SessionProfileScreen() {
             GRADIENT HERO
         ════════════════════════════════════════════════════════ */}
         <LinearGradient
-          colors={[G_TOP, G_BOTTOM]}
-          start={{ x: 0.2, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={[styles.hero, { paddingTop: insets.top + 16 }]}
-        >
-          {/* ── Row: back + status ── */}
-          <View style={styles.heroTopRow}>
+            colors={[G_TOP, G_BOTTOM]}
+            start={{ x: 0.2, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={[styles.hero, { paddingTop: insets.top + 16 }]}
+          >
+            {/* ── Row: back + status ── */}
+            <View style={styles.heroTopRow}>
             <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
               <Ionicons name="chevron-back" size={22} color="#fff" />
             </TouchableOpacity>
@@ -232,11 +468,23 @@ export default function SessionProfileScreen() {
               </View>
               <View style={styles.teacherInfo}>
                 <Text style={styles.teacherName}>{data.teacher.name}</Text>
-                {data.teacher.teacher_code && (
-                  <View style={styles.teacherCodeBadge}>
-                    <Text style={styles.teacherCodeTxt}>{data.teacher.teacher_code}</Text>
-                  </View>
-                )}
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  {data.teacher.teacher_code && (
+                    <View style={styles.teacherCodeBadge}>
+                      <Text style={styles.teacherCodeTxt}>{data.teacher.teacher_code}</Text>
+                    </View>
+                  )}
+                  {/* ✅ Teacher avg rating */}
+                  {data.teacher.avg_rating != null && (
+                    <View style={styles.ratingBadge}>
+                      <Ionicons name="star" size={11} color="#F59E0B" />
+                      <Text style={styles.ratingBadgeTxt}>
+                        {data.teacher.avg_rating.toFixed(1)}
+                        <Text style={{ fontSize: 9, color: '#A78BFA' }}> ({data.teacher.total_ratings})</Text>
+                      </Text>
+                    </View>
+                  )}
+                </View>
               </View>
             </View>
           )}
@@ -271,11 +519,20 @@ export default function SessionProfileScreen() {
               <TouchableOpacity
                 style={styles.joinBtn}
                 activeOpacity={0.85}
-                onPress={() => router.push({ pathname: '/session/[id]', params: { id: String(data.id) } })}
+                onPress={() => {
+                  console.log(`[SESSION-PROFILE] JOIN: sessionId=${data.id}`);
+                  router.push({ pathname: '/session/[id]', params: { id: String(data.id) } });
+                }}
               >
                 <Ionicons name="videocam" size={18} color="#fff" />
                 <Text style={styles.joinTxt}>دخول الفصل الآن 🎉</Text>
               </TouchableOpacity>
+            ) : isWaiting && isWithin5Min ? (
+              <View style={styles.stateBox}>
+                <Text style={styles.stateEmoji}>🔔</Text>
+                <Text style={[styles.stateTitle, { color: '#7C3AED' }]}>الحصة على وشك البدء!</Text>
+                <Text style={styles.stateSub}>انتظر المعلم، ستظهر زر الدخول تلقائياً</Text>
+              </View>
             ) : isWaiting ? (
               <View style={styles.stateBox}>
                 <Text style={styles.stateEmoji}>⏳</Text>
@@ -298,6 +555,24 @@ export default function SessionProfileScreen() {
               <View style={styles.stateBox}>
                 <Text style={styles.stateEmoji}>🎓</Text>
                 <Text style={[styles.stateTitle, { color: '#22C55E' }]}>أحسنت! الحصة مكتملة</Text>
+                {/* ✅ Rating button */}
+                {alreadyRated || data.rating?.rated ? (
+                  <View style={styles.ratedRow}>
+                    <Ionicons name="star" size={14} color="#F59E0B" />
+                    <Text style={styles.ratedTxt}>
+                      قيّمت المعلم بـ {data.rating?.stars ?? '?'} نجوم ⭐
+                    </Text>
+                  </View>
+                ) : (
+                  <TouchableOpacity
+                    style={styles.rateBtn}
+                    onPress={() => setShowRating(true)}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons name="star-outline" size={16} color="#fff" />
+                    <Text style={styles.rateBtnTxt}>قيّم المعلم</Text>
+                  </TouchableOpacity>
+                )}
               </View>
             ) : isCompleted ? (
               <View style={styles.stateBox}>
@@ -333,6 +608,19 @@ export default function SessionProfileScreen() {
 
         </View>
       </ScrollView>
+
+      {/* ✅ Rating Modal */}
+      <RatingModal
+        visible={showRating}
+        teacherName={data.teacher?.name ?? 'المعلم'}
+        sessionId={sessionId}
+        onClose={() => setShowRating(false)}
+        onSubmitted={(stars) => {
+          setShowRating(false);
+          setAlreadyRated(true);
+          qc.invalidateQueries({ queryKey: ['session-profile', sessionId] });
+        }}
+      />
     </View>
   );
 }
@@ -446,4 +734,70 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   pdfBtnTxt: { fontSize: 13, fontWeight: '700', color: PURPLE },
+
+  // ── Teacher Rating Badge ────────────────────────────────────────────────
+  ratingBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 3,
+    backgroundColor: 'rgba(245,158,11,0.15)',
+    borderRadius: 8, paddingHorizontal: 7, paddingVertical: 3,
+    borderWidth: 1, borderColor: 'rgba(245,158,11,0.3)',
+  },
+  ratingBadgeTxt: { fontSize: 11, fontWeight: '700', color: '#F59E0B' },
+
+  // ── Rate Button ─────────────────────────────────────────────────────────
+  rateBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 6, backgroundColor: '#F59E0B',
+    paddingHorizontal: 20, paddingVertical: 10,
+    borderRadius: 12, marginTop: 10, alignSelf: 'center',
+  },
+  rateBtnTxt: { color: '#fff', fontSize: 13, fontWeight: '800' },
+
+  ratedRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    marginTop: 8, alignSelf: 'center',
+  },
+  ratedTxt: { fontSize: 12, color: '#F59E0B', fontWeight: '700' },
+});
+
+// ─── Rating Modal Styles ──────────────────────────────────────────────────────
+const ratingStyles = StyleSheet.create({
+  overlay: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.55)',
+    justifyContent: 'flex-end',
+  },
+  sheet: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 28, borderTopRightRadius: 28,
+    padding: 28, paddingBottom: 40,
+    alignItems: 'center', gap: 12,
+  },
+  handle: {
+    width: 40, height: 4, borderRadius: 2,
+    backgroundColor: '#E5E7EB', marginBottom: 4,
+  },
+  emoji: { fontSize: 44 },
+  title: { fontSize: 20, fontWeight: '900', color: '#111827' },
+  sub:   { fontSize: 14, color: '#6B7280', textAlign: 'center', lineHeight: 22 },
+  starLabel: {
+    fontSize: 15, fontWeight: '700', color: '#F59E0B',
+    marginTop: 4,
+  },
+  notesInput: {
+    width: '100%', borderWidth: 1.5, borderColor: '#E5E7EB',
+    borderRadius: 14, padding: 14, fontSize: 14,
+    color: '#111', minHeight: 80, marginTop: 4,
+    backgroundColor: '#F9FAFB',
+  },
+  btnRow: { flexDirection: 'row', gap: 12, width: '100%', marginTop: 4 },
+  skipBtn: {
+    flex: 1, paddingVertical: 14, borderRadius: 14,
+    borderWidth: 1.5, borderColor: '#E5E7EB', alignItems: 'center',
+  },
+  skipTxt: { fontSize: 14, fontWeight: '700', color: '#6B7280' },
+  submitBtn: {
+    flex: 2, paddingVertical: 14, borderRadius: 14,
+    backgroundColor: '#F59E0B', alignItems: 'center',
+  },
+  submitTxt: { fontSize: 14, fontWeight: '800', color: '#fff' },
 });

@@ -53,7 +53,12 @@ export interface SessionProfile {
   scheduled_at:      string | null;
   started_at:        string | null;
   ended_at:          string | null;
-  teacher:           { name: string; teacher_code?: string | null } | null;
+  teacher: {
+    name:          string;
+    teacher_code?: string | null;
+    avg_rating?:   number | null;    // ✅ average rating across all sessions
+    total_ratings?: number;          // ✅ how many ratings
+  } | null;
   lesson: {
     id:            number;
     title:         string;
@@ -64,6 +69,11 @@ export interface SessionProfile {
     level?:        { id: number; code: string; name: string };
   };
   quiz_unlocked: boolean;
+  rating: {                          // ✅ has the student rated this session?
+    rated:  boolean;
+    stars:  number | null;
+    notes:  string | null;
+  };
 }
 
 export interface SessionRequest {
@@ -104,10 +114,19 @@ export const sessionsApi = {
       .then((r) => r.data.data),
 
   /** Join an active session — returns Daily.co URL + Nearpod data */
-  joinSession: (sessionId: number) =>
-    client
+  joinSession: (sessionId: number) => {
+    console.log(`[SESSIONS-API] joinSession(${sessionId})`);
+    return client
       .get<JoinSessionResponse>(`/student/sessions/${sessionId}/join`)
-      .then((r) => r.data),
+      .then((r) => {
+        console.log(`[SESSIONS-API] joinSession(${sessionId}) ✓ hasRoom=${!!r.data.daily_room_url} hasPin=${!!r.data.nearpod_pin}`);
+        return r.data;
+      })
+      .catch((err) => {
+        console.error(`[SESSIONS-API] joinSession(${sessionId}) ✗ ${err?.response?.status}`);
+        throw err;
+      });
+  },
 
   /** List bookings (session requests) */
   listBookings: () =>
@@ -122,10 +141,19 @@ export const sessionsApi = {
       .then((r) => r.data),
 
   /** Fetch session profile (all statuses) */
-  getProfile: (sessionId: number) =>
-    client
+  getProfile: (sessionId: number) => {
+    console.log(`[SESSIONS-API] getProfile(${sessionId})`);
+    return client
       .get<SessionProfile>(`/student/sessions/${sessionId}/profile`)
-      .then((r) => r.data),
+      .then((r) => {
+        console.log(`[SESSIONS-API] getProfile(${sessionId}) ✓ status=${r.data.status}`);
+        return r.data;
+      })
+      .catch((err) => {
+        console.error(`[SESSIONS-API] getProfile(${sessionId}) ✗ ${err.response?.status}`);
+        throw err;
+      });
+  },
 
   /** Fetch booking request profile (before a session is created) */
   getBookingProfile: (bookingId: number) =>
@@ -137,5 +165,25 @@ export const sessionsApi = {
   cancelBooking: (requestId: number) =>
     client
       .post(`/student/bookings/${requestId}/cancel`)
+      .then((r) => r.data),
+
+  /** Raise hand — notifies the teacher via WebSocket */
+  raiseHand: (sessionId: number) =>
+    client
+      .post(`/student/sessions/${sessionId}/raise-hand`)
+      .then((r) => r.data),
+
+  /** Rate the teacher after a completed session */
+  rateSession: (sessionId: number, rating: number, notes?: string) =>
+    client
+      .post(`/student/sessions/${sessionId}/rate`, { rating, notes })
+      .then((r) => r.data),
+
+  /** Check if a session has already been rated */
+  checkRating: (sessionId: number) =>
+    client
+      .get<{ rated: boolean; rating: { rating: number; notes: string | null } | null }>(
+        `/student/sessions/${sessionId}/rate/check`
+      )
       .then((r) => r.data),
 };

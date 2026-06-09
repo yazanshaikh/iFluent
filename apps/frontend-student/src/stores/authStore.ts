@@ -45,6 +45,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     const token = await SecureStore.getItemAsync('student_token');
     const raw   = await SecureStore.getItemAsync('student_user');
     const user  = raw ? (JSON.parse(raw) as AuthUser) : null;
+    console.log(`[AUTH] Hydrated: userId=${user?.id ?? 'none'}`);
     set({ token, user, hydrated: true });
   },
 

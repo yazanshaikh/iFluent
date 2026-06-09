@@ -134,12 +134,12 @@ class DemoBookingController extends Controller
                 'lead.assignedTo:id,name,role',
             ])
             // الحجوزات المعلقة (pending) تظهر دائماً بغض النظر عن العمر.
-            // الحجوزات المنتهية/الملغاة/المؤكدة تظهر فقط خلال 48 ساعة من آخر تحديث.
+            // الحجوزات المنتهية/الملغاة/المؤكدة تظهر فقط خلال 24 ساعة من آخر تحديث.
             ->where(function ($q) {
                 $q->where('status', SessionRequest::STATUS_PENDING)
                   ->orWhere(function ($q2) {
                       $q2->whereNotIn('status', [SessionRequest::STATUS_PENDING])
-                         ->where('updated_at', '>=', now()->subDays(2));
+                         ->where('updated_at', '>=', now()->subDay());  // ← 24 hours (per requirement)
                   });
             })
             ->orderByDesc('requested_at_utc');
@@ -167,14 +167,18 @@ class DemoBookingController extends Controller
             $query->whereDate('requested_at_utc', '<=', $dateTo);
         }
 
-        $bookings = $query->paginate(20);
+        $bookings = $query->with('session')->paginate(20);
 
         return response()->json([
             'data'         => $bookings->map(fn ($r) => [
                 'id'          => $r->id,
-                'status'      => $r->status,
-                'scheduled_at'=> $r->requested_at_utc?->toIso8601String(),
-                'created_at'  => $r->created_at->toIso8601String(),
+                // ✅ Smart status mapping:
+                // - If session exists AND is completed → show 'completed' (منتهية)
+                // - Otherwise → show SessionRequest status (pending/confirmed/cancelled/etc)
+                'status'             => ($r->session?->status === 'completed') ? 'completed' : $r->status,
+                'attendance_status'  => $r->session?->attendance_status,  // attended | absent | teacher_absent | null
+                'scheduled_at'       => $r->requested_at_utc?->toIso8601String(),
+                'created_at'         => $r->created_at->toIso8601String(),
                 'lead'        => $r->lead ? [
                     'id'    => $r->lead->id,
                     'name'  => $r->lead->name,
@@ -201,7 +205,7 @@ class DemoBookingController extends Controller
             ->with([
                 'assignedTeacher:id,name',
                 'lesson:id,title',
-                'session:id,teacher_joined_at,student_joined_at,ended_at,status',
+                'session:id,teacher_joined_at,student_joined_at,ended_at,status,attendance_status,teacher_present,student_present',
             ])
             ->orderByDesc('requested_at_utc')
             ->get();
@@ -216,9 +220,10 @@ class DemoBookingController extends Controller
                 'session_id'   => $r->session_id,
                 // بيانات الحضور — موجودة فقط عند ربط الجلسة الفعلية
                 'attendance'   => $r->session ? [
-                    'teacher_joined' => (bool) $r->session->teacher_joined_at,
-                    'student_joined' => (bool) $r->session->student_joined_at,
-                    'ended_at'       => $r->session->ended_at?->toIso8601String(),
+                    'teacher_joined'    => (bool) ($r->session->teacher_joined_at ?? $r->session->teacher_present),
+                    'student_joined'    => (bool) ($r->session->student_joined_at ?? $r->session->student_present),
+                    'attendance_status' => $r->session->attendance_status,  // ← attended | absent | teacher_absent
+                    'ended_at'          => $r->session->ended_at?->toIso8601String(),
                 ] : null,
             ]),
         ]);

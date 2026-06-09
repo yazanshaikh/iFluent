@@ -5,7 +5,7 @@
  */
 import { useState, useEffect } from 'react';
 import {
-  View, Text, ScrollView, TouchableOpacity, Pressable, TextInput,
+  View, Text, ScrollView, Pressable, TextInput,
   StyleSheet, ActivityIndicator, Alert, Linking, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -13,7 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { sessionsApi, type TeacherSession } from '@/api/sessions';
+import { sessionsApi, type TeacherSession, type SessionStartError } from '@/api/sessions';
 import { C, shadow } from '@/theme';
 
 function InfoRow({ icon, label, value }: { icon: string; label: string; value: string }) {
@@ -43,13 +43,47 @@ export default function SessionDetailScreen() {
   const insets    = useSafeAreaInsets();
   const qc        = useQueryClient();
   const sessionId = Number(id);
-  const [pin, setPin] = useState('');
+  const [pin, setPin]           = useState('');
+  const [confirming, setConfirming] = useState(false); // inline PIN confirm
+  const [startError, setStartError] = useState<SessionStartError | null>(null);
+  const [countdown, setCountdown] = useState<number | null>(null);
 
   const { data: session, isLoading } = useQuery<TeacherSession>({
     queryKey: ['session', sessionId],
     queryFn:  () => sessionsApi.get(sessionId),
     staleTime: 15_000,
   });
+
+  // ⏱️ Countdown timer — update every second
+  // Window: من (scheduled_at - 15 min) إلى (scheduled_at + 15 min)
+  useEffect(() => {
+    if (!session?.scheduled_at) return;
+
+    const updateCountdown = () => {
+      const now = Date.now();
+      const scheduled = new Date(session.scheduled_at).getTime();
+      const fifteenMinBefore = scheduled - 15 * 60 * 1000;
+      const fifteenMinAfter = scheduled + 15 * 60 * 1000;
+
+      // لما نكون قبل الموعد بأكثر من 15 دقيقة
+      if (now < fifteenMinBefore) {
+        const minsUntil = Math.ceil((fifteenMinBefore - now) / 60000);
+        setCountdown(minsUntil);
+      }
+      // لما نكون داخل الـ window (من -15 min إلى +15 min)
+      else if (now >= fifteenMinBefore && now <= fifteenMinAfter) {
+        setCountdown(null); // ✅ يقدر يفعل
+      }
+      // لما نكون بعد الموعد بأكثر من 15 دقيقة
+      else {
+        setCountdown(-1); // -1 = too late
+      }
+    };
+
+    updateCountdown();
+    const interval = setInterval(updateCountdown, 1000);
+    return () => clearInterval(interval);
+  }, [session?.scheduled_at]);
 
   // Pre-fill PIN if already saved
   useEffect(() => {
@@ -77,27 +111,40 @@ export default function SessionDetailScreen() {
 
   const handleRelease = () => releaseMutation.mutate();
 
-  // Start session
+  // Start session — sends PIN, activates, returns room URL with teacher token
   const startMutation = useMutation({
-    mutationFn: () => sessionsApi.start(sessionId),
-    onSuccess:  () => {
+    mutationFn: (nearpodPin: string) => sessionsApi.start(sessionId, nearpodPin),
+    onSuccess:  (data) => {
+      setStartError(null);
       qc.invalidateQueries({ queryKey: ['session', sessionId] });
       qc.invalidateQueries({ queryKey: ['sessions'] });
-      router.push({ pathname: '/classroom/[id]', params: { id: String(sessionId) } });
+      // Pass the signed room URL (with ?t=token) so classroom opens it directly
+      router.push({
+        pathname: '/classroom/[id]',
+        params: { id: String(sessionId), roomUrl: data?.daily_room_url ?? '' },
+      });
     },
-    onError: (e: any) =>
-      Alert.alert('خطأ', e?.response?.data?.message ?? 'تعذر بدء الحصة'),
+    onError: (e: any) => {
+      const errData = e?.response?.data;
+      if (errData?.reason === 'too_early' || errData?.reason === 'too_late') {
+        setStartError(errData);
+        setConfirming(false);
+      } else {
+        Alert.alert('خطأ', errData?.message ?? 'تعذر بدء الحصة');
+      }
+    },
   });
 
   const handleStart = () => {
-    Alert.alert('بدء الحصة', 'هل تريد بدء الحصة الآن؟', [
-      { text: 'تراجع', style: 'cancel' },
-      { text: 'ابدأ', onPress: () => startMutation.mutate() },
-    ]);
+    if (!pin.trim()) return; // PIN required — button disabled anyway
+    setConfirming(true);     // show inline confirmation
   };
 
   const openNearpod = () => {
-    const url = session?.lesson?.nearpod_url ?? 'https://nearpod.com';
+    const lessonId = session?.lesson?.nearpod_lesson_id;
+    const url = lessonId
+      ? `https://nearpod.com/login?redirect=https://nearpod.com/presentation?pin=${lessonId}`
+      : (session?.lesson?.nearpod_url ?? 'https://nearpod.com');
     Linking.openURL(url).catch(() => Alert.alert('خطأ', 'تعذر فتح Nearpod'));
   };
 
@@ -138,9 +185,9 @@ export default function SessionDetailScreen() {
           colors={[C.sky, C.skyDark]}
           style={[styles.header, { paddingTop: insets.top + 12 }]}
         >
-          <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+          <Pressable style={styles.backBtn} onPress={() => router.back()}>
             <Ionicons name="chevron-forward" size={22} color="#fff" />
-          </TouchableOpacity>
+          </Pressable>
           <View style={{ flex: 1, alignItems: 'flex-end' }}>
             <Text style={styles.headerTitle}>بروفايل الحصة</Text>
             {(levelCode || lessonNum) && (
@@ -198,7 +245,7 @@ export default function SessionDetailScreen() {
                 </Text>
 
                 {/* Open Nearpod */}
-                <TouchableOpacity style={styles.nearpodBtn} onPress={openNearpod} activeOpacity={0.85}>
+                <Pressable style={({ pressed }) => [styles.nearpodBtn, pressed && { opacity: 0.8 }]} onPress={openNearpod}>
                   <LinearGradient
                     colors={['#6366F1', '#4F46E5']}
                     start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
@@ -207,7 +254,7 @@ export default function SessionDetailScreen() {
                     <Ionicons name="open-outline" size={18} color="#fff" />
                     <Text style={styles.nearpodBtnTxt}>فتح في Nearpod</Text>
                   </LinearGradient>
-                </TouchableOpacity>
+                </Pressable>
 
                 {/* PIN input */}
                 <View style={styles.pinRow}>
@@ -222,51 +269,139 @@ export default function SessionDetailScreen() {
                     autoCorrect={false}
                     textAlign="right"
                   />
-                  <TouchableOpacity
-                    style={[styles.pinSaveBtn, (!pin.trim() || pinMutation.isPending) && { opacity: 0.5 }]}
+                  <Pressable
+                    style={({ pressed }) => [
+                      styles.pinSaveBtn,
+                      (!pin.trim() || pinMutation.isPending) && { opacity: 0.5 },
+                      pressed && { opacity: 0.7 },
+                    ]}
                     onPress={() => pin.trim() && pinMutation.mutate(pin.trim())}
                     disabled={!pin.trim() || pinMutation.isPending}
-                    activeOpacity={0.8}
                   >
                     {pinMutation.isPending
                       ? <ActivityIndicator size="small" color="#fff" />
                       : <Text style={styles.pinSaveTxt}>حفظ</Text>
                     }
-                  </TouchableOpacity>
+                  </Pressable>
                 </View>
+              </View>
+            </View>
+          )}
+
+          {/* ── Inline PIN Confirm ── */}
+          {confirming && (
+            <View style={styles.confirmBox}>
+              <Text style={styles.confirmTitle}>تأكيد PIN</Text>
+              <Text style={styles.confirmMsg}>
+                لقد أدخلت الكود:{'\n'}
+                <Text style={styles.confirmPin}>{pin.trim()}</Text>
+                {'\n\n'}هل تتأكد أنه الكود الخاص بهذه الحصة؟
+              </Text>
+              <View style={styles.confirmBtns}>
+                <Pressable
+                  style={styles.confirmCancel}
+                  onPress={() => setConfirming(false)}
+                >
+                  <Text style={styles.confirmCancelTxt}>تراجع</Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.confirmOk, startMutation.isPending && { opacity: 0.6 }]}
+                  onPress={() => { setConfirming(false); startMutation.mutate(pin.trim()); }}
+                  disabled={startMutation.isPending}
+                >
+                  {startMutation.isPending
+                    ? <ActivityIndicator color="#fff" size="small" />
+                    : <Text style={styles.confirmOkTxt}>نعم، ابدأ</Text>
+                  }
+                </Pressable>
               </View>
             </View>
           )}
 
           {/* ── CTA ── */}
           {isActive ? (
-            <TouchableOpacity
-              style={styles.ctaBtn}
+            <Pressable
+              style={({ pressed }) => [styles.ctaBtn, pressed && { opacity: 0.85 }]}
               onPress={() => router.push({ pathname: '/classroom/[id]', params: { id: String(sessionId) } })}
-              activeOpacity={0.85}
             >
               <LinearGradient colors={['#16a34a', '#15803d']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.ctaGrad}>
                 <Ionicons name="videocam" size={22} color="#fff" />
                 <Text style={styles.ctaTxt}>العودة للفصل الافتراضي</Text>
               </LinearGradient>
-            </TouchableOpacity>
+            </Pressable>
           ) : canStart ? (
-            <TouchableOpacity
-              style={[styles.ctaBtn, startMutation.isPending && { opacity: 0.6 }]}
-              onPress={handleStart}
-              disabled={startMutation.isPending}
-              activeOpacity={0.85}
-            >
-              <LinearGradient colors={[C.sky, C.skyDark]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.ctaGrad}>
-                {startMutation.isPending
-                  ? <ActivityIndicator color="#fff" />
-                  : <>
-                      <Ionicons name="play-circle" size={22} color="#fff" />
-                      <Text style={styles.ctaTxt}>بدء الحصة</Text>
-                    </>
-                }
-              </LinearGradient>
-            </TouchableOpacity>
+            <>
+              {/* ⏱️ Countdown warning if too early */}
+              {countdown && countdown > 0 && (
+                <View style={styles.countdownBox}>
+                  <Ionicons name="time-outline" size={20} color="#D97706" />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.countdownTitle}>فتح بعد {countdown} دقيقة</Text>
+                    <Text style={styles.countdownMsg}>
+                      ممكن تفعيل الحصة قبل موعدها بـ 15 دقيقة فقط
+                    </Text>
+                  </View>
+                </View>
+              )}
+
+              {/* ❌ Too late warning */}
+              {countdown === -1 && (
+                <View style={[styles.errorBox, styles.errorBoxLate]}>
+                  <Ionicons name="alert-circle" size={18} color="#DC2626" />
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.errorTitle, styles.errorTitleLate]}>
+                      انتهى وقت تفعيل الحصة
+                    </Text>
+                    <Text style={[styles.errorMsg, styles.errorMsgLate]}>
+                      يمكن تفعيل الحصة حتى 15 دقيقة بعد الموعد فقط
+                    </Text>
+                  </View>
+                </View>
+              )}
+
+              {/* ❌ Timing error message (if too_early or too_late from API) */}
+              {startError && (
+                <View style={[styles.errorBox, startError.reason === 'too_late' && styles.errorBoxLate]}>
+                  <Ionicons
+                    name={startError.reason === 'too_early' ? 'time-outline' : 'alert-circle'}
+                    size={18}
+                    color={startError.reason === 'too_late' ? '#DC2626' : '#D97706'}
+                  />
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.errorTitle, startError.reason === 'too_late' && styles.errorTitleLate]}>
+                      {startError.message}
+                    </Text>
+                    {startError.details && (
+                      <Text style={[styles.errorMsg, startError.reason === 'too_late' && styles.errorMsgLate]}>
+                        {startError.details}
+                      </Text>
+                    )}
+                  </View>
+                </View>
+              )}
+
+              <Pressable
+                style={({ pressed }) => [
+                  styles.ctaBtn,
+                  (startMutation.isPending || !pin.trim() || countdown !== null) && { opacity: 0.5 },
+                  pressed && countdown === null && { opacity: 0.8 }
+                ]}
+                onPress={handleStart}
+                disabled={startMutation.isPending || !pin.trim() || countdown !== null}
+              >
+                <LinearGradient colors={[C.sky, C.skyDark]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.ctaGrad}>
+                  {startMutation.isPending
+                    ? <ActivityIndicator color="#fff" />
+                    : <>
+                        <Ionicons name="play-circle" size={22} color="#fff" />
+                        <Text style={styles.ctaTxt}>
+                          {countdown && countdown > 0 ? `فتح بعد ${countdown}م` : 'بدء الحصة'}
+                        </Text>
+                      </>
+                  }
+                </LinearGradient>
+              </Pressable>
+            </>
           ) : null}
 
           {/* إلغاء السحب */}
@@ -341,6 +476,25 @@ const styles = StyleSheet.create({
   ctaGrad: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingVertical: 18 },
   ctaTxt:  { color: '#fff', fontSize: 17, fontWeight: '900' },
 
+  confirmBox: {
+    backgroundColor: '#FFF7ED', borderRadius: 18, padding: 18, marginTop: 8,
+    borderWidth: 1.5, borderColor: '#FED7AA',
+  },
+  confirmTitle:  { fontSize: 15, fontWeight: '900', color: '#92400E', textAlign: 'right', marginBottom: 8 },
+  confirmMsg:    { fontSize: 13, color: '#78350F', textAlign: 'right', lineHeight: 22, marginBottom: 16 },
+  confirmPin:    { fontSize: 18, fontWeight: '900', color: '#B45309', letterSpacing: 2 },
+  confirmBtns:   { flexDirection: 'row', gap: 10 },
+  confirmCancel: {
+    flex: 1, paddingVertical: 12, borderRadius: 12, alignItems: 'center',
+    backgroundColor: '#F3F4F6',
+  },
+  confirmCancelTxt: { fontSize: 14, fontWeight: '700', color: '#6B7280' },
+  confirmOk: {
+    flex: 2, paddingVertical: 12, borderRadius: 12, alignItems: 'center',
+    backgroundColor: C.sky,
+  },
+  confirmOkTxt: { fontSize: 14, fontWeight: '800', color: '#fff' },
+
   releaseBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     gap: 8, marginTop: 12, paddingVertical: 14, borderRadius: 16,
@@ -348,4 +502,25 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFF5F5',
   },
   releaseTxt: { fontSize: 15, fontWeight: '700', color: C.error },
+
+  countdownBox: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    backgroundColor: '#FEF3C7', borderRadius: 14, padding: 14,
+    marginBottom: 12, borderWidth: 1.5, borderColor: '#FCD34D',
+  },
+  countdownTitle: { fontSize: 14, fontWeight: '900', color: '#92400E' },
+  countdownMsg: { fontSize: 12, color: '#B45309', marginTop: 2 },
+
+  errorBox: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    backgroundColor: '#FEF3C7', borderRadius: 14, padding: 14,
+    marginBottom: 12, borderWidth: 1.5, borderColor: '#FCD34D',
+  },
+  errorBoxLate: {
+    backgroundColor: '#FEE2E2', borderColor: '#FECACA',
+  },
+  errorTitle: { fontSize: 14, fontWeight: '900', color: '#92400E' },
+  errorTitleLate: { color: '#991B1B' },
+  errorMsg: { fontSize: 12, color: '#B45309', marginTop: 2 },
+  errorMsgLate: { color: '#7F1D1D' },
 });

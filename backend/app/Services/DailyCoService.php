@@ -81,6 +81,44 @@ class DailyCoService
      * Deletes the Daily.co room when the session ends.
      * Prevents any further joins. Silently skips if room doesn't exist.
      */
+    // ─── Create Meeting Token ─────────────────────────────────────────────────
+
+    /**
+     * Creates a short-lived Daily.co meeting token for a participant.
+     * Teacher gets is_owner=true (can control room, start recording).
+     * Student gets is_owner=false (can join but not control).
+     *
+     * Returns the token string to be appended as ?t={token} to the room URL.
+     */
+    public function createMeetingToken(string $roomName, bool $isOwner = false): string
+    {
+        $response = Http::withToken($this->apiKey)
+            ->timeout(10)
+            ->post("{$this->baseUrl}/meeting-tokens", [
+                'properties' => [
+                    'room_name'  => $roomName,
+                    'is_owner'   => $isOwner,
+                    'exp'        => now()->addHours(self::SESSION_EXPIRY_HOURS)->timestamp,
+                    'enable_screenshare' => $isOwner,
+                    'start_video_off'    => false,
+                    'start_audio_off'    => false,
+                ],
+            ]);
+
+        if (!$response->successful()) {
+            Log::error('Daily.co createMeetingToken failed', [
+                'room_name' => $roomName,
+                'status'    => $response->status(),
+                'body'      => $response->body(),
+            ]);
+            throw new \RuntimeException("Failed to create Daily.co meeting token.");
+        }
+
+        return $response->json('token');
+    }
+
+    // ─── Delete Room ──────────────────────────────────────────────────────────
+
     public function deleteRoom(string $roomName): void
     {
         $response = Http::withToken($this->apiKey)

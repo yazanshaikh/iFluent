@@ -47,17 +47,37 @@ class BookingController extends Controller
         $scheduledUtc = \Carbon\Carbon::parse($validated['scheduled_at'], 'Asia/Amman')
             ->utc();
 
-        // ── Jordan working hours check: 09:00–21:00 ──────────────────────────
+        // ── Jordan working hours check: 09:00–00:00 ──────────────────────────
         $jordanHour = (int) $scheduledUtc->copy()->setTimezone('Asia/Amman')->format('H');
 
-        if ($jordanHour < 9 || $jordanHour >= 21) {
+        if ($jordanHour < 9 || $jordanHour >= 24) {
             return response()->json([
-                'message' => 'يُقبل الحجز فقط بين الساعة ٩ صباحاً و٩ مساءً بتوقيت الأردن.',
+                'message' => 'يُقبل الحجز فقط بين الساعة ٩ صباحاً و١٢ منتصف الليل بتوقيت الأردن.',
             ], 422);
         }
 
         // Overwrite validated value with the UTC version for consistent storage
         $validated['scheduled_at'] = $scheduledUtc->toDateTimeString();
+
+        // ── GLOBAL GUARD: only ONE active booking at a time ───────────────────
+        // Block if the student already has:
+        //   • a pending/confirmed request whose time hasn't passed yet, OR
+        //   • a waiting/active session
+        // This is the single source of truth for "you already have a booking".
+        $hasActiveRequest = SessionRequest::where('student_id', $student->id)
+            ->whereIn('status', [SessionRequest::STATUS_PENDING, SessionRequest::STATUS_CONFIRMED])
+            ->where('requested_at_utc', '>', now())
+            ->exists();
+
+        $hasLiveSession = \App\Models\Session::where('student_id', $student->id)
+            ->whereIn('status', ['waiting', 'active'])
+            ->exists();
+
+        if ($hasActiveRequest || $hasLiveSession) {
+            return response()->json([
+                'message' => 'لا يمكنك حجز حصة جديدة — لديك حصة محجوزة بالفعل. يرجى إكمالها أو إلغاؤها أولاً.',
+            ], 422);
+        }
 
         // ── Lesson-specific booking ───────────────────────────────────────────
         // If lesson_id = 'assessment' or not provided and student has no credits,
@@ -218,6 +238,13 @@ class BookingController extends Controller
             'teacher_gender_pref' => $validated['teacher_gender_pref'] ?? null,
         ]);
 
+        // ── Deduct 1 credit on booking (non-assessment only) ──────────────────
+        // Assessment sessions are free (evaluation before subscription)
+        // Credit is refunded if teacher_absent, kept if attended or student_absent
+        if (!$lesson?->is_assessment) {
+            $student->decrement('lesson_credits');
+        }
+
         // ── Create / update Lead only for assessment session bookings ──────────
         // Regular core/private sessions do NOT create a Lead.
         // Assessment sessions (is_assessment = true) signal that the student
@@ -271,6 +298,25 @@ class BookingController extends Controller
                 $request->filled('status'),
                 fn($q) => $q->where('status', $request->status)
             )
+            // ── Visibility rules ──────────────────────────────────────────────
+            // Never show pending/confirmed requests whose time has passed (+15min)
+            // Scheduler will mark them expired eventually, but hide immediately
+            ->where(function ($q) {
+                $q->whereNotIn('status', [
+                    SessionRequest::STATUS_PENDING,
+                    SessionRequest::STATUS_CONFIRMED,
+                ])
+                ->orWhere('requested_at_utc', '>=', now()->subMinutes(15));
+            })
+            // Hide rejected/cancelled/expired older than 24h (clutter)
+            ->where(function ($q) {
+                $q->whereNotIn('status', [
+                    SessionRequest::STATUS_REJECTED,
+                    SessionRequest::STATUS_CANCELLED,
+                    SessionRequest::STATUS_EXPIRED,
+                ])
+                ->orWhere('updated_at', '>=', now()->subDay());
+            })
             ->orderByDesc('created_at')
             ->paginate(20);
 
@@ -380,6 +426,12 @@ class BookingController extends Controller
             'status'               => SessionRequest::STATUS_CANCELLED,
             'cancellation_reason'  => $request->input('reason'),
         ]);
+
+        // Refund credit — student cancelled their own booking
+        $lesson = $sessionRequest->lesson;
+        if (!$lesson?->is_assessment) {
+            $student->increment('lesson_credits');
+        }
 
         return response()->json(['message' => 'Booking request cancelled.']);
     }

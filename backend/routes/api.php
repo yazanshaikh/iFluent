@@ -237,8 +237,9 @@ Route::middleware(['auth:sanctum', 'role:student'])
         Route::get ('sessions',                       [StudentSessionController::class, 'index']);
         Route::get ('sessions/{session}/profile',     [StudentSessionController::class, 'profile']);
         Route::get ('sessions/{session}/join',        [StudentSessionController::class, 'join']);
-        Route::post('sessions/{session}/rate',        [SessionRatingController::class, 'store']);
+        Route::post('sessions/{session}/rate',         [SessionRatingController::class, 'store']);
         Route::get ('sessions/{session}/rate/check',  [SessionRatingController::class, 'check']);
+        Route::post('sessions/{session}/raise-hand',  [StudentSessionController::class, 'raiseHand']);
 
         // ── Teacher Public Profile ─────────────────────────────────────────────
         Route::get('teachers/{teacherCode}', [StudentTeacherProfileController::class, 'show']);
@@ -318,11 +319,13 @@ Route::middleware(['auth:sanctum', 'role:teacher'])
         // ── Sessions ───────────────────────────────────────────────────────────
         Route::get  ('sessions',                  [TeacherSessionController::class, 'index']);
         Route::post ('sessions',                  [TeacherSessionController::class, 'store']);
-        Route::get  ('sessions/{session}',        [TeacherSessionController::class, 'show']);
+        Route::get  ('sessions/{session}',             [TeacherSessionController::class, 'show']);
+        Route::get  ('sessions/{session}/classroom-url', [TeacherSessionController::class, 'classroomUrl']);
         Route::post ('sessions/{session}/start',  [TeacherSessionController::class, 'start']);
         Route::patch('sessions/{session}/pin',    [TeacherSessionController::class, 'updatePin']);
         Route::post ('sessions/{session}/end',    [TeacherSessionController::class, 'end']);
-        Route::post ('sessions/{session}/cancel',  [TeacherSessionController::class, 'cancel']);
-        Route::post ('sessions/{session}/release', [TeacherSessionController::class, 'release']);
+        Route::post ('sessions/{session}/cancel',        [TeacherSessionController::class, 'cancel']);
+        Route::post ('sessions/{session}/release',       [TeacherSessionController::class, 'release']);
+        Route::get  ('sessions/{session}/raised-hands',  [TeacherSessionController::class, 'raisedHands']);
     });
 

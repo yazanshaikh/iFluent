@@ -1,62 +1,79 @@
 /**
- * Virtual Classroom — الفصل الافتراضي
+ * Virtual Classroom — Teacher
  *
- * Layout (split-screen):
+ * Layout:
  *   ┌─────────────────────────────┐
- *   │  Daily.co WebView      55%  │ ← video/audio
- *   ├─────────────────────────────┤
- *   │  Nearpod WebView       45%  │ ← lesson content
+ *   │  Daily.co  (fixed top)      │  ← resizable via drag handle
+ *   │  [═══════ drag ═══════]     │
+ *   │─────────────────────────────│
+ *   │                             │
+ *   │       Nearpod               │  ← fills remaining, teacher controls slides
+ *   │                             │
  *   └─────────────────────────────┘
- *
- * Controls overlay (top):
- *   ← Back | PIN badge | End Session
  */
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
-  ActivityIndicator, Alert, Platform,
-  StatusBar, BackHandler, TextInput, Modal,
+  ActivityIndicator, Alert, StatusBar,
+  BackHandler, TextInput, Modal,
+  PanResponder, Platform,
 } from 'react-native';
-import { WebView } from 'react-native-webview';
+import { WebViewUniversal } from '@/components/WebViewUniversal';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useEffect } from 'react';
+import { lockCurrent, unlock as unlockOrientation } from '@/lib/screenOrientation';
 import { sessionsApi } from '@/api/sessions';
 import { C } from '@/theme';
 
-// Attendance options when ending a session
-type Attendance = 'attended' | 'absent' | 'teacher_absent';
 
-const ATTENDANCE_OPTIONS: { key: Attendance; label: string; emoji: string; color: string }[] = [
-  { key: 'attended',       label: 'حضر الطالب',    emoji: '✅', color: C.success },
-  { key: 'absent',         label: 'غاب الطالب',    emoji: '😔', color: C.warning },
-  { key: 'teacher_absent', label: 'غاب المعلم',    emoji: '🙋', color: C.error },
-];
+const DAILY_MIN_H    = 90;
+const DAILY_MAX_H    = 320;
+const DAILY_DEFAULT_H = 200;
+const HANDLE_H       = 28;
 
 export default function ClassroomScreen() {
-  const router  = useRouter();
-  const insets  = useSafeAreaInsets();
-  const qc      = useQueryClient();
-  const { id }  = useLocalSearchParams<{ id: string }>();
-  const sessionId = Number(id);
+  const router     = useRouter();
+  const insets     = useSafeAreaInsets();
+  const qc         = useQueryClient();
+  const { id, roomUrl: paramRoomUrl } = useLocalSearchParams<{ id: string; roomUrl?: string }>();
+  const sessionId  = Number(id);
 
-  const [divider,     setDivider]     = useState(0.55);
-  const [pinVisible,  setPinVisible]  = useState(false);
-  const [pinInput,    setPinInput]    = useState('');
-  const [endModal,    setEndModal]    = useState(false);
-  const [attendance,  setAttendance]  = useState<Attendance>('attended');
+  const [pinVisible,        setPinVisible]        = useState(false);
+  const [pinInput,          setPinInput]          = useState('');
+  const [signedRoomUrl,     setSignedRoomUrl]     = useState<string | null>(paramRoomUrl ?? null);
+  const [orientationLocked, setOrientationLocked] = useState(false);
+  const [dailyH,            setDailyH]            = useState(DAILY_DEFAULT_H);
+  const [handNotif,         setHandNotif]         = useState<{ name: string; at: string } | null>(null);
+  const handNotifTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Fetch session data
+  const dailyHRef    = useRef(DAILY_DEFAULT_H);
+  const dragStartRef = useRef(0);
+
+  // ── Fetch session ──────────────────────────────────────────────────────────
   const { data: session, isLoading } = useQuery({
-    queryKey:       ['session', sessionId],
-    queryFn:        () => sessionsApi.get(sessionId),
-    refetchInterval: 30_000,
-    staleTime:       15_000,
+    queryKey:        ['session', sessionId],
+    queryFn:         () => sessionsApi.get(sessionId),
+    // Poll every 30s normally, every 10s when active (catch auto-expiry)
+    refetchInterval: (q) => q.state.data?.status === 'active' ? 10_000 : 30_000,
+    staleTime:       5_000,
   });
 
-  // Update Nearpod PIN
+  // ── Auto-navigate when session ends externally (auto-expiry) ──────────────
+  const prevSessionStatus = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    const curr = session?.status;
+    const prev = prevSessionStatus.current;
+    if (prev === 'active' && curr === 'completed') {
+      // Session was closed externally (auto-expiry or from another tab)
+      qc.invalidateQueries({ queryKey: ['sessions'] });
+      router.replace('/(tabs)/sessions');
+    }
+    prevSessionStatus.current = curr;
+  }, [session?.status, router, qc]);
+
+  // ── Update PIN ─────────────────────────────────────────────────────────────
   const pinMutation = useMutation({
     mutationFn: (pin: string) => sessionsApi.setNearpodPin(sessionId, pin),
     onSuccess: () => {
@@ -67,195 +84,364 @@ export default function ClassroomScreen() {
     onError: (e: any) => Alert.alert('خطأ', e?.response?.data?.message ?? 'تعذر تحديث الـ PIN'),
   });
 
-  // End session
+  // ── Fetch signed URL ───────────────────────────────────────────────────────
+  useEffect(() => {
+    if (signedRoomUrl || session?.status !== 'active') return;
+    sessionsApi.classroomUrl(sessionId)
+      .then((d) => setSignedRoomUrl(d.daily_room_url))
+      .catch(() => {});
+  }, [sessionId, session?.status, signedRoomUrl]);
+
+  // ── Poll raised hands every 5s ─────────────────────────────────────────────
+  useEffect(() => {
+    if (session?.status !== 'active') return;
+
+    const poll = async () => {
+      try {
+        const res = await sessionsApi.getRaisedHands(sessionId);
+        if (res.raised && res.data) {
+          // Only show if it's a new raise (within last 60s)
+          setHandNotif({ name: res.data.student_name, at: res.data.raised_at });
+          // Auto-dismiss after 10s
+          if (handNotifTimer.current) clearTimeout(handNotifTimer.current);
+          handNotifTimer.current = setTimeout(() => setHandNotif(null), 10_000);
+        }
+      } catch { /* ignore */ }
+    };
+
+    poll();
+    const interval = setInterval(poll, 5_000);
+    return () => {
+      clearInterval(interval);
+      if (handNotifTimer.current) clearTimeout(handNotifTimer.current);
+    };
+  }, [session?.status, sessionId]);
+
+  // ── End session — attendance determined automatically by server ───────────
   const endMutation = useMutation({
-    mutationFn: () => sessionsApi.end(sessionId, attendance),
-    onSuccess: () => {
+    mutationFn: () => sessionsApi.end(sessionId),
+    onSuccess: async () => {
       qc.invalidateQueries({ queryKey: ['sessions'] });
       qc.invalidateQueries({ queryKey: ['session', sessionId] });
-      setEndModal(false);
+      if (orientationLocked) await unlockOrientation().catch(() => {});
       router.replace('/(tabs)/sessions');
     },
     onError: (e: any) => Alert.alert('خطأ', e?.response?.data?.message ?? 'تعذر إنهاء الحصة'),
   });
 
-  // Android back-button guard
+  // ── Drag handle — resize Daily panel ──────────────────────────────────────
+  const dragResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder:  () => true,
+      onPanResponderGrant: () => {
+        dragStartRef.current = dailyHRef.current;
+      },
+      onPanResponderMove: (_, g) => {
+        const newH = Math.max(DAILY_MIN_H, Math.min(DAILY_MAX_H, dragStartRef.current + g.dy));
+        dailyHRef.current = newH;
+        setDailyH(newH);
+      },
+    })
+  ).current;
+
+  // ── Orientation lock (Web: Screen Orientation API / Mobile: stub) ─────────
+  const toggleOrientationLock = useCallback(async () => {
+    if (Platform.OS === 'web') {
+      try {
+        if (orientationLocked) {
+          // @ts-ignore
+          await document.exitFullscreen?.();
+          // @ts-ignore
+          await screen.orientation?.unlock?.();
+          setOrientationLocked(false);
+        } else {
+          // Enter fullscreen first (required by screen.orientation.lock)
+          // @ts-ignore
+          await document.documentElement?.requestFullscreen?.();
+          // @ts-ignore
+          await screen.orientation?.lock?.('landscape');
+          setOrientationLocked(true);
+        }
+      } catch {
+        // Browser may deny — just toggle state visually
+        setOrientationLocked((v) => !v);
+      }
+    } else {
+      if (orientationLocked) {
+        await unlockOrientation();
+        setOrientationLocked(false);
+      } else {
+        await lockCurrent();
+        setOrientationLocked(true);
+      }
+    }
+  }, [orientationLocked]);
+
+  useEffect(() => () => { unlockOrientation().catch(() => {}); }, []);
+
+  // ── Back guard ─────────────────────────────────────────────────────────────
   const handleLeave = useCallback(() => {
-    Alert.alert(
-      'مغادرة الفصل',
-      'الحصة لا تزال نشطة. هل تريد مغادرة الفصل؟ يمكنك العودة في أي وقت.',
-      [
+    const doLeave = async () => {
+      if (orientationLocked) await unlockOrientation().catch(() => {});
+      router.back();
+    };
+    if (Platform.OS === 'web') {
+      if ((window as any).confirm('الحصة لا تزال نشطة. هل تريد مغادرة الفصل؟')) doLeave();
+    } else {
+      Alert.alert('مغادرة الفصل', 'الحصة لا تزال نشطة. هل تريد مغادرة الفصل؟', [
         { text: 'ابقَ', style: 'cancel' },
-        { text: 'مغادرة', style: 'destructive', onPress: () => router.back() },
-      ],
-    );
+        { text: 'مغادرة', style: 'destructive', onPress: doLeave },
+      ]);
+    }
     return true;
-  }, [router]);
+  }, [router, orientationLocked]);
 
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', handleLeave);
     return () => sub.remove();
   }, [handleLeave]);
 
+  // ── Loading ────────────────────────────────────────────────────────────────
   if (isLoading || !session) {
     return (
-      <View style={styles.centered}>
+      <View style={S.centered}>
         <Stack.Screen options={{ headerShown: false }} />
         <ActivityIndicator size="large" color={C.sky} />
-        <Text style={styles.loadingTxt}>جاري تحميل الفصل…</Text>
       </View>
     );
   }
 
-  if (!session.daily_room_url) {
+  const dailyUrl = signedRoomUrl || paramRoomUrl || session.daily_room_url;
+  const pin      = session.nearpod_pin;
+
+  // Teacher opens their Nearpod lesson URL (teacher control interface)
+  const nearpodUrl = session.lesson?.nearpod_url ?? 'https://nearpod.com/my-library';
+
+  if (!dailyUrl) {
     return (
-      <View style={styles.centered}>
+      <View style={S.centered}>
         <Stack.Screen options={{ headerShown: false }} />
         <Ionicons name="alert-circle-outline" size={52} color={C.error} />
-        <Text style={styles.loadingTxt}>رابط الغرفة غير متاح</Text>
-        <TouchableOpacity style={styles.backBtnPlain} onPress={() => router.back()}>
+        <Text style={{ color: '#fff', marginTop: 12 }}>رابط الغرفة غير متاح</Text>
+        <TouchableOpacity onPress={() => router.back()} style={{ marginTop: 16, padding: 12 }}>
           <Text style={{ color: C.sky, fontWeight: '700' }}>العودة</Text>
         </TouchableOpacity>
       </View>
     );
   }
 
-  const pin = session.nearpod_pin;
-
   return (
-    <View style={{ flex: 1, backgroundColor: '#000' }}>
+    <View style={{ flex: 1, backgroundColor: '#0a0a0a' }}>
       <Stack.Screen options={{ headerShown: false }} />
-      <StatusBar barStyle="light-content" backgroundColor="#000" />
+      <StatusBar hidden />
 
-      {/* ── Top Control Bar ── */}
-      <View style={[styles.topBar, { paddingTop: insets.top + 4 }]}>
-        {/* Back */}
-        <TouchableOpacity style={styles.topBtn} onPress={handleLeave}>
-          <Ionicons name="chevron-down" size={22} color="#fff" />
+      {/* ── Raised Hand Notification ─────────────────────────────────────────── */}
+      {handNotif && (
+        <TouchableOpacity
+          style={S.handNotif}
+          onPress={() => setHandNotif(null)}
+          activeOpacity={0.85}
+        >
+          <Text style={{ fontSize: 22 }}>✋</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={S.handNotifTxt}>{handNotif.name} رفع يده</Text>
+            <Text style={S.handNotifSub}>اضغط للإغلاق</Text>
+          </View>
+          <Ionicons name="close" size={16} color="#fff" />
+        </TouchableOpacity>
+      )}
+
+      {/* ── Top Bar ─────────────────────────────────────────────────────────── */}
+      <View style={[S.topBar, { paddingTop: insets.top + 2 }]}>
+        <TouchableOpacity style={S.topBtn} onPress={handleLeave}>
+          <Ionicons name="chevron-down" size={20} color="#fff" />
         </TouchableOpacity>
 
-        {/* Session info */}
-        <View style={styles.topCenter}>
-          <Text style={styles.topTitle} numberOfLines={1}>
+        <View style={S.topCenter}>
+          <Text style={S.topTitle} numberOfLines={1}>
             {session.lesson?.title ?? 'الفصل الافتراضي'}
           </Text>
-          <View style={styles.liveBadge}>
-            <View style={styles.liveDot} />
-            <Text style={styles.liveTxt}>LIVE</Text>
+          <View style={S.liveBadge}>
+            <View style={S.liveDot} />
+            <Text style={S.liveTxt}>LIVE</Text>
           </View>
         </View>
 
-        {/* Actions */}
-        <View style={styles.topRight}>
-          {/* PIN button */}
+        <View style={S.topRight}>
+          {/* Orientation lock */}
           <TouchableOpacity
-            style={[styles.topBtn, pin && styles.topBtnActive]}
+            style={[S.topBtn, orientationLocked && S.topBtnOn]}
+            onPress={toggleOrientationLock}
+          >
+            <Ionicons
+              name={orientationLocked ? 'lock-closed-outline' : 'lock-open-outline'}
+              size={17}
+              color={orientationLocked ? '#FCD34D' : '#fff'}
+            />
+          </TouchableOpacity>
+
+          {/* PIN */}
+          <TouchableOpacity
+            style={[S.topBtn, pin ? S.topBtnPin : null]}
             onPress={() => setPinVisible(true)}
           >
-            <Ionicons name="key-outline" size={18} color="#fff" />
-            {pin && <Text style={styles.pinDot}>{pin}</Text>}
+            <Ionicons name="key-outline" size={17} color="#fff" />
+            {pin && (
+              <View style={S.pinBubble}>
+                <Text style={S.pinBubbleTxt} numberOfLines={1}>{pin}</Text>
+              </View>
+            )}
           </TouchableOpacity>
 
-          {/* End session */}
+          {/* End */}
           <TouchableOpacity
-            style={[styles.topBtn, { backgroundColor: C.error + '33' }]}
-            onPress={() => setEndModal(true)}
+            style={[S.topBtn, S.topBtnEnd, endMutation.isPending && { opacity: 0.5 }]}
+            disabled={endMutation.isPending}
+            onPress={() => {
+              const doEnd = () => endMutation.mutate();
+              if (Platform.OS === 'web') {
+                // Alert doesn't work on web
+                if ((window as any).confirm('هل تريد إنهاء الحصة الآن؟')) doEnd();
+              } else {
+                Alert.alert('إنهاء الحصة', 'هل تريد إنهاء الحصة الآن؟', [
+                  { text: 'تراجع', style: 'cancel' },
+                  { text: 'إنهاء', style: 'destructive', onPress: doEnd },
+                ]);
+              }
+            }}
           >
-            <Ionicons name="stop-circle-outline" size={18} color={C.error} />
+            {endMutation.isPending
+              ? <ActivityIndicator size="small" color={C.error} />
+              : <Ionicons name="stop-circle-outline" size={17} color={C.error} />
+            }
           </TouchableOpacity>
         </View>
       </View>
 
-      {/* ── Split Screen ── */}
-      {/* Section A: Daily.co */}
-      <View style={[styles.videoPane, { flex: divider }]}>
-        <WebView
-          source={{ uri: session.daily_room_url }}
+      {/* ── TOP: Daily.co — fixed panel, resizable ────────────────────────── */}
+      <View style={[S.dailyPanel, { height: dailyH }]}>
+        <WebViewUniversal
+          key={`daily-teacher-${sessionId}`}
+          uri={dailyUrl}
           style={StyleSheet.absoluteFillObject}
-          allowsInlineMediaPlayback
-          mediaPlaybackRequiresUserAction={false}
-          javaScriptEnabled
-          domStorageEnabled
+          loadingColor={C.sky}
           mediaCapturePermissionGrantType="grant"
-          startInLoadingState
-          renderLoading={() => (
-            <View style={[StyleSheet.absoluteFillObject, styles.webLoading]}>
-              <ActivityIndicator color={C.sky} />
-            </View>
-          )}
         />
-        {/* Divider handle */}
+        {/* Collapse/expand quick button */}
+        <View style={S.dailyOverlay} pointerEvents="box-none">
+          <TouchableOpacity
+            style={S.dailyQuickBtn}
+            onPress={() => {
+              const next = dailyH > DAILY_MIN_H + 20 ? DAILY_MIN_H : DAILY_DEFAULT_H;
+              dailyHRef.current = next;
+              setDailyH(next);
+            }}
+          >
+            <Ionicons
+              name={dailyH > DAILY_MIN_H + 20 ? 'chevron-up' : 'chevron-down'}
+              size={14}
+              color="rgba(255,255,255,0.8)"
+            />
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* ── DRAG HANDLE ─────────────────────────────────────────────────────── */}
+      <View
+        style={S.handle}
+        {...dragResponder.panHandlers}
+        // Web mouse drag
+        // @ts-ignore
+        onMouseDown={Platform.OS === 'web' ? (e: any) => {
+          const startY = e.clientY;
+          const startH = dailyHRef.current;
+          const onMove = (ev: MouseEvent) => {
+            const newH = Math.max(DAILY_MIN_H, Math.min(DAILY_MAX_H, startH + (ev.clientY - startY)));
+            dailyHRef.current = newH;
+            setDailyH(newH);
+          };
+          const onUp = () => {
+            window.removeEventListener('mousemove', onMove);
+            window.removeEventListener('mouseup', onUp);
+          };
+          window.addEventListener('mousemove', onMove);
+          window.addEventListener('mouseup', onUp);
+        } : undefined}
+      >
+        <View style={S.handlePill} />
+        <Text style={S.handleHint}>اسحب لتغيير الحجم</Text>
+        <View style={S.handlePill} />
+      </View>
+
+      {/* ── NEARPOD — opens in new tab (blocks iframe embedding) ────────────── */}
+      <View style={{ flex: 1, backgroundColor: '#0f172a', justifyContent: 'center', alignItems: 'center', gap: 20 }}>
+        {/* Nearpod branding */}
+        <View style={{ alignItems: 'center', gap: 8 }}>
+          <Text style={{ fontSize: 32 }}>📚</Text>
+          <Text style={{ color: '#fff', fontSize: 18, fontWeight: '800' }}>Nearpod</Text>
+          <Text style={{ color: '#94a3b8', fontSize: 13, textAlign: 'center', lineHeight: 20, paddingHorizontal: 32 }}>
+            Nearpod لا يسمح بالتضمين داخل التطبيق.{'\n'}افتحه في تبويب جديد للتحكم بالدرس.
+          </Text>
+        </View>
+
+        {/* Open in new tab button */}
         <TouchableOpacity
-          style={styles.dividerHandle}
-          onPress={() => setDivider((d) => (d > 0.5 ? 0.4 : 0.65))}
-          activeOpacity={0.9}
+          style={S.nearpodOpenBtn}
+          onPress={() => {
+            if (Platform.OS === 'web') {
+              window.open(nearpodUrl, '_blank', 'noopener,noreferrer');
+            } else {
+              const { Linking } = require('react-native');
+              Linking.openURL(nearpodUrl);
+            }
+          }}
         >
-          <View style={styles.dividerBar} />
+          <Ionicons name="open-outline" size={18} color="#fff" />
+          <Text style={S.nearpodOpenTxt}>فتح Nearpod في تبويب جديد</Text>
         </TouchableOpacity>
-      </View>
 
-      {/* Section B: Nearpod */}
-      <View style={[styles.nearpodPane, { flex: 1 - divider }]}>
-        {session.lesson?.nearpod_url ? (
-          <WebView
-            source={{ uri: session.lesson.nearpod_url }}
-            style={StyleSheet.absoluteFillObject}
-            javaScriptEnabled
-            domStorageEnabled
-            allowsInlineMediaPlayback
-            startInLoadingState
-            renderLoading={() => (
-              <View style={[StyleSheet.absoluteFillObject, styles.webLoading, { backgroundColor: '#faf5ff' }]}>
-                <ActivityIndicator color="#8b5cf6" />
-                <Text style={{ color: '#8b5cf6', marginTop: 10, fontSize: 13 }}>جاري تحميل الدرس…</Text>
-              </View>
-            )}
-          />
-        ) : (
-          <View style={styles.noNearpod}>
-            <Ionicons name="easel-outline" size={36} color="#d1d5db" />
-            <Text style={styles.noNearpodTxt}>لا يوجد رابط Nearpod لهذا الدرس</Text>
-          </View>
-        )}
-
-        {/* PIN overlay */}
+        {/* PIN reminder if set */}
         {pin && (
-          <View style={styles.pinOverlay}>
-            <Text style={styles.pinOverlayLabel}>PIN</Text>
-            <Text style={styles.pinOverlayCode}>{pin}</Text>
+          <View style={S.pinReminder}>
+            <Text style={{ color: '#94a3b8', fontSize: 12 }}>PIN الحصة الحالي:</Text>
+            <Text style={{ color: '#7c3aed', fontSize: 28, fontWeight: '900', letterSpacing: 6 }}>{pin}</Text>
+            <Text style={{ color: '#64748b', fontSize: 11, textAlign: 'center' }}>
+              الطالب يستخدم هذا الـ PIN للانضمام
+            </Text>
           </View>
         )}
       </View>
 
-      {/* ── PIN Modal ── */}
+      {/* ── PIN Modal ───────────────────────────────────────────────────────── */}
       <Modal visible={pinVisible} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>🔑 أدخل Nearpod PIN</Text>
-            <Text style={styles.modalSub}>الـ PIN يُمكّن الطلاب من الانضمام للدرس التفاعلي</Text>
+        <View style={S.modalOverlay}>
+          <View style={S.modalCard}>
+            <Text style={S.modalTitle}>🔑 Nearpod PIN</Text>
+            <Text style={S.modalSub}>افتح الدرس في Nearpod ثم أدخل الـ PIN لإرساله للطالب</Text>
             <TextInput
-              style={styles.pinInput}
+              style={S.pinInput}
               value={pinInput}
               onChangeText={(v) => setPinInput(v.toUpperCase())}
-              placeholder="ABC123"
+              placeholder="XAFI3"
               placeholderTextColor="#9ca3af"
               autoCapitalize="characters"
               maxLength={10}
               textAlign="center"
               autoFocus
             />
-            <View style={styles.modalActions}>
-              <TouchableOpacity style={styles.modalCancel} onPress={() => { setPinVisible(false); setPinInput(''); }}>
-                <Text style={styles.modalCancelTxt}>إلغاء</Text>
+            <View style={S.modalActions}>
+              <TouchableOpacity style={S.btnCancel} onPress={() => { setPinVisible(false); setPinInput(''); }}>
+                <Text style={S.btnCancelTxt}>إلغاء</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.modalConfirm, (!pinInput.trim() || pinMutation.isPending) && { opacity: 0.5 }]}
+                style={[S.btnConfirm, (!pinInput.trim() || pinMutation.isPending) && { opacity: 0.5 }]}
                 disabled={!pinInput.trim() || pinMutation.isPending}
                 onPress={() => pinMutation.mutate(pinInput.trim())}
               >
                 {pinMutation.isPending
                   ? <ActivityIndicator color="#fff" size="small" />
-                  : <Text style={styles.modalConfirmTxt}>حفظ</Text>
+                  : <Text style={S.btnConfirmTxt}>حفظ وإرسال للطالب</Text>
                 }
               </TouchableOpacity>
             </View>
@@ -263,137 +449,131 @@ export default function ClassroomScreen() {
         </View>
       </Modal>
 
-      {/* ── End Session Modal ── */}
-      <Modal visible={endModal} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>إنهاء الحصة</Text>
-            <Text style={styles.modalSub}>حدد حالة الحضور قبل الإنهاء</Text>
-
-            <View style={styles.attendanceOptions}>
-              {ATTENDANCE_OPTIONS.map((opt) => (
-                <TouchableOpacity
-                  key={opt.key}
-                  style={[
-                    styles.attendanceOpt,
-                    attendance === opt.key && { borderColor: opt.color, backgroundColor: opt.color + '15' },
-                  ]}
-                  onPress={() => setAttendance(opt.key)}
-                  activeOpacity={0.8}
-                >
-                  <Text style={styles.attendanceEmoji}>{opt.emoji}</Text>
-                  <Text style={[styles.attendanceLabel, attendance === opt.key && { color: opt.color }]}>
-                    {opt.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            <View style={styles.modalActions}>
-              <TouchableOpacity style={styles.modalCancel} onPress={() => setEndModal(false)}>
-                <Text style={styles.modalCancelTxt}>تراجع</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modalEnd, endMutation.isPending && { opacity: 0.5 }]}
-                disabled={endMutation.isPending}
-                onPress={() => endMutation.mutate()}
-              >
-                {endMutation.isPending
-                  ? <ActivityIndicator color="#fff" size="small" />
-                  : <Text style={styles.modalEndTxt}>إنهاء الحصة</Text>
-                }
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
+      {/* End session modal removed — attendance auto-determined by server */}
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+// ─── Styles ───────────────────────────────────────────────────────────────────
+const S = StyleSheet.create({
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#111827', gap: 14 },
-  loadingTxt: { color: '#fff', fontSize: 14, fontWeight: '600' },
-  backBtnPlain: { marginTop: 8, padding: 10 },
 
-  // ── Top Bar ──────────────────────────────────────────────────────────────
+  // Top bar
   topBar: {
-    backgroundColor: '#111827',
     flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 12, paddingBottom: 10, gap: 8,
+    backgroundColor: '#111827',
+    paddingHorizontal: 12, paddingBottom: 8, gap: 8,
+    zIndex: 10,
   },
   topBtn: {
-    width: 36, height: 36, borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.12)',
+    width: 34, height: 34, borderRadius: 17,
+    backgroundColor: 'rgba(255,255,255,0.1)',
     justifyContent: 'center', alignItems: 'center',
   },
-  topBtnActive: { backgroundColor: C.sky + '44' },
-  topCenter: { flex: 1, alignItems: 'center' },
-  topTitle:  { color: '#fff', fontSize: 14, fontWeight: '700' },
-  liveBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 3 },
-  liveDot:   { width: 7, height: 7, borderRadius: 4, backgroundColor: C.success },
-  liveTxt:   { color: C.success, fontSize: 10, fontWeight: '900', letterSpacing: 1.5 },
-  topRight:  { flexDirection: 'row', gap: 6, alignItems: 'center' },
-  pinDot:    { position: 'absolute', top: -2, right: -2, backgroundColor: C.sky, borderRadius: 6, paddingHorizontal: 3, fontSize: 7, color: '#fff', fontWeight: '800' },
-
-  // ── Split Screen ──────────────────────────────────────────────────────────
-  videoPane:   { position: 'relative', backgroundColor: '#000' },
-  nearpodPane: { position: 'relative', backgroundColor: '#faf5ff' },
-  webLoading:  { justifyContent: 'center', alignItems: 'center', backgroundColor: '#111827' },
-
-  dividerHandle: {
-    position: 'absolute', bottom: 0, left: 0, right: 0,
-    height: 20, justifyContent: 'center', alignItems: 'center', zIndex: 10,
+  topBtnOn: {
+    backgroundColor: 'rgba(252,211,77,0.2)',
+    borderWidth: 1.5, borderColor: 'rgba(252,211,77,0.5)',
   },
-  dividerBar: { width: 48, height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.35)' },
-
-  noNearpod:    { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 10 },
-  noNearpodTxt: { color: '#9ca3af', fontSize: 13, textAlign: 'center' },
-
-  pinOverlay: {
-    position: 'absolute', top: 10, right: 10,
-    backgroundColor: '#7c3aed', borderRadius: 12,
-    paddingHorizontal: 12, paddingVertical: 6,
+  topBtnPin:  { backgroundColor: C.sky + '33', borderWidth: 1, borderColor: C.sky + '66' },
+  topBtnEnd:  { backgroundColor: C.error + '22', borderWidth: 1, borderColor: C.error + '44' },
+  topCenter:  { flex: 1, alignItems: 'center' },
+  topTitle:   { color: '#fff', fontSize: 14, fontWeight: '700' },
+  topRight:   { flexDirection: 'row', gap: 7, alignItems: 'center' },
+  liveBadge:  { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 3 },
+  liveDot:    { width: 6, height: 6, borderRadius: 3, backgroundColor: C.success },
+  liveTxt:    { color: C.success, fontSize: 10, fontWeight: '900', letterSpacing: 1.5 },
+  pinBubble:  {
+    position: 'absolute', top: -5, right: -5,
+    backgroundColor: C.sky, borderRadius: 7,
+    paddingHorizontal: 4, paddingVertical: 1, maxWidth: 64,
   },
-  pinOverlayLabel: { color: '#e9d5ff', fontSize: 9, fontWeight: '700', letterSpacing: 1 },
-  pinOverlayCode:  { color: '#fff', fontSize: 18, fontWeight: '900', letterSpacing: 3 },
+  pinBubbleTxt: { fontSize: 7, color: '#fff', fontWeight: '800' },
 
-  // ── Modals ────────────────────────────────────────────────────────────────
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'flex-end' },
+  // Daily panel
+  dailyPanel: {
+    backgroundColor: '#000',
+    position: 'relative',
+    minHeight: DAILY_MIN_H,
+    maxHeight: DAILY_MAX_H,
+  },
+  dailyOverlay:   { position: 'absolute', top: 8, right: 8, zIndex: 5 },
+  dailyQuickBtn:  {
+    width: 28, height: 28, borderRadius: 14,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    justifyContent: 'center', alignItems: 'center',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)',
+  },
+
+  // Drag handle
+  handle: {
+    height: HANDLE_H,
+    backgroundColor: '#1e293b',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderTopWidth: 1,    borderTopColor: '#334155',
+    borderBottomWidth: 1, borderBottomColor: '#334155',
+    zIndex: 20,
+    // @ts-ignore
+    cursor: Platform.OS === 'web' ? 'ns-resize' : undefined,
+  },
+  handlePill: { width: 32, height: 4, borderRadius: 2, backgroundColor: '#475569' },
+  handleHint: { fontSize: 10, color: '#64748b', fontWeight: '600', letterSpacing: 0.5 },
+
+  // Modals
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
   modalCard: {
     backgroundColor: '#fff', borderTopLeftRadius: 28, borderTopRightRadius: 28,
     padding: 24, paddingBottom: 36, gap: 12,
   },
-  modalTitle: { fontSize: 18, fontWeight: '900', color: '#111', textAlign: 'right' },
-  modalSub:   { fontSize: 13, color: '#6b7280', textAlign: 'right' },
+  modalTitle:   { fontSize: 18, fontWeight: '900', color: '#111', textAlign: 'right' },
+  modalSub:     { fontSize: 13, color: '#6b7280', textAlign: 'right', lineHeight: 20 },
   pinInput: {
-    borderWidth: 2, borderColor: C.border, borderRadius: 16,
+    borderWidth: 2, borderColor: '#e5e7eb', borderRadius: 16,
     padding: 14, fontSize: 28, fontWeight: '900', color: '#111',
-    backgroundColor: C.inputBg, letterSpacing: 8, marginTop: 4,
+    backgroundColor: '#f9fafb', letterSpacing: 8, marginTop: 4,
   },
-  modalActions: { flexDirection: 'row', gap: 12, marginTop: 8 },
-  modalCancel: {
+  modalActions:   { flexDirection: 'row', gap: 12, marginTop: 8 },
+  btnCancel: {
     flex: 1, padding: 14, borderRadius: 14,
     borderWidth: 1.5, borderColor: '#e5e7eb', alignItems: 'center',
   },
-  modalCancelTxt:  { fontSize: 14, fontWeight: '700', color: '#6b7280' },
-  modalConfirm: {
-    flex: 2, padding: 14, borderRadius: 14,
-    backgroundColor: C.sky, alignItems: 'center',
-  },
-  modalConfirmTxt: { fontSize: 14, fontWeight: '800', color: '#fff' },
-
-  attendanceOptions: { gap: 10, marginTop: 4 },
+  btnCancelTxt:   { fontSize: 14, fontWeight: '700', color: '#6b7280' },
+  btnConfirm:     { flex: 2, padding: 14, borderRadius: 14, backgroundColor: C.sky, alignItems: 'center' },
+  btnConfirmTxt:  { fontSize: 14, fontWeight: '800', color: '#fff' },
+  btnEnd:         { flex: 2, padding: 14, borderRadius: 14, backgroundColor: C.error, alignItems: 'center' },
   attendanceOpt: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
-    padding: 14, borderRadius: 14,
-    borderWidth: 2, borderColor: '#e5e7eb',
+    padding: 14, borderRadius: 14, borderWidth: 2, borderColor: '#e5e7eb',
   },
-  attendanceEmoji: { fontSize: 22 },
-  attendanceLabel: { fontSize: 15, fontWeight: '700', color: '#374151' },
-  modalEnd: {
-    flex: 2, padding: 14, borderRadius: 14,
-    backgroundColor: C.error, alignItems: 'center',
+
+  // Raised hand notification
+  handNotif: {
+    position: 'absolute', top: 70, left: 12, right: 12,
+    backgroundColor: '#ea580c',
+    borderRadius: 14, padding: 14,
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    zIndex: 999,
+    shadowColor: '#000', shadowOpacity: 0.4, shadowRadius: 10, elevation: 10,
   },
-  modalEndTxt: { fontSize: 14, fontWeight: '800', color: '#fff' },
+  handNotifTxt: { color: '#fff', fontSize: 14, fontWeight: '800' },
+  handNotifSub: { color: 'rgba(255,255,255,0.7)', fontSize: 11, marginTop: 2 },
+
+  // Nearpod open button
+  nearpodOpenBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    backgroundColor: '#7c3aed',
+    paddingHorizontal: 28, paddingVertical: 14,
+    borderRadius: 16,
+    shadowColor: '#7c3aed', shadowOpacity: 0.4, shadowRadius: 12, elevation: 8,
+  },
+  nearpodOpenTxt: { color: '#fff', fontSize: 15, fontWeight: '800' },
+
+  pinReminder: {
+    alignItems: 'center', gap: 4,
+    backgroundColor: '#1e293b',
+    paddingHorizontal: 32, paddingVertical: 16,
+    borderRadius: 16, borderWidth: 1, borderColor: '#334155',
+  },
 });

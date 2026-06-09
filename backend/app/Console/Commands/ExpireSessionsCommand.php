@@ -3,49 +3,91 @@
 namespace App\Console\Commands;
 
 use App\Models\Session;
+use App\Models\SessionRequest;
+use App\Services\SessionAttendanceService;
 use Illuminate\Console\Command;
 
 /**
- * Auto-expire sessions that were never started or where student didn't attend.
+ * Auto-expire sessions and requests that timed out (runs every 5 minutes).
  *
- * Rules (run every 5 minutes):
- *  1. waiting  + scheduled_at < now-30min → completed / teacher_absent
+ * Rules:
+ *  ① SessionRequest pending/confirmed + requested_at_utc passed → expired
+ *     (nobody accepted the request in time → "لم يقبل أي معلم")
+ *
+ *  ② Session waiting + scheduled_at < now-15min → teacher_absent
  *     (teacher accepted but never pressed Start)
  *
- *  2. active + student_joined_at IS NULL + started_at < now-60min
- *     → completed / absent
- *     (teacher started but student never joined within 1 hour)
- *
- *  3. Sessions stay in DB forever (needed for running totals).
- *     They disappear from teacher/student list views via API filter (ended_at < now-24h).
+ *  ③ Session active + started_at < now-1hr OR scheduled_at < now-1h15m → classify
+ *     (session stuck open — classify based on actual presence flags)
  */
 class ExpireSessionsCommand extends Command
 {
     protected $signature   = 'crm:expire-sessions';
-    protected $description = 'Auto-complete stale sessions and purge old records after 24 hours.';
+    protected $description = 'Auto-expire timed-out sessions and requests.';
 
     public function handle(): int
     {
-        // ── 1. Waiting sessions whose time passed (teacher didn't start) ──────
-        $teacherAbsent = Session::where('status', Session::STATUS_WAITING)
-            ->where('scheduled_at', '<', now()->subMinutes(30))
-            ->update([
+        $now = now();
+
+        // ── ① SessionRequests that nobody accepted ────────────────────────────
+        $expiredRequests = SessionRequest::whereIn('status', [
+                SessionRequest::STATUS_PENDING,
+                SessionRequest::STATUS_CONFIRMED,
+            ])
+            ->where('requested_at_utc', '<', $now->copy()->subMinutes(15))
+            ->get();
+
+        foreach ($expiredRequests as $req) {
+            $req->update(['status' => SessionRequest::STATUS_EXPIRED]);
+        }
+
+        // ── ② Waiting sessions past grace period ─────────────────────────────
+        $waitingSessions = Session::where('status', Session::STATUS_WAITING)
+            ->where('scheduled_at', '<', $now->copy()->subMinutes(15))
+            ->get();
+
+        foreach ($waitingSessions as $session) {
+            $session->update([
                 'status'            => Session::STATUS_COMPLETED,
                 'attendance_status' => Session::ATTENDANCE_TEACHER_ABSENT,
-                'ended_at'          => now(),
+                'ended_at'          => $now,
             ]);
+            SessionRequest::where('session_id', $session->id)->update(['updated_at' => $now]);
 
-        // ── 2. Active sessions where student never joined within 1 hour ───────
-        $studentAbsent = Session::where('status', Session::STATUS_ACTIVE)
-            ->whereNull('student_joined_at')
-            ->where('started_at', '<', now()->subHour())
-            ->update([
+            // Refund credit — teacher never showed up
+            if ($session->student_id) {
+                $session->student->increment('lesson_credits');
+            }
+
+            try { broadcast(new \App\Events\SessionEnded($session, Session::ATTENDANCE_TEACHER_ABSENT)); } catch (\Throwable) {}
+        }
+
+        // ── ③ Active sessions past their time ────────────────────────────────
+        $activeSessions = Session::where('status', Session::STATUS_ACTIVE)
+            ->where(function ($q) use ($now) {
+                $q->where('started_at', '<', $now->copy()->subHour())
+                  ->orWhere('scheduled_at', '<', $now->copy()->subMinutes(75));
+            })
+            ->get();
+
+        foreach ($activeSessions as $session) {
+            $attendance = SessionAttendanceService::determineAttendanceStatus($session);
+            $session->update([
                 'status'            => Session::STATUS_COMPLETED,
-                'attendance_status' => Session::ATTENDANCE_ABSENT,
-                'ended_at'          => now(),
+                'attendance_status' => $attendance,
+                'ended_at'          => $now,
             ]);
+            SessionRequest::where('session_id', $session->id)->update(['updated_at' => $now]);
 
-        $this->info("✓ teacher_absent={$teacherAbsent}  student_absent={$studentAbsent}");
+            // Refund credit if teacher absent (credit was deducted at booking time)
+            if ($attendance === Session::ATTENDANCE_TEACHER_ABSENT && $session->student_id) {
+                $session->student->increment('lesson_credits');
+            }
+
+            try { broadcast(new \App\Events\SessionEnded($session, $attendance)); } catch (\Throwable) {}
+        }
+
+        $this->info("✓ requests_expired={$expiredRequests->count()} waiting_expired={$waitingSessions->count()} active_expired={$activeSessions->count()}");
 
         return self::SUCCESS;
     }

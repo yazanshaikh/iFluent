@@ -290,13 +290,26 @@ export default function SessionsScreen() {
 
   const { data, isLoading, refetch, isFetching } = useQuery({
     queryKey: ['sessions'],
-    queryFn:  () => sessionsApi.listSessions(),
-    refetchInterval: 15_000,
+    queryFn:  async () => {
+      const result = await sessionsApi.listSessions();
+      console.log(`[SESSIONS-TAB] Sessions: ${result.length} items`);
+      return result;
+    },
+    // Poll every 5s if there's an active session, otherwise 15s
+    refetchInterval: (q) => {
+      const hasActive = q.state.data?.some((s: any) => s.status === 'active');
+      return hasActive ? 5_000 : 15_000;
+    },
+    refetchOnWindowFocus: true,
   });
 
   const { data: bookingsData, refetch: refetchBookings } = useQuery({
     queryKey: ['bookings'],
-    queryFn:  () => sessionsApi.listBookings(),
+    queryFn:  async () => {
+      const result = await sessionsApi.listBookings();
+      console.log(`[SESSIONS-TAB] Bookings: ${result.length} items`);
+      return result;
+    },
     refetchInterval: 15_000,
   });
 

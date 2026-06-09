@@ -7,7 +7,7 @@
  *  - No name field (student already registered)
  *  - Deduplication handled by backend (no SecureStore cache needed)
  */
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Modal,
   View,
@@ -38,9 +38,9 @@ const AR_MONTHS = [
 const ALL_SLOTS = (() => {
   const slots: string[] = [];
   const pad = (n: number) => String(n).padStart(2, '0');
-  for (let h = 9; h <= 21; h++) {
+  for (let h = 9; h <= 23; h++) {
     slots.push(`${pad(h)}:00`);
-    if (h < 21) slots.push(`${pad(h)}:30`); // no 21:30
+    if (h < 23) slots.push(`${pad(h)}:30`); // no 23:30
   }
   return slots;
 })();
@@ -87,6 +87,14 @@ export function SessionBookingModal({ visible, credits, onClose, onBooked }: Pro
   const [genderPref,   setGenderPref]   = useState<'male' | 'female' | null>(null);
   const [loading,      setLoading]      = useState(false);
   const [done,         setDone]         = useState(false);
+  // Ticks every 30s while open so past time-slots drop off the list in real time
+  const [nowTick,      setNowTick]      = useState(0);
+
+  useEffect(() => {
+    if (!visible) return;
+    const id = setInterval(() => setNowTick((t) => t + 1), 30_000);
+    return () => clearInterval(id);
+  }, [visible]);
 
   const days = useMemo(() =>
     Array.from({ length: 7 }, (_, i) => {
@@ -96,7 +104,8 @@ export function SessionBookingModal({ visible, credits, onClose, onBooked }: Pro
     }), [],
   );
 
-  // Filter past slots when today is selected — use Jordan time
+  // Filter past slots when today is selected — use Jordan time.
+  // nowTick in deps → recomputes every 30s so stale past slots disappear.
   const availableSlots = useMemo(() => {
     if (dayIdx !== 0) return ALL_SLOTS;
     const { h, m } = jordanNow();
@@ -105,7 +114,12 @@ export function SessionBookingModal({ visible, credits, onClose, onBooked }: Pro
       const [sh, sm] = s.split(':').map(Number);
       return sh * 60 + sm > curMin + 15; // must be 15+ min from now
     });
-  }, [dayIdx]);
+  }, [dayIdx, nowTick]);
+
+  // If the currently-selected slot just became invalid (time passed), clear it
+  useEffect(() => {
+    if (slot && !availableSlots.includes(slot)) setSlot(null);
+  }, [availableSlots, slot]);
 
   const effectiveSlot = slot && availableSlots.includes(slot) ? slot : null;
 

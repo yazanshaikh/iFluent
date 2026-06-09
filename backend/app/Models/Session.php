@@ -35,6 +35,10 @@ class Session extends Model
         'student_joined_at',
         'teacher_joined_at',
         'ended_at',
+        'teacher_present',
+        'student_present',
+        'teacher_started_at',
+        'teacher_ended_at',
     ];
 
     protected $casts = [
@@ -43,6 +47,10 @@ class Session extends Model
         'student_joined_at' => 'datetime',
         'teacher_joined_at' => 'datetime',
         'ended_at'          => 'datetime',
+        'teacher_started_at' => 'datetime',
+        'teacher_ended_at'   => 'datetime',
+        'teacher_present'    => 'boolean',
+        'student_present'    => 'boolean',
     ];
 
     const MIN_SESSION_MINUTES = 10; // minimum minutes for commission to be credited

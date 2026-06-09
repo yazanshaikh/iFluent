@@ -16,26 +16,48 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Search, Filter, CalendarClock, ChevronLeft, X, CalendarRange } from 'lucide-react';
 
 /* ── Status helpers ─────────────────────────────────────────────────────────── */
-const STATUS_LABEL: Record<DemoBooking['status'], string> = {
+// ✅ Support both SessionRequest statuses AND Session statuses
+const STATUS_LABEL: Record<string, string> = {
   pending:   'بانتظار التنفيذ',
   confirmed: 'مؤكدة',
   rejected:  'مرفوضة',
   cancelled: 'ملغاة',
   expired:   'منتهية',
+  waiting:   'بانتظار التنفيذ',
+  active:    'نشطة الآن',
+  completed: 'مكتملة',
 };
 
-/** الحالات الظاهرة في فلتر الصفحة فقط */
-const FILTER_STATUSES: DemoBooking['status'][] = ['pending', 'cancelled', 'expired'];
+function getStatusLabel(status: string, attendanceStatus?: string | null): string {
+  if (status === 'completed' || attendanceStatus) {
+    if (attendanceStatus === 'attended')       return '✅ مكتملة';
+    if (attendanceStatus === 'absent')         return '😔 غاب الطالب';
+    if (attendanceStatus === 'teacher_absent') return '🚫 غاب المعلم';
+  }
+  return STATUS_LABEL[status] ?? status;
+}
 
-const STATUS_VARIANT: Record<
-  DemoBooking['status'],
-  'default' | 'secondary' | 'success' | 'destructive' | 'outline' | 'warning'
-> = {
+function getStatusVariant(status: string, attendanceStatus?: string | null): 'default' | 'secondary' | 'success' | 'destructive' | 'outline' | 'warning' {
+  if (attendanceStatus === 'attended')       return 'success';
+  if (attendanceStatus === 'absent')         return 'warning';
+  if (attendanceStatus === 'teacher_absent') return 'destructive';
+  return STATUS_VARIANT[status] ?? 'outline';
+}
+
+/** الحالات الظاهرة في فلتر الصفحة فقط */
+const FILTER_STATUSES = ['pending', 'cancelled', 'expired'] as const;
+
+const STATUS_VARIANT: Record<string, 'default' | 'secondary' | 'success' | 'destructive' | 'outline' | 'warning'> = {
+  // SessionRequest statuses
   pending:   'secondary',
   confirmed: 'success',
   rejected:  'destructive',
   cancelled: 'outline',
   expired:   'warning',
+  // Session statuses
+  waiting:    'secondary',
+  active:     'success',
+  completed:  'warning',  // ← Yellow/warning for completed
 };
 
 const ROLE_LABEL: Record<string, string> = {
@@ -78,11 +100,14 @@ function useColumns(isAdmin: boolean): ColumnDef<DemoBooking, unknown>[] {
     {
       accessorKey: 'status',
       header: ({ column }) => <SortableHeader column={column} label="الحالة" />,
-      cell: ({ row }) => (
-        <Badge variant={STATUS_VARIANT[row.original.status]}>
-          {STATUS_LABEL[row.original.status]}
-        </Badge>
-      ),
+      cell: ({ row }) => {
+        const s = row.original;
+        return (
+          <Badge variant={getStatusVariant(s.status, (s as any).attendance_status)}>
+            {getStatusLabel(s.status, (s as any).attendance_status)}
+          </Badge>
+        );
+      },
     },
     {
       accessorKey: 'created_at',

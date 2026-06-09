@@ -134,6 +134,11 @@ export default function SettingsScreen() {
           <SettingRow
             icon="language"    iconBg="#F0FDF4"    iconColor={C.success}
             label="اللغة"       value="العربية"
+            rightEl={
+              <View style={styles.comingSoonBadge}>
+                <Text style={styles.comingSoonText}>قريباً</Text>
+              </View>
+            }
             last
           />
         </View>
@@ -212,5 +217,15 @@ const styles = StyleSheet.create({
   versionTxt: {
     fontSize: 12, color: C.gray, fontWeight: '500',
     textAlign: 'center', marginTop: 20,
+  },
+
+  comingSoonBadge: {
+    backgroundColor: '#FEF3C7', borderRadius: 8,
+    paddingHorizontal: 10, paddingVertical: 4,
+    borderWidth: 1, borderColor: '#FCD34D',
+  },
+  comingSoonText: {
+    fontSize: 11, fontWeight: '700',
+    color: '#B45309', letterSpacing: 0.3,
   },
 });

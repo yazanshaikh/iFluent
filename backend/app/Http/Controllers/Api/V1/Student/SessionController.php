@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1\Student;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\Api\V1\SessionResource;
 use App\Models\Session;
+use App\Services\SessionAttendanceService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -21,10 +22,28 @@ class SessionController extends Controller
                 $request->filled('status'),
                 fn($q) => $q->where('status', $request->status)
             )
-            // Hide completed/cancelled sessions older than 24 hours
+            // ── Visibility rules ──────────────────────────────────────────────
+            // 1. NEVER show waiting sessions past their grace period (teacher didn't show)
+            //    → Scheduler will mark them completed, but until then hide them
+            // 2. Hide completed/cancelled regular sessions older than 24h
+            // 3. Always show assessment sessions
             ->where(function ($q) {
-                $q->whereNotIn('status', [Session::STATUS_COMPLETED, Session::STATUS_CANCELLED])
-                  ->orWhere('ended_at', '>=', now()->subDay());
+                // Exclude waiting sessions that are past their time (+15min grace)
+                $q->where(function ($q2) {
+                    $q2->where('status', '!=', Session::STATUS_WAITING)
+                       ->orWhere('scheduled_at', '>=', now()->subMinutes(15));
+                });
+            })
+            ->where(function ($q) {
+                $q->where(function ($q2) {
+                    // Regular sessions: hide completed/cancelled older than 24h
+                    $q2->where(function ($q3) {
+                        $q3->whereNotIn('status', [Session::STATUS_COMPLETED, Session::STATUS_CANCELLED])
+                          ->orWhere('ended_at', '>=', now()->subDay());
+                    })
+                    ->whereHas('lesson', fn($l) => $l->where('is_assessment', false));
+                })
+                ->orWhereHas('lesson', fn($l) => $l->where('is_assessment', true));
             })
             ->orderByDesc('scheduled_at')
             ->paginate(20);
@@ -51,9 +70,24 @@ class SessionController extends Controller
         $session->loadMissing('teacher.teacher'); // load teacher profile for teacher_code
         $lesson = $session->lesson()->with(['unit.level', 'level'])->first();
 
-        // Activity unlock: session completed (no score/pass requirement)
-        // No 60% pass mark — activity unlocks as soon as session is done
-        $quizUnlocked = $session->isCompleted();
+        // Activity unlock: ONLY when attended (both present 10+ min)
+        // absent or teacher_absent → stays locked
+        $quizUnlocked = $session->isCompleted()
+            && $session->attendance_status === Session::ATTENDANCE_ATTENDED;
+
+        // ── Teacher avg rating (computed live from session_ratings) ──────────
+        $teacherAvgRating = null;
+        $teacherTotalRatings = 0;
+        if ($session->teacher_id) {
+            $ratingStats = \App\Models\SessionRating::where('teacher_id', $session->teacher_id)
+                ->selectRaw('ROUND(AVG(rating)::numeric, 1) as avg, COUNT(*) as total')
+                ->first();
+            $teacherAvgRating    = $ratingStats?->avg ? (float) $ratingStats->avg : null;
+            $teacherTotalRatings = (int) ($ratingStats?->total ?? 0);
+        }
+
+        // ── Has student already rated this session? ──────────────────────────
+        $existingRating = \App\Models\SessionRating::where('session_id', $session->id)->first();
 
         $lessonData = [
             'id'            => $lesson?->id,
@@ -86,11 +120,23 @@ class SessionController extends Controller
             'started_at'        => $session->started_at?->toIso8601String(),
             'ended_at'          => $session->ended_at?->toIso8601String(),
             'teacher'           => $session->teacher ? [
-                'name'         => $session->teacher->name,
-                'teacher_code' => $session->teacher->teacher?->teacher_code,
+                'name'          => $session->teacher->name,
+                'teacher_code'  => $session->teacher->teacher?->teacher_code,
+                'avg_rating'    => $teacherAvgRating,      // ← avg from all sessions
+                'total_ratings' => $teacherTotalRatings,   // ← how many ratings
             ] : null,
             'lesson'            => $lessonData,
             'quiz_unlocked'     => $quizUnlocked,
+            // ── Rating state ─────────────────────────────────────────────────
+            'rating' => $existingRating ? [
+                'rated'  => true,
+                'stars'  => $existingRating->rating,
+                'notes'  => $existingRating->notes,
+            ] : [
+                'rated'  => false,
+                'stars'  => null,
+                'notes'  => null,
+            ],
         ]);
     }
 
@@ -131,6 +177,9 @@ class SessionController extends Controller
             ], 425); // 425 Too Early
         }
 
+        // ✅ Mark student as PRESENT (they clicked join)
+        SessionAttendanceService::markStudentPresent($session);
+
         // Record that the student has entered the session (for commission calculation)
         if (!$session->student_joined_at) {
             $session->update(['student_joined_at' => now()]);
@@ -166,14 +215,62 @@ class SessionController extends Controller
             ];
         }
 
+        // Generate student meeting token for private Daily.co room
+        $studentToken   = null;
+        $dailyRoomUrl   = $session->daily_room_url;
+        if ($session->daily_room_name) {
+            try {
+                $daily        = app(\App\Services\DailyCoService::class);
+                $studentToken = $daily->createMeetingToken($session->daily_room_name, false);
+                $dailyRoomUrl = $dailyRoomUrl . '?t=' . $studentToken;
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning('Could not create student token', ['error' => $e->getMessage()]);
+            }
+        }
+
         return response()->json([
             'session_id'     => $session->id,
             'status'         => $session->status,
-            'daily_room_url' => $session->daily_room_url,
+            'daily_room_url' => $dailyRoomUrl,
             'nearpod_pin'    => $session->nearpod_pin,
-            'nearpod_url'    => $lesson->nearpod_url,
+            // Build Nearpod URL from PIN (PIN is the join code students enter)
+            'nearpod_url'    => $session->nearpod_pin
+                ? 'https://nearpod.com/student/?pin=' . strtoupper($session->nearpod_pin)
+                : $lesson->nearpod_url,
             'lesson'         => $lessonData,
             'teacher'        => ['name' => $session->teacher->name],
         ]);
+    }
+
+    // ─── Raise Hand ───────────────────────────────────────────────────────────
+
+    public function raiseHand(Session $session, Request $request): \Illuminate\Http\JsonResponse
+    {
+        if ($session->student_id !== $request->user()->id) {
+            return response()->json(['message' => 'Forbidden.'], 403);
+        }
+
+        if (!$session->isActive()) {
+            return response()->json(['message' => 'Session is not active.'], 422);
+        }
+
+        $data = [
+            'student_name' => $request->user()->name,
+            'raised_at'    => now()->toIso8601String(),
+        ];
+
+        // Store in cache for 60 seconds (teacher polls this)
+        \Illuminate\Support\Facades\Cache::put(
+            "raised_hand:session:{$session->id}",
+            $data,
+            60
+        );
+
+        // Also broadcast via WebSocket for real-time (if Reverb is running)
+        try {
+            broadcast(new \App\Events\StudentRaisedHand($session, $request->user()->name));
+        } catch (\Throwable) {}
+
+        return response()->json(['message' => 'Hand raised.', 'data' => $data]);
     }
 }
