@@ -7,10 +7,11 @@ import { Loader2, Copy, Check, Upload, ShieldCheck } from 'lucide-react';
 
 export default function InvoicePage() {
   const { uuid } = useParams<{ uuid: string }>();
-  const [copied,       setCopied]       = useState(false);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [uploadDone,   setUploadDone]   = useState(false);
-  const [uploadError,  setUploadError]  = useState('');
+  const [copied,          setCopied]          = useState(false);
+  const [selectedFile,    setSelectedFile]    = useState<File | null>(null);
+  const [policyAccepted,  setPolicyAccepted]  = useState(false);
+  const [uploadDone,      setUploadDone]      = useState(false);
+  const [uploadError,     setUploadError]     = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data: invoice, isLoading, isError } = useQuery({
@@ -103,7 +104,7 @@ export default function InvoicePage() {
             <span className="text-amber-500">i</span>
             <span className="text-gray-800">Fluent</span>
           </p>
-          <p className="text-sm text-muted-foreground">فاتورة دفع</p>
+          <p className="text-sm text-muted-foreground">فاتورة الدفع الامن</p>
         </div>
 
         {/* Invoice card */}
@@ -199,6 +200,26 @@ export default function InvoicePage() {
               onChange={(e) => setSelectedFile(e.target.files?.[0] ?? null)}
             />
 
+            <label className="flex items-start gap-2.5 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={policyAccepted}
+                onChange={(e) => setPolicyAccepted(e.target.checked)}
+                className="h-4 w-4 mt-0.5 cursor-pointer accent-emerald-600 rounded shrink-0"
+              />
+              <span className="text-sm text-gray-700 leading-relaxed">
+                أوافق على{' '}
+                <a
+                  href="/ifluent_Platform_Policies.pdf"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-emerald-700 font-semibold underline underline-offset-2 hover:text-emerald-800"
+                >
+                  سياسة الاشتراك
+                </a>
+              </span>
+            </label>
+
             {uploadError && (
               <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">
                 {uploadError}
@@ -207,7 +228,7 @@ export default function InvoicePage() {
 
             <Button
               className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
-              disabled={!selectedFile || uploadMutation.isPending}
+              disabled={!selectedFile || !policyAccepted || uploadMutation.isPending}
               onClick={() => selectedFile && uploadMutation.mutate(selectedFile)}
             >
               {uploadMutation.isPending

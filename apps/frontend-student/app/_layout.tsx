@@ -10,6 +10,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useAuthStore } from '@/stores/authStore';
 import Sidebar from '@/components/Sidebar';
+import { registerForPushNotifications } from '@/hooks/usePushNotifications';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -24,6 +25,7 @@ const queryClient = new QueryClient({
 export default function RootLayout() {
   const hydrate = useAuthStore((s) => s.hydrate);
   const hydrated = useAuthStore((s) => s.hydrated);
+  const token    = useAuthStore((s) => s.token);
 
   useEffect(() => {
     // ⚠️ CRITICAL: Ensure auth store is hydrated before any child components render
@@ -37,6 +39,13 @@ export default function RootLayout() {
       });
     }
   }, [hydrate, hydrated]);
+
+  // Register for push notifications once the user is authenticated
+  useEffect(() => {
+    if (hydrated && token) {
+      registerForPushNotifications();
+    }
+  }, [hydrated, token]);
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>

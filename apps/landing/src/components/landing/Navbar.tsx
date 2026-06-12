@@ -72,7 +72,7 @@ export function Navbar({ platformName = 'iFluent', onCtaPress }: NavbarProps) {
           hitSlop={{ top: 8, bottom: 8, left: 0, right: 8 }}
         >
           <Image
-            source={require('@/assets/images/mascot-icon.jpeg')}
+            source={require('../../../assets/images/icon.png')}
             style={styles.logoImg}
           />
           <Text style={styles.logoText}>

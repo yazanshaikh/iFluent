@@ -6,7 +6,8 @@ export interface TeacherSession {
   attendance_status: 'attended' | 'absent' | 'teacher_absent' | null;
   scheduled_at:      string | null;
   started_at:     string | null;
-  ended_at:       string | null;
+  ended_at:                 string | null;
+  evaluation_submitted_at:  string | null;
   daily_room_url: string | null;
   nearpod_pin:    string | null;
   student: {
@@ -32,6 +33,14 @@ export interface TeacherSession {
     } | null;
   } | null;
   teacher: { id: number; name: string } | null;
+}
+
+export interface DemoEvaluationPayload {
+  evaluation_questions: string;
+  student_level:        'A1' | 'A2' | 'B1' | 'B2';
+  strengths:            string;
+  weaknesses:           string;
+  general_notes:        string;
 }
 
 export interface SessionStartError {
@@ -65,6 +74,9 @@ export const sessionsApi = {
 
   end: (id: number) =>
     client.post(`/teacher/sessions/${id}/end`).then((r) => r.data),
+
+  submitEvaluation: (id: number, payload: DemoEvaluationPayload) =>
+    client.post(`/teacher/sessions/${id}/evaluation`, payload).then((r) => r.data),
 
   classroomUrl: (id: number) =>
     client.get<{ daily_room_url: string; nearpod_pin: string | null }>(`/teacher/sessions/${id}/classroom-url`)

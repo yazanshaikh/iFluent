@@ -16,8 +16,9 @@ export default function TabsLayout() {
           shadowColor: C.sky,
           shadowOpacity: 0.12,
           shadowRadius: 12,
-          height: 62,
-          paddingBottom: 8,
+          height: 72,
+          paddingBottom: 18,
+          paddingTop: 6,
         },
         tabBarLabelStyle: { fontSize: 11, fontWeight: '700' },
       }}
@@ -25,7 +26,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="requests"
         options={{
-          title: 'الطلبات',
+          title: 'Requests',
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="mail-outline" size={size} color={color} />
           ),
@@ -34,7 +35,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="sessions"
         options={{
-          title: 'حصصي',
+          title: 'My Sessions',
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="calendar-outline" size={size} color={color} />
           ),
@@ -47,7 +48,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="profile"
         options={{
-          title: 'حسابي',
+          title: 'Account',
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="person-outline" size={size} color={color} />
           ),

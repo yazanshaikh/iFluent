@@ -110,7 +110,7 @@ function LevelRow({ level }: { level: Level }) {
 
 // ─── Premium shortcut cards ───────────────────────────────────────────────────
 
-/** Card 1 — Navy gradient · "خِذ فكرة عنّا" */
+/** Card 1 — Navy gradient · "خذ فكرة عنّا" */
 function AboutCard({ onPress }: { onPress: () => void }) {
   return (
     <TouchableOpacity style={styles.scWrapper} onPress={onPress} activeOpacity={0.86}>
@@ -130,7 +130,7 @@ function AboutCard({ onPress }: { onPress: () => void }) {
         </View>
 
         {/* Text */}
-        <Text style={styles.scLabelLight}>خِذ فكرة عنّا</Text>
+        <Text style={styles.scLabelLight}>خذ فكرة عنّا</Text>
         <Text style={styles.scSubLight}>من نحن · رؤيتنا</Text>
 
         {/* Arrow hint */}
@@ -162,7 +162,7 @@ function HowCard({ onPress }: { onPress: () => void }) {
         </View>
 
         {/* Text */}
-        <Text style={styles.scLabelDark}>اعرف طريق الطلاقة</Text>
+        <Text style={styles.scLabelDark}> خطواتك نحو الطلاقة </Text>
         <Text style={styles.scSubDark}>كيف تبدأ رحلتك</Text>
 
         {/* Arrow hint */}
@@ -323,6 +323,13 @@ export default function LevelsScreen() {
     queryFn:  levelsApi.listLevels,
   });
 
+  // Overall progress — single source of truth (same as التقدم & حسابي screens)
+  const { data: progressSummary } = useQuery({
+    queryKey: ['progress-summary'],
+    queryFn:  profileApi.progress,
+    staleTime: 30_000,
+  });
+
   const { data: unread = 0 } = useQuery({
     queryKey: ['messages-unread'],
     queryFn:  studentMessagesApi.unreadCount,
@@ -346,9 +353,10 @@ export default function LevelsScreen() {
     }
   }, [hasCredits, isBodyLoading]);
 
-  // Progress stats (only relevant for State C)
-  const doneCount = units.filter((u) => u.enrollment?.status === 'completed').length;
-  const pct       = units.length > 0 ? Math.round((doneCount / units.length) * 100) : 0;
+  // Progress stats (only relevant for State C) — lesson-based, shared source
+  const completedLessons = progressSummary?.completed_lessons ?? 0;
+  const totalLessons     = progressSummary?.total_lessons ?? 0;
+  const pct              = progressSummary?.overall_pct ?? 0;
 
   return (
     <View style={{ flex: 1, backgroundColor: C.cream }}>
@@ -395,7 +403,7 @@ export default function LevelsScreen() {
           units.length > 0 ? (
             <>
               <View style={styles.hMidRow}>
-                <Text style={styles.progressSub}>{doneCount}/{units.length} وحدة · {pct}%</Text>
+                <Text style={styles.progressSub}>{completedLessons}/{totalLessons} درس · {pct}%</Text>
                 <Text style={styles.progressLbl}>التقدم الكلي</Text>
               </View>
               <View style={styles.hProgressTrack}>

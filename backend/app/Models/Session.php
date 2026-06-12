@@ -39,6 +39,8 @@ class Session extends Model
         'student_present',
         'teacher_started_at',
         'teacher_ended_at',
+        'evaluation_submitted_at',
+        'reminder_sent_at',
     ];
 
     protected $casts = [
@@ -47,8 +49,10 @@ class Session extends Model
         'student_joined_at' => 'datetime',
         'teacher_joined_at' => 'datetime',
         'ended_at'          => 'datetime',
-        'teacher_started_at' => 'datetime',
-        'teacher_ended_at'   => 'datetime',
+        'teacher_started_at'        => 'datetime',
+        'teacher_ended_at'          => 'datetime',
+        'evaluation_submitted_at'     => 'datetime',
+        'reminder_sent_at'            => 'datetime',
         'teacher_present'    => 'boolean',
         'student_present'    => 'boolean',
     ];

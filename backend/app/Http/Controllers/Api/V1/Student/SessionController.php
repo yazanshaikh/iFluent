@@ -94,6 +94,7 @@ class SessionController extends Controller
             'title'         => $lesson?->title,
             'is_assessment' => $lesson?->is_assessment ?? false,
             'pdf_url'       => $lesson?->pdf_url,
+            'activity_url'  => $lesson?->activity_url,
         ];
 
         if ($lesson && !$lesson->is_assessment && $lesson->unit) {
@@ -215,18 +216,10 @@ class SessionController extends Controller
             ];
         }
 
-        // Generate student meeting token for private Daily.co room
-        $studentToken   = null;
-        $dailyRoomUrl   = $session->daily_room_url;
-        if ($session->daily_room_name) {
-            try {
-                $daily        = app(\App\Services\DailyCoService::class);
-                $studentToken = $daily->createMeetingToken($session->daily_room_name, false);
-                $dailyRoomUrl = $dailyRoomUrl . '?t=' . $studentToken;
-            } catch (\Throwable $e) {
-                \Illuminate\Support\Facades\Log::warning('Could not create student token', ['error' => $e->getMessage()]);
-            }
-        }
+        // Rooms are PUBLIC, so the student joins WITHOUT a meeting token.
+        // (Our Daily account rejects non-owner meeting tokens — passing one makes
+        // the join fail even on a public room. No token = clean public join.)
+        $dailyRoomUrl = $session->daily_room_url;
 
         return response()->json([
             'session_id'     => $session->id,

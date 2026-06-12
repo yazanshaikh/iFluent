@@ -73,7 +73,7 @@ export function Footer({ settings }: FooterProps) {
           {/* Logo */}
           <View style={styles.logoRow}>
             <Image
-              source={require('@/assets/images/mascot-icon.jpeg')}
+              source={require('../../../assets/images/icon.png')}
               style={styles.logoImg}
             />
             <Text style={styles.logoText}>

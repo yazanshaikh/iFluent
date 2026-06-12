@@ -36,9 +36,9 @@ function BookSessionModal({ lessonId, visible, onClose }: BookModalProps) {
     mutationFn: () => {
       const dt = new Date(`${date}T${time || '10:00'}:00+03:00`);
       return sessionsApi.book({
-        lesson_id:        lessonId,
-        requested_at_utc: dt.toISOString(),
-        teacher_code:     teacherCode.trim() || undefined,
+        lesson_id:    lessonId,
+        scheduled_at: dt.toISOString(),
+        teacher_code: teacherCode.trim() || undefined,
       });
     },
     onSuccess: () => {
@@ -258,6 +258,27 @@ export default function LessonScreen() {
           </TouchableOpacity>
         </View>
 
+        {/* Activity (Wordwall) — only when a link is set for this lesson */}
+        {lesson.activity_url ? (
+          <TouchableOpacity
+            style={styles.activityCard}
+            onPress={() => router.push({
+              pathname: '/activity/[id]',
+              params: { id: String(id), url: lesson.activity_url!, title: lesson.title },
+            })}
+            activeOpacity={0.85}
+          >
+            <View style={styles.activityIconWrap}>
+              <Ionicons name="game-controller" size={22} color={C.white} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.activityTitle}>نشاط الدرس</Text>
+              <Text style={styles.activitySub}>تمرين تفاعلي ممتع لترسيخ ما تعلّمته</Text>
+            </View>
+            <Ionicons name="chevron-back" size={18} color={C.navy} />
+          </TouchableOpacity>
+        ) : null}
+
         {/* Info card */}
         <View style={styles.infoCard}>
           <Ionicons name="information-circle" size={18} color={C.info} />
@@ -370,6 +391,24 @@ const styles = StyleSheet.create({
     borderWidth: 1.5, borderColor: C.border,
   },
   quizBtnTxt: { fontSize: 14, fontWeight: '800', color: C.white },
+
+  // ── Activity card ─────────────────────────────────────────────────────────
+  activityCard: {
+    backgroundColor: C.white,
+    borderRadius: 18,
+    padding: 16,
+    marginBottom: 14,
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    borderWidth: 1.5, borderColor: '#A7F3D0',
+    ...shadow.sm,
+  },
+  activityIconWrap: {
+    width: 44, height: 44, borderRadius: 14,
+    backgroundColor: C.success,
+    justifyContent: 'center', alignItems: 'center',
+  },
+  activityTitle: { fontSize: 16, fontWeight: '900', color: C.navy, textAlign: 'right' },
+  activitySub:   { fontSize: 12, color: C.gray, marginTop: 3, textAlign: 'right', lineHeight: 18 },
 
   // ── Info card ─────────────────────────────────────────────────────────────
   infoCard: {

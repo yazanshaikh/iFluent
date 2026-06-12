@@ -21,15 +21,45 @@ class LessonController extends Controller
      */
     public function enrolledUnits(Request $request): AnonymousResourceCollection
     {
-        $units = $request->user()
+        $user = $request->user();
+
+        // Only ever expose lessons the student has PAID for (union of active
+        // subscription ranges). This keeps a partially-covered unit from leaking
+        // its earlier, unpaid lessons.
+        $paidLessonIds = \App\Models\Subscription::paidLessonIdsForUser($user->id);
+
+        $units = $user
             ->enrolledUnits()
             ->where('student_units.status', 'active')
-            ->with(['level', 'lessons' => fn($q) => $q->active()])
+            ->with(['level', 'lessons' => fn($q) => $q->active()->whereIn('id', $paidLessonIds)])
             ->orderBy('level_id')
             ->orderBy('order')
-            ->get();
+            ->get()
+            // Drop units that end up with zero paid lessons (defensive)
+            ->filter(fn($u) => $u->lessons->isNotEmpty())
+            ->values();
 
         return UnitResource::collection($units);
+    }
+
+    // ─── Single Lesson ────────────────────────────────────────────────────────
+
+    /**
+     * GET /student/lessons/{lesson}
+     * Returns a single lesson's details (incl. its interactive activity link).
+     */
+    public function show(Lesson $lesson): JsonResponse
+    {
+        return response()->json([
+            'data' => [
+                'id'            => $lesson->id,
+                'title'         => $lesson->title,
+                'order'         => $lesson->order,
+                'is_active'     => $lesson->is_active,
+                'is_assessment' => $lesson->is_assessment,
+                'activity_url'  => $lesson->activity_url,
+            ],
+        ]);
     }
 
     // ─── List Assessment Lessons ──────────────────────────────────────────────

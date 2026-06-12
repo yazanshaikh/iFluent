@@ -17,6 +17,7 @@ import { useAvatarStore }  from '@/stores/avatarStore';
 import { authApi }         from '@/api/auth';
 import client              from '@/api/client';
 import { levelsApi, type Unit } from '@/api/levels';
+import { profileApi } from '@/api/profile';
 import { C, shadow }          from '@/theme';
 import { useAnimatedHeader }  from '@/hooks/useAnimatedHeader';
 import { useState, useEffect } from 'react';
@@ -110,9 +111,18 @@ export default function ProfileScreen() {
     queryFn:  levelsApi.myUnits,
     staleTime: Infinity,
   });
-  const doneCount  = myUnits.filter((u) => u.enrollment?.status === 'completed').length;
-  const overallPct = myUnits.length > 0
-    ? Math.round((doneCount / myUnits.length) * 100) : 0;
+  // Overall progress — single source of truth (same number as the التقدم screen)
+  const { data: progressSummary } = useQuery({
+    queryKey: ['progress-summary'],
+    queryFn:  profileApi.progress,
+    staleTime: 30_000,
+  });
+  const overallPct       = progressSummary?.overall_pct ?? 0;
+  const completedLessons = progressSummary?.completed_lessons ?? 0;
+  const learningMins     = Math.round(progressSummary?.learning_minutes ?? 0);
+  const earnedBadges     = progressSummary?.earned_badges ?? 0;
+  const totalBadges      = progressSummary?.total_badges ?? 0;
+  const badgePct         = totalBadges > 0 ? Math.round((earnedBadges / totalBadges) * 100) : 0;
 
   const openNameSheet = () => {
     setDraftName(displayName === '…' ? '' : displayName);
@@ -271,13 +281,13 @@ export default function ProfileScreen() {
           <View style={styles.pointsMain}>
             <View style={styles.pointsCircle}>
               <Ionicons name="star" size={18} color={C.amber} />
-              <Text style={styles.pointsNum}>0</Text>
+              <Text style={styles.pointsNum}>{earnedBadges}</Text>
               <Text style={styles.pointsUnit}>نقطة</Text>
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.toNextTxt}>اتطلع على صفحة التقدم لتتعرف على الانجازات المطلوبة لكسب نقاط الانجاز</Text>
               <View style={styles.pointsTrack}>
-                <View style={[styles.pointsFill, { width: '0%' }]} />
+                <View style={[styles.pointsFill, { width: `${badgePct}%` as any }]} />
               </View>
               <Text style={styles.nextLevelHint}>ادخل مشتركين من خلالك لتحصل على اشتراكات مجانية وتجديدات غير محدودة</Text>
             </View>
@@ -289,7 +299,7 @@ export default function ProfileScreen() {
               <View style={[styles.qStatIcon, { backgroundColor: '#EFF6FF' }]}>
                 <Ionicons name="book-outline" size={15} color={C.info} />
               </View>
-              <Text style={styles.qStatNum}>0</Text>
+              <Text style={styles.qStatNum}>{completedLessons}</Text>
               <Text style={styles.qStatLbl}>درس</Text>
             </View>
             <View style={styles.qDivider} />
@@ -297,7 +307,7 @@ export default function ProfileScreen() {
               <View style={[styles.qStatIcon, { backgroundColor: '#FEF3C7' }]}>
                 <Ionicons name="timer-outline" size={15} color={C.amber} />
               </View>
-              <Text style={styles.qStatNum}>0</Text>
+              <Text style={styles.qStatNum}>{learningMins}</Text>
               <Text style={styles.qStatLbl}>دقيقة</Text>
             </View>
             <View style={styles.qDivider} />
@@ -305,7 +315,7 @@ export default function ProfileScreen() {
               <View style={[styles.qStatIcon, { backgroundColor: '#EDE9FE' }]}>
                 <Ionicons name="medal-outline" size={15} color="#8B5CF6" />
               </View>
-              <Text style={styles.qStatNum}>0</Text>
+              <Text style={styles.qStatNum}>{earnedBadges}</Text>
               <Text style={styles.qStatLbl}>إنجاز</Text>
             </View>
           </View>

@@ -232,14 +232,14 @@ export default function Sidebar() {
               icon="information-circle"
               iconBg="#F0FDF4"
               iconColor={C.success}
-              label="خِذ فكرة عنّا"
+              label="  لماذا iFluent?"
               onPress={() => navigate('/about')}
             />
             <SidebarItem
               icon="book"
               iconBg="#FAF5FF"
               iconColor="#7C3AED"
-              label="اعرف طريق الطلاقة"
+              label="خطواتك نحو الطلاقة"
               onPress={() => navigate('/how-to-use')}
             />
 

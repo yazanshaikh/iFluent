@@ -24,6 +24,7 @@ import {
 import {
   ArrowRight, Loader2, Phone, Mail, Calendar, MessageSquarePlus, User, ChevronDown, ChevronLeft, Gem,
   Pencil, Check, X, CalendarClock, UserRoundCog, ShoppingCart, Copy, ExternalLink, UserCheck,
+  TrendingUp, BookOpen, Clock, Award,
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 
@@ -206,6 +207,14 @@ export default function LeadProfilePage() {
   const { data: demoHistory } = useQuery({
     queryKey: ['lead-demo-requests', leadId],
     queryFn:  () => leadsApi.getDemoRequests(leadId),
+    enabled:  !!leadId,
+    staleTime: 30_000,
+  });
+
+  /* ── Student progress (same data the student sees in their app) ── */
+  const { data: progress } = useQuery({
+    queryKey: ['lead-progress', leadId],
+    queryFn:  () => leadsApi.getProgress(leadId),
     enabled:  !!leadId,
     staleTime: 30_000,
   });
@@ -745,6 +754,55 @@ export default function LeadProfilePage() {
           </Button>
         </div>
       </div>
+
+      {/* Student progress — mirrors what the student sees in their app */}
+      {progress?.has_account && progress.summary && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <TrendingUp className="h-4 w-4 text-sky-600" />
+              تقدّم الطالب
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Overall % bar */}
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-sm font-bold text-sky-700">{progress.summary.overall_pct}%</span>
+                <span className="text-xs text-muted-foreground">التقدم الكلي</span>
+              </div>
+              <div className="h-2 rounded-full bg-muted overflow-hidden">
+                <div className="h-full bg-sky-500 rounded-full" style={{ width: `${progress.summary.overall_pct}%` }} />
+              </div>
+            </div>
+
+            {/* Stat grid */}
+            <div className="grid grid-cols-3 gap-2">
+              <div className="rounded-lg border bg-card p-2.5 text-center">
+                <BookOpen className="h-4 w-4 mx-auto mb-1 text-sky-600" />
+                <div className="text-sm font-extrabold">{progress.summary.completed_lessons}/{progress.summary.total_lessons}</div>
+                <div className="text-[10px] text-muted-foreground">دروس مكتملة</div>
+              </div>
+              <div className="rounded-lg border bg-card p-2.5 text-center">
+                <Clock className="h-4 w-4 mx-auto mb-1 text-amber-600" />
+                <div className="text-sm font-extrabold">{String(progress.summary.learning_minutes).slice(0, 4)}</div>
+                <div className="text-[10px] text-muted-foreground">دقيقة تعلّم</div>
+              </div>
+              <div className="rounded-lg border bg-card p-2.5 text-center">
+                <Award className="h-4 w-4 mx-auto mb-1 text-violet-600" />
+                <div className="text-sm font-extrabold">{progress.summary.earned_badges}/{progress.summary.total_badges}</div>
+                <div className="text-[10px] text-muted-foreground">إنجازات</div>
+              </div>
+            </div>
+
+            {/* Absences */}
+            <div className="flex items-center justify-between text-xs border-t pt-2">
+              <span className="font-bold text-destructive">{progress.summary.absent_sessions}</span>
+              <span className="text-muted-foreground">دروس تغيّب عنها الطالب</span>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Contact info */}
       <Card>

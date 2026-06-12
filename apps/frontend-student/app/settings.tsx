@@ -12,6 +12,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '@/stores/authStore';
 import { authApi }      from '@/api/auth';
+import { registerForPushNotifications, unregisterPushNotifications } from '@/hooks/usePushNotifications';
 import { C, shadow }          from '@/theme';
 import { useAnimatedHeader }  from '@/hooks/useAnimatedHeader';
 
@@ -54,6 +55,15 @@ export default function SettingsScreen() {
   const { user, clearAuth } = useAuthStore();
   const [notifOn,    setNotifOn]    = useState(true);
   const [loggingOut, setLoggingOut] = useState(false);
+
+  const handleNotifToggle = async (value: boolean) => {
+    setNotifOn(value);
+    if (value) {
+      await registerForPushNotifications();
+    } else {
+      await unregisterPushNotifications();
+    }
+  };
   const { headerHeight, onHeaderLayout, onScroll, headerStyle } =
     useAnimatedHeader({ animateTabBar: false });
 
@@ -121,11 +131,11 @@ export default function SettingsScreen() {
           <SettingRow
             icon="notifications" iconBg="#FEF3C7" iconColor={C.amber}
             label="الإشعارات"
-            value="سيتم ارسال اشعار قبل الحصة بخمس دقائق"
+            value="تذكير قبل الحصة بـ 10 دقائق"
             rightEl={
               <Switch
                 value={notifOn}
-                onValueChange={setNotifOn}
+                onValueChange={handleNotifToggle}
                 trackColor={{ false: '#E5E7EB', true: C.yellow }}
                 thumbColor={C.white}
               />

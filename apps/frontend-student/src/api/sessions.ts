@@ -64,6 +64,7 @@ export interface SessionProfile {
     title:         string;
     is_assessment: boolean;
     pdf_url:       string | null;
+    activity_url:  string | null;
     order?:        number;
     unit?:         { id: number; name: string };
     level?:        { id: number; code: string; name: string };

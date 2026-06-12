@@ -1,5 +1,5 @@
 /**
- * Request Profile — بروفايل الطلب
+ * Request Profile — Request Profile
  * Teacher sees lesson details + student info, enters Nearpod PIN, then activates.
  */
 import {
@@ -45,21 +45,21 @@ export default function RequestProfileScreen() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['requests'] });
       qc.invalidateQueries({ queryKey: ['sessions'] });
-      Alert.alert('تم التفعيل', 'تم قبول الطلب وتفعيل الحصة للطالب.', [
-        { text: 'حسناً', onPress: () => router.back() },
+      Alert.alert('Activated', 'Request accepted and session activated for the student.', [
+        { text: 'OK', onPress: () => router.back() },
       ]);
     },
     onError: (e: any) =>
-      Alert.alert('خطأ', e?.response?.data?.message ?? 'تعذر تفعيل الحصة'),
+      Alert.alert('Error', e?.response?.data?.message ?? 'Could not activate the session'),
   });
 
   const handleActivate = () => {
     Alert.alert(
-      'تفعيل الحصة',
-      'هل أنت متأكد من تفعيل هذه الحصة للطالب؟',
+      'Activate Session',
+      'Are you sure you want to activate this session for the student?',
       [
-        { text: 'تراجع', style: 'cancel' },
-        { text: 'تفعيل', onPress: () => acceptMutation.mutate() },
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Activate', onPress: () => acceptMutation.mutate() },
       ],
     );
   };
@@ -68,7 +68,7 @@ export default function RequestProfileScreen() {
     const url = req?.lesson?.nearpod_url;
     if (url) {
       Linking.openURL(url).catch(() =>
-        Alert.alert('خطأ', 'تعذر فتح رابط Nearpod'),
+        Alert.alert('Error', 'Could not open the Nearpod link'),
       );
     } else {
       Linking.openURL('https://nearpod.com').catch(() => {});
@@ -86,7 +86,7 @@ export default function RequestProfileScreen() {
   const lesson  = req.lesson;
   const student = req.student;
   const levelCode = lesson?.level?.code ?? '';
-  const lessonNum = lesson?.order ? `درس ${lesson.order}` : '';
+  const lessonNum = lesson?.order ? `Lesson ${lesson.order}` : '';
 
   return (
     <KeyboardAvoidingView
@@ -103,7 +103,7 @@ export default function RequestProfileScreen() {
             <Ionicons name="chevron-forward" size={22} color="#fff" />
           </TouchableOpacity>
           <View style={{ flex: 1, alignItems: 'flex-end' }}>
-            <Text style={styles.headerTitle}>بروفايل الطلب</Text>
+            <Text style={styles.headerTitle}>Request Profile</Text>
             {levelCode || lessonNum ? (
               <View style={styles.headerBadge}>
                 <Text style={styles.headerBadgeTxt}>
@@ -121,24 +121,24 @@ export default function RequestProfileScreen() {
         >
           {/* ── Lesson card ── */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>معلومات الحصة</Text>
+            <Text style={styles.sectionTitle}>Session Info</Text>
             <View style={styles.card}>
               <InfoRow
                 icon="book-outline"
-                label="اسم الحصة"
+                label="Session Name"
                 value={lesson?.title ?? '—'}
               />
               {lesson?.level && (
                 <InfoRow
                   icon="layers-outline"
-                  label="المستوى"
+                  label="Level"
                   value={`${lesson.level.code} — ${lesson.level.name}`}
                 />
               )}
               {lesson?.order != null && (
                 <InfoRow
                   icon="list-outline"
-                  label="رقم الدرس"
+                  label="Lesson No."
                   value={`${lesson.order}`}
                 />
               )}
@@ -147,18 +147,18 @@ export default function RequestProfileScreen() {
 
           {/* ── Student card ── */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>معلومات الطالب</Text>
+            <Text style={styles.sectionTitle}>Student Info</Text>
             <View style={styles.card}>
               <InfoRow
                 icon="person-outline"
-                label="الاسم"
+                label="Name"
                 value={student?.name ?? '—'}
               />
               {student?.age != null && (
                 <InfoRow
                   icon="calendar-outline"
-                  label="العمر"
-                  value={`${student.age} سنة`}
+                  label="Age"
+                  value={`${student.age} yrs`}
                 />
               )}
             </View>
@@ -169,7 +169,7 @@ export default function RequestProfileScreen() {
             <Text style={styles.sectionTitle}>Nearpod</Text>
             <View style={styles.card}>
               <Text style={styles.nearpodHint}>
-                افتح Nearpod لإنشاء الحصة والحصول على رقم PIN، ثم أدخله هنا لتفعيل الحصة للطالب.
+                Open Nearpod to create the session and get the PIN, then enter it here to activate the session for the student.
               </Text>
 
               {/* Open Nearpod button */}
@@ -180,7 +180,7 @@ export default function RequestProfileScreen() {
                   style={styles.nearpodBtnGrad}
                 >
                   <Ionicons name="open-outline" size={18} color="#fff" />
-                  <Text style={styles.nearpodBtnTxt}>إنشاء في Nearpod</Text>
+                  <Text style={styles.nearpodBtnTxt}>Create in Nearpod</Text>
                 </LinearGradient>
               </TouchableOpacity>
 
@@ -189,7 +189,7 @@ export default function RequestProfileScreen() {
                 <Ionicons name="keypad-outline" size={18} color={C.grayMid} />
                 <TextInput
                   style={styles.pinInput}
-                  placeholder="أدخل رقم PIN من Nearpod"
+                  placeholder="Enter the PIN from Nearpod"
                   placeholderTextColor={C.grayMid}
                   value={pin}
                   onChangeText={setPin}
@@ -218,7 +218,7 @@ export default function RequestProfileScreen() {
               ) : (
                 <>
                   <Ionicons name="checkmark-circle" size={22} color="#fff" />
-                  <Text style={styles.activateBtnTxt}>تفعيل الحصة للطالب</Text>
+                  <Text style={styles.activateBtnTxt}>Activate Session for Student</Text>
                 </>
               )}
             </LinearGradient>

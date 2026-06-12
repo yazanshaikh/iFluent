@@ -33,6 +33,7 @@ class SessionRequest extends Model
         'status',
         'rejection_reason',
         'cancellation_reason',
+        'note',
         'session_id',
         'teacher_gender_pref',
     ];

@@ -5,7 +5,7 @@
 import { useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
-  StyleSheet, ActivityIndicator, Animated, Modal,
+  StyleSheet, ActivityIndicator, Animated, Modal, RefreshControl,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -187,8 +187,7 @@ export default function MessagesScreen() {
           onScroll={onScroll}
           scrollEventThrottle={16}
           showsVerticalScrollIndicator={false}
-          refreshing={isFetching}
-          onRefresh={refetch}
+          refreshControl={<RefreshControl refreshing={isFetching} onRefresh={refetch} tintColor={C.yellow} />}
         >
           {messages.length === 0 ? (
             <View style={styles.emptyWrap}>

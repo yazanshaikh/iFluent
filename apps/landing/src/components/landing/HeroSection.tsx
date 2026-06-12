@@ -118,7 +118,7 @@ export function HeroSection({ settings, onCtaPrimary, onCtaSecondary }: HeroSect
 
           <Animated.View style={{ transform: [{ translateY: floatAnim }] }}>
             <Image
-              source={require('@/assets/images/mascot-hero.jpeg')}
+              source={require('../../../assets/images/mascot-hero.jpeg')}
               style={[
                 styles.mascotImage,
                 {

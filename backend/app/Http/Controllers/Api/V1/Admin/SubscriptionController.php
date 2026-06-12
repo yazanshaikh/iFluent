@@ -125,6 +125,15 @@ class SubscriptionController extends Controller
             // ── Credit the student's lesson balance (dynamic count) ───────────
             $subscription->student->user->increment('lesson_credits', $lessonsCount);
 
+            // ── Enroll the student in the units covered by the lesson range ───
+            // Bridges subscription range → curriculum visibility in the app.
+            $subscription->refresh(); // ensure from/to are loaded
+            $newUnits = $subscription->enrollCoveredUnits();
+            \Log::info("Subscription approved → units enrolled", [
+                'subscription_id' => $subscription->id,
+                'units_enrolled'  => $newUnits,
+            ]);
+
             // Update lead → subscriber + add remark with subscription details
             $lead = $subscription->student->lead;
             if ($lead) {

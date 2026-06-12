@@ -6,24 +6,17 @@
 import { useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
-  StyleSheet, Animated,
+  StyleSheet, Animated, ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useQuery } from '@tanstack/react-query';
+import { profileApi } from '@/api/profile';
 import { C, shadow } from '@/theme';
 import { useAnimatedHeader } from '@/hooks/useAnimatedHeader';
 
-// ─── Static mock data (replace with API later) ────────────────────────────────
-
-const OVERALL_PCT = 0;
-
-const buildStats = (earnedCount: number) => [
-  { icon: 'timer-outline' as const, color: C.amber, label: 'وقت التعلم',    value: '0',                       unit: 'دقيقة' },
-  { icon: 'book'          as const, color: C.info,  label: 'دروس مكتملة',   value: '0/0',                     unit: ''      },
-  { icon: 'medal'         as const, color: C.amber, label: 'بطاقات مكتسبة', value: String(earnedCount),        unit: 'بطاقة' },
-];
-
+// ─── Achievement catalog — `earned` comes from the API by id ──────────────────
 interface Achievement {
   id:        number;
   icon:      keyof typeof Ionicons.glyphMap;
@@ -31,86 +24,21 @@ interface Achievement {
   iconBg:    string;
   title:     string;
   desc:      string;
-  earned:    boolean;
-  note?:     string;   // optional condition shown as a disclaimer
 }
 
-const ACHIEVEMENTS: Achievement[] = [
-  {
-    id: 1, earned: false,
-    icon: 'school',    iconColor: C.amber,     iconBg: '#FEF3C7',
-    title: 'أول درس',
-    desc:  'أكملت أول درس! بداية رائعة في رحلتك التعليمية 🎉',
-  },
-  {
-    id: 2, earned: false,
-    icon: 'flame',     iconColor: '#EF4444',   iconBg: '#FEE2E2',
-    title: 'أيام متتالية 3',
-    desc:  'حافظ على التعلم 3 أيام متواصلة واستمر 🔥',
-  },
-  {
-    id: 3, earned: false,
-    icon: 'timer',     iconColor: C.info,      iconBg: '#DBEAFE',
-    title: 'دقيقة تعلم 30',
-    desc:  'قضيت 30 دقيقة في التعلم! بداية قوية ⏱️',
-  },
-  {
-    id: 4, earned: false,
-    icon: 'star',      iconColor: '#8B5CF6',   iconBg: '#EDE9FE',
-    title: 'دروس مكتملة 10',
-    desc:  'أنهيت 10 دروس! تقدم رائع 📚',
-  },
-  {
-    id: 5, earned: false,
-    icon: 'trophy',    iconColor: C.amber,     iconBg: '#FEF3C7',
-    title: 'درس مكتمل 20',
-    desc:  'أنهيت 20 درساً! أنت نجم التعلم 🏅',
-  },
-  {
-    id: 6, earned: false,
-    icon: 'hourglass', iconColor: C.info,      iconBg: '#DBEAFE',
-    title: 'ساعة تعلم',
-    desc:  'تعلمت ساعة كاملة! استمر في الإنجاز ⌛',
-  },
-  {
-    id: 7, earned: false,
-    icon: 'checkmark-circle', iconColor: C.success, iconBg: '#DCFCE7',
-    title: '3 كويزات فل مارك',
-    desc:  'حققت علامة كاملة في 3 كويزات متتالية! أنت متميز 💯',
-  },
-  {
-    id: 9, earned: false,
-    icon: 'layers',    iconColor: C.navyLight, iconBg: '#E0E7FF',
-    title: 'فتح جميع المستويات',
-    desc:  'تم فتح جميع المستويات! إنجاز مميز 🏆',
-  },
-  {
-    id: 10, earned: false,
-    icon: 'ribbon',    iconColor: C.success,   iconBg: '#DCFCE7',
-    title: 'إكمال جميع الدروس',
-    desc:  'أكملت جميع الدروس! أنت قدوة في المثابرة 🎓',
-  },
-  {
-    id: 11, earned: false,
-    icon: 'person-add', iconColor: C.info,     iconBg: '#DBEAFE',
-    title: 'أول طالب أحضرته',
-    desc:  'أحضرت طالباً وانضم لعائلة iFluent! حصل على ٣ دروس مجانا🤝',
-    note:  'يُشترط تسجيل الطالب عبر مستشارك أو مشرفك التعليمي',
-  },
-  {
-    id: 12, earned: false,
-    icon: 'people',    iconColor: '#7C3AED',   iconBg: '#EDE9FE',
-    title: '3 طلاب أحضرتهم',
-    desc:  'أحضرت 3 طلاب! أنت سفير iFluent الحقيقي احصل على ٣ دروس لكل طالب اشترك + هدايا قيمة🌟',
-    note:  'يُشترط تسجيل الطلاب عبر مستشارك أو مشرفك التعليمي',
-  },
-  {
-    id: 13, earned: false,
-    icon: 'people-circle', iconColor: C.amber, iconBg: '#FEF3C7',
-    title: '5 طلاب أحضرتهم',
-    desc:  ' أنت نجم المجتمع التعليمي احصل على ٣ دروس لكل طالب + مبالغ مادية🏆',
-    note:  'يُشترط تسجيل الطلاب عبر مستشارك أو مشرفك التعليمي',
-  },
+const CATALOG: Achievement[] = [
+  { id: 1,  icon: 'school',           iconColor: C.amber,     iconBg: '#FEF3C7', title: 'أول درس',        desc: 'أكملت أول درس! بداية رائعة في رحلتك التعليمية 🎉' },
+  { id: 2,  icon: 'book',             iconColor: C.info,      iconBg: '#DBEAFE', title: '5 دروس',         desc: 'أنهيت 5 دروس! انطلاقة قوية 📖' },
+  { id: 3,  icon: 'star',             iconColor: '#8B5CF6',   iconBg: '#EDE9FE', title: '10 دروس',        desc: 'أنهيت 10 دروس! تقدم رائع 📚' },
+  { id: 4,  icon: 'trophy',           iconColor: C.amber,     iconBg: '#FEF3C7', title: '20 درساً',       desc: 'أنهيت 20 درساً! أنت نجم التعلم 🏅' },
+  { id: 5,  icon: 'pie-chart',        iconColor: '#10B981',   iconBg: '#DCFCE7', title: 'نصف البرنامج',   desc: 'وصلت لمنتصف برنامجك! الطريق واضح 🚀' },
+  { id: 6,  icon: 'medal',            iconColor: C.amber,     iconBg: '#FEF3C7', title: '50 درساً',       desc: 'أنهيت 50 درساً! إنجاز كبير 🥇' },
+  { id: 7,  icon: 'flame',            iconColor: '#EF4444',   iconBg: '#FEE2E2', title: '100 درس',        desc: 'أنهيت 100 درس! أنت أسطورة 🔥' },
+  { id: 8,  icon: 'ribbon',           iconColor: C.success,   iconBg: '#DCFCE7', title: 'إكمال البرنامج', desc: 'أكملت برنامجك كاملاً! أنت قدوة 🎓' },
+  { id: 9,  icon: 'timer',            iconColor: C.info,      iconBg: '#DBEAFE', title: '30 دقيقة تعلم',  desc: 'قضيت 30 دقيقة في التعلم! بداية قوية ⏱️' },
+  { id: 10, icon: 'hourglass',        iconColor: C.info,      iconBg: '#DBEAFE', title: 'ساعة تعلم',      desc: 'تعلمت ساعة كاملة! استمر في الإنجاز ⌛' },
+  { id: 11, icon: 'alarm',            iconColor: '#7C3AED',   iconBg: '#EDE9FE', title: '5 ساعات تعلم',   desc: 'تعلمت 5 ساعات! مثابرة حقيقية 💪' },
+  { id: 12, icon: 'checkmark-circle', iconColor: C.success,   iconBg: '#DCFCE7', title: '3 كويزات فل مارك', desc: 'حققت علامة كاملة في 3 كويزات! أنت متميز 💯' },
 ];
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -152,31 +80,25 @@ const sc = StyleSheet.create({
   label: { fontSize: 10, fontWeight: '700', color: C.grayMid, textAlign: 'center' },
 });
 
-function AchievementCard({ item }: { item: Achievement }) {
+function AchievementCard({ item, earned }: { item: Achievement; earned: boolean }) {
   return (
-    <View style={[ac.card, item.earned && ac.cardEarned]}>
-      <View style={[ac.iconWrap, { backgroundColor: item.earned ? item.iconBg : '#F3F4F6' }]}>
+    <View style={[ac.card, earned && ac.cardEarned]}>
+      <View style={[ac.iconWrap, { backgroundColor: earned ? item.iconBg : '#F3F4F6' }]}>
         <Ionicons
           name={item.icon}
           size={22}
-          color={item.earned ? item.iconColor : C.gray}
+          color={earned ? item.iconColor : C.gray}
         />
       </View>
       <View style={{ flex: 1 }}>
-        <Text style={[ac.title, !item.earned && ac.muted]}>{item.title}</Text>
-        <Text style={[ac.desc,  !item.earned && ac.muted]} numberOfLines={2}>{item.desc}</Text>
-        {item.note && (
-          <View style={ac.noteRow}>
-            <Ionicons name="information-circle" size={11} color={C.info} />
-            <Text style={ac.note}>{item.note}</Text>
-          </View>
-        )}
+        <Text style={[ac.title, !earned && ac.muted]}>{item.title}</Text>
+        <Text style={[ac.desc,  !earned && ac.muted]} numberOfLines={2}>{item.desc}</Text>
       </View>
-      <View style={[ac.badge, item.earned ? ac.badgeEarned : ac.badgeLocked]}>
+      <View style={[ac.badge, earned ? ac.badgeEarned : ac.badgeLocked]}>
         <Ionicons
-          name={item.earned ? 'checkmark' : 'lock-closed'}
+          name={earned ? 'checkmark' : 'lock-closed'}
           size={13}
-          color={item.earned ? C.white : C.gray}
+          color={earned ? C.white : C.gray}
         />
       </View>
     </View>
@@ -228,6 +150,15 @@ const ac = StyleSheet.create({
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
+function fmtLearning(mins: number): { value: string; unit: string } {
+  if (mins >= 60) {
+    const h = Math.floor(mins / 60);
+    const m = Math.round(mins % 60);
+    return { value: m > 0 ? `${h}:${String(m).padStart(2, '0')}` : `${h}`, unit: m > 0 ? 'ساعة' : 'ساعة' };
+  }
+  return { value: String(Math.round(mins)), unit: 'دقيقة' };
+}
+
 export default function ProgressScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -235,8 +166,35 @@ export default function ProgressScreen() {
   const { headerHeight, onHeaderLayout, onScroll, headerStyle } =
     useAnimatedHeader({ animateTabBar: false });
 
-  const earnedCount = ACHIEVEMENTS.filter((a) => a.earned).length;
-  const STATS = buildStats(earnedCount);
+  const { data, isLoading } = useQuery({
+    queryKey: ['progress-summary'],
+    queryFn:  () => profileApi.progress(),
+    staleTime: 30_000,
+  });
+
+  // Map of achievement id → earned flag from the API
+  const earnedMap = new Map((data?.achievements ?? []).map((a) => [a.id, a.earned]));
+  const earnedCount = data?.earned_badges ?? 0;
+
+  const OVERALL_PCT = data?.overall_pct ?? 0;
+  const learning    = fmtLearning(data?.learning_minutes ?? 0);
+
+  const STATS = [
+    { icon: 'timer-outline' as const, color: C.amber, label: 'وقت التعلم',
+      value: learning.value, unit: learning.unit },
+    { icon: 'book' as const, color: C.info, label: 'دروس مكتملة',
+      value: `${data?.completed_lessons ?? 0}/${data?.total_lessons ?? 0}`, unit: '' },
+    { icon: 'medal' as const, color: C.amber, label: 'بطاقات مكتسبة',
+      value: String(earnedCount), unit: 'بطاقة' },
+  ];
+
+  if (isLoading) {
+    return (
+      <View style={{ flex: 1, backgroundColor: C.cream, justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" color={C.amber} />
+      </View>
+    );
+  }
 
   return (
     <View style={{ flex: 1, backgroundColor: C.cream }}>
@@ -298,14 +256,14 @@ export default function ProgressScreen() {
           />
           <Text style={styles.sectionLabel2}>
             بطاقات الإنجازات
-            <Text style={styles.sectionCount}> · {earnedCount}/{ACHIEVEMENTS.length}</Text>
+            <Text style={styles.sectionCount}> · {earnedCount}/{CATALOG.length}</Text>
           </Text>
         </TouchableOpacity>
 
         {achievOpen && (
           <View>
-            {ACHIEVEMENTS.map((item) => (
-              <AchievementCard key={item.id} item={item} />
+            {CATALOG.map((item) => (
+              <AchievementCard key={item.id} item={item} earned={earnedMap.get(item.id) ?? false} />
             ))}
           </View>
         )}

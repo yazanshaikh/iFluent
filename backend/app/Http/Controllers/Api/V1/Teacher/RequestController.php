@@ -255,6 +255,7 @@ class RequestController extends Controller
             'status'              => $r->status,
             'scheduled_at'        => $r->requested_at_utc?->toIso8601String(),
             'teacher_gender_pref' => $r->teacher_gender_pref,
+            'note'                => $r->note,
             'student'      => $r->student ? [
                 'id'   => $r->student->id,
                 'name' => $r->student->name,

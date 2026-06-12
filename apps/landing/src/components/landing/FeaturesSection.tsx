@@ -56,7 +56,7 @@ export function FeaturesSection() {
       <View style={[styles.topRow, isMobile && styles.topRowMobile]}>
         <View style={[styles.mascotWrap, isMobile && styles.mascotWrapMobile]}>
           <Image
-            source={require('@/assets/images/mascot-kid.jpeg')}
+            source={require('../../../assets/images/mascot-kid.jpeg')}
             style={styles.mascotImage}
             resizeMode="cover"
           />

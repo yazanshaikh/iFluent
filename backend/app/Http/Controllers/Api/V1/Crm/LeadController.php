@@ -195,6 +195,27 @@ class LeadController extends Controller
         return new LeadResource($lead);
     }
 
+    // ─── Student Progress ─────────────────────────────────────────────────────
+    /**
+     * GET /crm/leads/{lead}/progress
+     * Returns the SAME progress summary the student sees in their app
+     * (via StudentProgressService). Empty if the lead has no student account yet.
+     */
+    public function progress(Lead $lead, \App\Services\StudentProgressService $progress): JsonResponse
+    {
+        $this->authorize('view', $lead);
+
+        $user = $lead->student?->user;
+        if (!$user) {
+            return response()->json(['has_account' => false, 'summary' => null]);
+        }
+
+        return response()->json([
+            'has_account' => true,
+            'summary'     => $progress->summary($user),
+        ]);
+    }
+
     // ─── Update Lead ──────────────────────────────────────────────────────────
     public function update(UpdateLeadRequest $request, Lead $lead): LeadResource|JsonResponse
     {

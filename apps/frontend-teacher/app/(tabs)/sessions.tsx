@@ -1,5 +1,5 @@
 /**
- * Upcoming Sessions — حصصي
+ * Upcoming Sessions — My Sessions
  */
 import {
   View, Text, ScrollView, TouchableOpacity, Pressable,
@@ -15,7 +15,7 @@ import { C, shadow, STATUS_COLOR, STATUS_LABEL } from '@/theme';
 
 function fmt(iso: string | null) {
   if (!iso) return '—';
-  return new Date(iso).toLocaleString('ar-SA', {
+  return new Date(iso).toLocaleString('en-US', {
     weekday: 'short', day: 'numeric', month: 'short',
     hour: '2-digit', minute: '2-digit',
     timeZone: 'Asia/Amman',
@@ -24,9 +24,9 @@ function fmt(iso: string | null) {
 
 function attendanceLabel(s: TeacherSession): string {
   if (s.status === 'completed') {
-    if (s.attendance_status === 'teacher_absent') return 'غياب المعلم';
-    if (s.attendance_status === 'absent')         return 'غياب الطالب';
-    return STATUS_LABEL['completed'] ?? 'مكتملة';
+    if (s.attendance_status === 'teacher_absent') return 'Teacher Absent';
+    if (s.attendance_status === 'absent')         return 'Student Absent';
+    return STATUS_LABEL['completed'] ?? 'Completed';
   }
   return STATUS_LABEL[s.status] ?? s.status;
 }
@@ -55,7 +55,7 @@ function SessionCard({ session, onPress }: { session: TeacherSession; onPress: (
           <Text style={styles.cardTime}>{fmt(session.scheduled_at)}</Text>
         </View>
 
-        <Text style={styles.studentName}>{session.student?.name ?? 'طالب'}</Text>
+        <Text style={styles.studentName}>{session.student?.name ?? 'Student'}</Text>
 
         {session.lesson?.title && (
           <View style={styles.metaRow}>
@@ -69,17 +69,17 @@ function SessionCard({ session, onPress }: { session: TeacherSession; onPress: (
           {isActive ? (
             <LinearGradient colors={[C.success, '#15803d']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.ctaGrad}>
               <Ionicons name="videocam" size={15} color="#fff" />
-              <Text style={styles.ctaTxt}>العودة للفصل</Text>
+              <Text style={styles.ctaTxt}>Back to Class</Text>
             </LinearGradient>
           ) : isAccepted ? (
             <LinearGradient colors={[C.sky, C.skyDark]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.ctaGrad}>
               <Ionicons name="play-circle-outline" size={15} color="#fff" />
-              <Text style={styles.ctaTxt}>بدء الحصة</Text>
+              <Text style={styles.ctaTxt}>Start Session</Text>
             </LinearGradient>
           ) : (
             <View style={styles.ctaPlain}>
               <Ionicons name="eye-outline" size={15} color={C.grayMid} />
-              <Text style={styles.ctaPlainTxt}>عرض التفاصيل</Text>
+              <Text style={styles.ctaPlainTxt}>View Details</Text>
             </View>
           )}
         </View>
@@ -101,7 +101,7 @@ export default function SessionsScreen() {
 
   const active   = data.filter((s) => s.status === 'active');
   const upcoming = data.filter((s) => ['confirmed', 'waiting'].includes(s.status));
-  const past     = data.filter((s) => s.status === 'completed'); // cancelled لا تظهر عند المعلم
+  const past     = data.filter((s) => s.status === 'completed'); // cancelled sessions are hidden from the teacher
 
   return (
     <View style={{ flex: 1, backgroundColor: '#F0F9FF' }}>
@@ -109,8 +109,8 @@ export default function SessionsScreen() {
         colors={[C.sky, C.skyDark]}
         style={[styles.header, { paddingTop: insets.top + 16 }]}
       >
-        <Text style={styles.headerTitle}>حصصي</Text>
-        <Text style={styles.headerSub}>{data.length} حصة</Text>
+        <Text style={styles.headerTitle}>My Sessions</Text>
+        <Text style={styles.headerSub}>{data.length} sessions</Text>
       </LinearGradient>
 
       <ScrollView
@@ -123,13 +123,13 @@ export default function SessionsScreen() {
         ) : data.length === 0 ? (
           <View style={styles.empty}>
             <Ionicons name="calendar-outline" size={52} color={C.skyLight} />
-            <Text style={styles.emptyTxt}>لا توجد حصص قادمة</Text>
+            <Text style={styles.emptyTxt}>No upcoming sessions</Text>
           </View>
         ) : (
           <>
             {active.length > 0 && (
               <>
-                <Text style={styles.section}>🟢 نشطة الآن</Text>
+                <Text style={styles.section}>🟢 Active Now</Text>
                 {active.map((s) => (
                   <SessionCard key={s.id} session={s}
                     onPress={() => router.push({ pathname: '/classroom/[id]', params: { id: String(s.id) } })} />
@@ -138,7 +138,7 @@ export default function SessionsScreen() {
             )}
             {upcoming.length > 0 && (
               <>
-                <Text style={styles.section}>⏰ القادمة</Text>
+                <Text style={styles.section}>⏰ Upcoming</Text>
                 {upcoming.map((s) => (
                   <SessionCard key={s.id} session={s}
                     onPress={() => router.push({ pathname: '/session/[id]', params: { id: String(s.id) } })} />
@@ -147,7 +147,7 @@ export default function SessionsScreen() {
             )}
             {past.length > 0 && (
               <>
-                <Text style={styles.section}>✅ المنتهية</Text>
+                <Text style={styles.section}>✅ Completed</Text>
                 {past.map((s) => (
                   <SessionCard key={s.id} session={s}
                     onPress={() => router.push({ pathname: '/session/[id]', params: { id: String(s.id) } })} />

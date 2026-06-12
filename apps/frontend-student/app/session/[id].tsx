@@ -1,21 +1,19 @@
 /**
  * Session Room — Student Classroom
  *
- * Layout:
- *   ┌─────────────────────────────┐
- *   │  Daily.co  (fixed top)      │  ← resizable via drag handle
- *   │  [═══════ drag ═══════]     │
- *   │─────────────────────────────│
- *   │                             │
- *   │       Nearpod               │  ← fills remaining space
- *   │                             │
- *   └─────────────────────────────┘
+ * Responsive in-app split (SplitCallLayout):
+ *   - Landscape/wide: Daily call on the RIGHT, Nearpod fills the left.
+ *   - Portrait phone:  Daily call on TOP, Nearpod below.
+ *   Divider is draggable either way.
+ *
+ * The video call uses @daily-co/react-native-daily-js (native WebRTC) — not a
+ * WebView/browser — so camera & mic publish reliably and mute is toggleable.
  */
 import { useEffect, useRef, useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ActivityIndicator,
-  TouchableOpacity, Alert, AppState, Platform,
-  StatusBar, BackHandler, Dimensions, PanResponder,
+  TouchableOpacity, Alert, AppState,
+  StatusBar, BackHandler,
 } from 'react-native';
 import { useRouter, useLocalSearchParams, Stack } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -23,15 +21,11 @@ import { WebView } from 'react-native-webview';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { lockCurrent, unlock as unlockOrientation } from '@/lib/screenOrientation';
+import { DailyCallPanel } from '@/components/DailyCallPanel';
+import { SplitCallLayout } from '@/components/SplitCallLayout';
 import { sessionsApi, type JoinSessionResponse } from '@/api/sessions';
 
 const POLL_WAITING_MS = 5_000;
-
-// Min/Max for Daily panel height (px)
-const DAILY_MIN_H = 90;
-const DAILY_MAX_H = 320;
-const DAILY_DEFAULT_H = 200;
-const HANDLE_H = 28;
 
 // ─── Waiting overlay ──────────────────────────────────────────────────────────
 function WaitingOverlay({ onCancel }: { onCancel: () => void }) {
@@ -47,6 +41,45 @@ function WaitingOverlay({ onCancel }: { onCancel: () => void }) {
   );
 }
 
+// ─── Nearpod side ─────────────────────────────────────────────────────────────
+function NearpodPanel({ sessionId, url, pin }: { sessionId: number; url: string | null; pin?: string | null }) {
+  return (
+    <View style={{ flex: 1, backgroundColor: '#fff' }}>
+      {url ? (
+        <WebView
+          key={`nearpod-${sessionId}`}
+          source={{ uri: url }}
+          style={StyleSheet.absoluteFillObject}
+          javaScriptEnabled
+          domStorageEnabled
+          allowsInlineMediaPlayback
+          mediaPlaybackRequiresUserAction={false}
+          originWhitelist={['*']}
+          onShouldStartLoadWithRequest={() => true}
+          startInLoadingState
+          renderLoading={() => (
+            <View style={[S.webLoading, { backgroundColor: '#f5f3ff' }]}>
+              <ActivityIndicator size="large" color="#7c3aed" />
+              <Text style={{ color: '#7c3aed', marginTop: 12 }}>جاري تحميل الدرس…</Text>
+            </View>
+          )}
+        />
+      ) : (
+        <View style={S.noNearpod}>
+          <Ionicons name="easel-outline" size={44} color="#d1d5db" />
+          <Text style={S.noNearpodTxt}>انتظر المعلم لبدء الدرس</Text>
+          {pin && (
+            <>
+              <Text style={{ color: '#6b7280', fontSize: 13, marginTop: 8 }}>PIN الدرس:</Text>
+              <Text style={S.pinLarge}>{pin.toUpperCase()}</Text>
+            </>
+          )}
+        </View>
+      )}
+    </View>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function SessionRoomScreen() {
   const router    = useRouter();
@@ -57,14 +90,11 @@ export default function SessionRoomScreen() {
 
   const [roomData,          setRoomData]          = useState<JoinSessionResponse | null>(null);
   const [joined,            setJoined]            = useState(false);
-  const [dailyH,            setDailyH]            = useState(DAILY_DEFAULT_H);
   const [orientationLocked, setOrientationLocked] = useState(false);
   const [handRaised,        setHandRaised]        = useState(false);
   const [raisingHand,       setRaisingHand]       = useState(false);
 
-  const dailyHRef    = useRef(DAILY_DEFAULT_H);
-  const dragStartRef = useRef(0);
-  const appState     = useRef(AppState.currentState);
+  const appState = useRef(AppState.currentState);
 
   // ── Polling — stop once joined ─────────────────────────────────────────────
   const { data, error } = useQuery<JoinSessionResponse>({
@@ -80,29 +110,13 @@ export default function SessionRoomScreen() {
     retryDelay: POLL_WAITING_MS,
   });
 
-  // Set room data ONCE — never overwrite to avoid kicking from Daily
+  // Set room data ONCE
   useEffect(() => {
     if (data?.daily_room_url && data?.nearpod_pin && !joined) {
       setRoomData(data);
       setJoined(true);
     }
   }, [data, joined]);
-
-  // ── Drag handle — resize Daily panel ──────────────────────────────────────
-  const dragResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder:  () => true,
-      onPanResponderGrant: () => {
-        dragStartRef.current = dailyHRef.current;
-      },
-      onPanResponderMove: (_, g) => {
-        const newH = Math.max(DAILY_MIN_H, Math.min(DAILY_MAX_H, dragStartRef.current + g.dy));
-        dailyHRef.current = newH;
-        setDailyH(newH);
-      },
-    })
-  ).current;
 
   // ── Orientation lock toggle ────────────────────────────────────────────────
   const toggleOrientationLock = useCallback(async () => {
@@ -124,7 +138,6 @@ export default function SessionRoomScreen() {
     try {
       await sessionsApi.raiseHand(sessionId);
       setHandRaised(true);
-      // Auto-lower after 30 seconds
       setTimeout(() => setHandRaised(false), 30_000);
     } catch { /* silent */ } finally {
       setRaisingHand(false);
@@ -157,19 +170,11 @@ export default function SessionRoomScreen() {
   const httpStatus = (error as any)?.response?.status;
   const isEnded    = httpStatus === 422 && roomData !== null;
 
-  // Build Daily URL with UI customization params
-  // disableEmojiReactions=1 → hides emoji/smiley reactions bar
-  // showLeaveButton=1       → always show leave button
-  const buildDailyUrl = (url: string) => {
-    if (!url) return url;
-    const separator = url.includes('?') ? '&' : '?';
-    return `${url}${separator}disableEmojiReactions=1&showLeaveButton=1`;
-  };
-
-  const nearpodUrl = roomData?.nearpod_url
-    ?? (roomData?.nearpod_pin
-      ? `https://nearpod.com/student/?pin=${roomData.nearpod_pin.toUpperCase()}`
-      : null);
+  // Student ALWAYS joins via the student PIN URL — never the lesson's (teacher)
+  // nearpod_url, which would open Nearpod with teacher controls.
+  const nearpodUrl = roomData?.nearpod_pin
+    ? `https://nearpod.com/student/?pin=${roomData.nearpod_pin.toUpperCase()}`
+    : null;
 
   return (
     <View style={{ flex: 1, backgroundColor: '#0a0a0a' }}>
@@ -192,7 +197,6 @@ export default function SessionRoomScreen() {
         </View>
 
         <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
-          {/* Raise hand — only while in session */}
           {joined && (
             <TouchableOpacity
               style={[S.topBtn, handRaised && S.topBtnHandOn]}
@@ -203,7 +207,6 @@ export default function SessionRoomScreen() {
             </TouchableOpacity>
           )}
 
-          {/* Orientation lock */}
           <TouchableOpacity
             style={[S.topBtn, orientationLocked && S.topBtnOn]}
             onPress={toggleOrientationLock}
@@ -215,7 +218,6 @@ export default function SessionRoomScreen() {
             />
           </TouchableOpacity>
 
-          {/* LIVE badge */}
           {joined && (
             <View style={S.liveBadge}>
               <View style={S.liveDot} />
@@ -247,94 +249,12 @@ export default function SessionRoomScreen() {
         </View>
       )}
 
-      {/* ── Split screen ──────────────────────────────────────────────────── */}
+      {/* ── In session — responsive split ─────────────────────────────────── */}
       {joined && roomData && !isEnded && (
-        <View style={{ flex: 1 }}>
-
-          {/* ── TOP: Daily.co — fixed panel, resizable ──────────────────── */}
-          <View style={[S.dailyPanel, { height: dailyH }]}>
-            <WebView
-              key={`daily-${sessionId}`}
-              source={{ uri: buildDailyUrl(roomData.daily_room_url) }}
-              style={StyleSheet.absoluteFillObject}
-              allowsInlineMediaPlayback
-              mediaPlaybackRequiresUserAction={false}
-              javaScriptEnabled
-              domStorageEnabled
-              originWhitelist={['*']}
-              mediaCapturePermissionGrantType="grant"
-              allowsAirPlayForMediaPlayback
-              onShouldStartLoadWithRequest={() => true}
-              setSupportMultipleWindows={false}
-              startInLoadingState
-              renderLoading={() => (
-                <View style={S.webLoading}>
-                  <ActivityIndicator color="#10b981" size="large" />
-                </View>
-              )}
-            />
-
-            {/* Collapse/expand quick button */}
-            <View style={S.dailyOverlay} pointerEvents="box-none">
-              <TouchableOpacity
-                style={S.dailyQuickBtn}
-                onPress={() => {
-                  const next = dailyH > DAILY_MIN_H + 20 ? DAILY_MIN_H : DAILY_DEFAULT_H;
-                  dailyHRef.current = next;
-                  setDailyH(next);
-                }}
-              >
-                <Ionicons
-                  name={dailyH > DAILY_MIN_H + 20 ? 'chevron-up' : 'chevron-down'}
-                  size={14}
-                  color="rgba(255,255,255,0.8)"
-                />
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          {/* ── DRAG HANDLE ─────────────────────────────────────────────── */}
-          <View style={S.handle} {...dragResponder.panHandlers}>
-            <View style={S.handlePill} />
-            <Text style={S.handleHint}>اسحب لتغيير الحجم</Text>
-            <View style={S.handlePill} />
-          </View>
-
-          {/* ── BOTTOM: Nearpod — fills remaining ───────────────────────── */}
-          <View style={{ flex: 1, backgroundColor: '#fff' }}>
-            {nearpodUrl ? (
-              <WebView
-                key={`nearpod-${sessionId}`}
-                source={{ uri: nearpodUrl }}
-                style={StyleSheet.absoluteFillObject}
-                javaScriptEnabled
-                domStorageEnabled
-                allowsInlineMediaPlayback
-                mediaPlaybackRequiresUserAction={false}
-                originWhitelist={['*']}
-                onShouldStartLoadWithRequest={() => true}
-                startInLoadingState
-                renderLoading={() => (
-                  <View style={[S.webLoading, { backgroundColor: '#f5f3ff' }]}>
-                    <ActivityIndicator size="large" color="#7c3aed" />
-                    <Text style={{ color: '#7c3aed', marginTop: 12 }}>جاري تحميل الدرس…</Text>
-                  </View>
-                )}
-              />
-            ) : (
-              <View style={S.noNearpod}>
-                <Ionicons name="easel-outline" size={44} color="#d1d5db" />
-                <Text style={S.noNearpodTxt}>انتظر المعلم لبدء الدرس</Text>
-                {roomData.nearpod_pin && (
-                  <>
-                    <Text style={{ color: '#6b7280', fontSize: 13, marginTop: 8 }}>PIN الدرس:</Text>
-                    <Text style={S.pinLarge}>{roomData.nearpod_pin.toUpperCase()}</Text>
-                  </>
-                )}
-              </View>
-            )}
-          </View>
-        </View>
+        <SplitCallLayout
+          call={<DailyCallPanel roomUrl={roomData.daily_room_url} />}
+          content={<NearpodPanel sessionId={sessionId} url={nearpodUrl} pin={roomData.nearpod_pin} />}
+        />
       )}
     </View>
   );
@@ -342,7 +262,6 @@ export default function SessionRoomScreen() {
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 const S = StyleSheet.create({
-  // Top bar
   topBar: {
     flexDirection: 'row', alignItems: 'center',
     backgroundColor: '#111827',
@@ -372,46 +291,6 @@ const S = StyleSheet.create({
   liveDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: '#fff' },
   liveTxt: { color: '#fff', fontSize: 10, fontWeight: '900', letterSpacing: 1 },
 
-  // Daily panel
-  dailyPanel: {
-    backgroundColor: '#000',
-    position: 'relative',
-    minHeight: DAILY_MIN_H,
-    maxHeight: DAILY_MAX_H,
-  },
-  dailyOverlay: {
-    position: 'absolute', top: 8, right: 8, zIndex: 5,
-  },
-  dailyQuickBtn: {
-    width: 28, height: 28, borderRadius: 14,
-    backgroundColor: 'rgba(0,0,0,0.55)',
-    justifyContent: 'center', alignItems: 'center',
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)',
-  },
-
-  // Drag handle
-  handle: {
-    height: HANDLE_H,
-    backgroundColor: '#1e293b',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    borderTopWidth: 1,    borderTopColor: '#334155',
-    borderBottomWidth: 1, borderBottomColor: '#334155',
-    zIndex: 20,
-    cursor: Platform.OS === 'web' ? ('ns-resize' as any) : undefined,
-  },
-  handlePill: {
-    width: 32, height: 4, borderRadius: 2,
-    backgroundColor: '#475569',
-  },
-  handleHint: {
-    fontSize: 10, color: '#64748b', fontWeight: '600',
-    letterSpacing: 0.5,
-  },
-
-  // Nearpod
   noNearpod: {
     flex: 1, justifyContent: 'center', alignItems: 'center',
     backgroundColor: '#f9fafb', padding: 32,
@@ -419,14 +298,12 @@ const S = StyleSheet.create({
   noNearpodTxt: { fontSize: 16, fontWeight: '600', color: '#374151', marginTop: 14 },
   pinLarge:     { fontSize: 40, fontWeight: '900', color: '#7c3aed', letterSpacing: 8, marginTop: 8 },
 
-  // Loading
   webLoading: {
     ...StyleSheet.absoluteFillObject,
     justifyContent: 'center', alignItems: 'center',
     backgroundColor: '#111827',
   },
 
-  // Waiting
   waitingOverlay: {
     flex: 1, justifyContent: 'center', alignItems: 'center',
     backgroundColor: '#111827', padding: 32,
@@ -439,7 +316,6 @@ const S = StyleSheet.create({
   },
   cancelTxt: { color: '#6b7280', fontSize: 15, fontWeight: '600' },
 
-  // Ended
   endedBanner: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     gap: 8, backgroundColor: '#f0fdf4',

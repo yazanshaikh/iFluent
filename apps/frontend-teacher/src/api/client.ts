@@ -3,7 +3,7 @@ import { storage } from '@/utils/storage';
 
 const BASE_URL =
   process.env.EXPO_PUBLIC_API_URL ??
-  'http://192.168.0.106:8000/api/v1';
+  'http://192.168.0.101:8000/api/v1';
 
 const client = axios.create({
   baseURL: BASE_URL,

@@ -6,6 +6,7 @@ export interface SessionRequest {
   status:               string;
   scheduled_at:         string | null;
   teacher_gender_pref:  'male' | 'female' | null;
+  note:                 string | null;
   student: {
     id:   number;
     name: string;

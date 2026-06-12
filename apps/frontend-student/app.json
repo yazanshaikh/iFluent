@@ -59,7 +59,19 @@
           }
         }
       ],
-      "expo-font"
+      "expo-font",
+      "@daily-co/config-plugin-rn-daily-js",
+      "@config-plugins/react-native-webrtc",
+      "./plugins/withBackgroundTimerNamespace",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "enableProguardInReleaseBuilds": true,
+            "enableShrinkResourcesInReleaseBuilds": true
+          }
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

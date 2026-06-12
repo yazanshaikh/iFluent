@@ -96,7 +96,8 @@ Route::middleware(['auth:sanctum', 'role:super_admin,cc,ss'])
         Route::get   ('leads',             [LeadController::class, 'index']);
         Route::post  ('leads',             [LeadController::class, 'store']);
         Route::get   ('leads/open-sea',    [LeadController::class, 'openSea']);
-        Route::get   ('leads/{lead}',      [LeadController::class, 'show']);
+        Route::get   ('leads/{lead}',          [LeadController::class, 'show']);
+        Route::get   ('leads/{lead}/progress', [LeadController::class, 'progress']);
         Route::put   ('leads/{lead}',      [LeadController::class, 'update']);
         Route::delete('leads/{lead}',      [LeadController::class, 'destroy']);
 
@@ -213,11 +214,13 @@ Route::middleware(['auth:sanctum', 'role:student'])
         // ── Profile ────────────────────────────────────────────────────────────
         Route::get  ('profile',           [StudentProfileController::class, 'show']);
         Route::patch('profile',           [StudentProfileController::class, 'update']);
+        Route::get  ('progress-summary',  [\App\Http\Controllers\Api\V1\Student\ProgressController::class, 'summary']);
         Route::post ('device-token',      [StudentProfileController::class, 'updateFcmToken']);
 
         // ── Curriculum ─────────────────────────────────────────────────────────
         Route::get('levels',   [StudentLessonController::class, 'levels']);        // full roadmap
         Route::get('my-units', [StudentLessonController::class, 'enrolledUnits']); // purchased units
+        Route::get('lessons/{lesson}', [StudentLessonController::class, 'show']);  // single lesson (+ activity link)
 
         // ── Quiz Engine ────────────────────────────────────────────────────────
         Route::get ('lessons/{lesson}/quiz',        [StudentQuizController::class, 'show']);
@@ -324,6 +327,7 @@ Route::middleware(['auth:sanctum', 'role:teacher'])
         Route::post ('sessions/{session}/start',  [TeacherSessionController::class, 'start']);
         Route::patch('sessions/{session}/pin',    [TeacherSessionController::class, 'updatePin']);
         Route::post ('sessions/{session}/end',    [TeacherSessionController::class, 'end']);
+        Route::post ('sessions/{session}/evaluation', [TeacherSessionController::class, 'submitEvaluation']);
         Route::post ('sessions/{session}/cancel',        [TeacherSessionController::class, 'cancel']);
         Route::post ('sessions/{session}/release',       [TeacherSessionController::class, 'release']);
         Route::get  ('sessions/{session}/raised-hands',  [TeacherSessionController::class, 'raisedHands']);

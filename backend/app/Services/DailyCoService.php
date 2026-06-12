@@ -43,9 +43,12 @@ class DailyCoService
             ->timeout(10)
             ->post("{$this->baseUrl}/rooms", [
                 'name'       => $roomName,
-                'privacy'    => 'private',
+                // Public so the student (non-owner) joins reliably. Private rooms
+                // reject non-owner meeting tokens under our Daily account settings.
+                // Rooms are per-session, short-lived (auto-expire) and unguessable enough.
+                'privacy'    => 'public',
                 'properties' => [
-                    'max_participants' => 2,               // teacher + student only
+                    'max_participants' => 6,               // headroom for reconnects / multi-device
                     'enable_chat'      => false,
                     'exp'              => now()->addHours(self::SESSION_EXPIRY_HOURS)->timestamp,
                     'start_video_off'  => false,
@@ -73,6 +76,27 @@ class DailyCoService
             'room_name' => $data['name'],
             'room_url'  => $data['url'],
         ];
+    }
+
+    // ─── Ensure Public ────────────────────────────────────────────────────────
+
+    /**
+     * Make sure an existing room is public (idempotent). Older rooms may have been
+     * created as private — private rooms reject non-owner tokens under our Daily
+     * account, blocking the student. Best-effort; failures are logged only.
+     */
+    public function ensureRoomPublic(string $roomName): void
+    {
+        try {
+            Http::withToken($this->apiKey)
+                ->timeout(10)
+                ->post("{$this->baseUrl}/rooms/{$roomName}", [
+                    'privacy'    => 'public',
+                    'properties' => ['max_participants' => 6],
+                ]);
+        } catch (\Throwable $e) {
+            Log::warning('Daily.co ensureRoomPublic failed', ['room' => $roomName, 'error' => $e->getMessage()]);
+        }
     }
 
     // ─── Delete Room ──────────────────────────────────────────────────────────

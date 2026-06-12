@@ -19,12 +19,15 @@ import {
   PanResponder, Platform,
 } from 'react-native';
 import { WebViewUniversal } from '@/components/WebViewUniversal';
+import { DailyCallPanel } from '@/components/DailyCallPanel';
+import { SplitCallLayout } from '@/components/SplitCallLayout';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { lockCurrent, unlock as unlockOrientation } from '@/lib/screenOrientation';
 import { sessionsApi } from '@/api/sessions';
+import DemoEvaluationModal from '@/components/DemoEvaluationModal';
 import { C } from '@/theme';
 
 
@@ -32,6 +35,46 @@ const DAILY_MIN_H    = 90;
 const DAILY_MAX_H    = 320;
 const DAILY_DEFAULT_H = 200;
 const HANDLE_H       = 28;
+
+// Nearpod control panel (teacher opens Nearpod in a browser — it blocks embedding)
+function NearpodControl({ nearpodUrl, pin }: { nearpodUrl: string; pin?: string | null }) {
+  return (
+    <View style={{ flex: 1, backgroundColor: '#0f172a', justifyContent: 'center', alignItems: 'center', gap: 20, padding: 16 }}>
+      <View style={{ alignItems: 'center', gap: 8 }}>
+        <Text style={{ fontSize: 32 }}>📚</Text>
+        <Text style={{ color: '#fff', fontSize: 18, fontWeight: '800' }}>Nearpod</Text>
+        <Text style={{ color: '#94a3b8', fontSize: 13, textAlign: 'center', lineHeight: 20, paddingHorizontal: 16 }}>
+          Nearpod does not allow embedding in the app.{'\n'}Open it in a new tab to control the lesson.
+        </Text>
+      </View>
+
+      <TouchableOpacity
+        style={S.nearpodOpenBtn}
+        onPress={() => {
+          if (Platform.OS === 'web') {
+            window.open(nearpodUrl, '_blank', 'noopener,noreferrer');
+          } else {
+            const { Linking } = require('react-native');
+            Linking.openURL(nearpodUrl);
+          }
+        }}
+      >
+        <Ionicons name="open-outline" size={18} color="#fff" />
+        <Text style={S.nearpodOpenTxt}>Open Nearpod in a new tab</Text>
+      </TouchableOpacity>
+
+      {pin && (
+        <View style={S.pinReminder}>
+          <Text style={{ color: '#94a3b8', fontSize: 12 }}>Current session PIN:</Text>
+          <Text style={{ color: '#7c3aed', fontSize: 28, fontWeight: '900', letterSpacing: 6 }}>{pin}</Text>
+          <Text style={{ color: '#64748b', fontSize: 11, textAlign: 'center' }}>
+            The student uses this PIN to join
+          </Text>
+        </View>
+      )}
+    </View>
+  );
+}
 
 export default function ClassroomScreen() {
   const router     = useRouter();
@@ -46,6 +89,7 @@ export default function ClassroomScreen() {
   const [orientationLocked, setOrientationLocked] = useState(false);
   const [dailyH,            setDailyH]            = useState(DAILY_DEFAULT_H);
   const [handNotif,         setHandNotif]         = useState<{ name: string; at: string } | null>(null);
+  const [evalVisible,       setEvalVisible]       = useState(false);
   const handNotifTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const dailyHRef    = useRef(DAILY_DEFAULT_H);
@@ -81,7 +125,7 @@ export default function ClassroomScreen() {
       setPinVisible(false);
       setPinInput('');
     },
-    onError: (e: any) => Alert.alert('خطأ', e?.response?.data?.message ?? 'تعذر تحديث الـ PIN'),
+    onError: (e: any) => Alert.alert('Error', e?.response?.data?.message ?? 'Could not update the PIN'),
   });
 
   // ── Fetch signed URL ───────────────────────────────────────────────────────
@@ -118,15 +162,24 @@ export default function ClassroomScreen() {
   }, [session?.status, sessionId]);
 
   // ── End session — attendance determined automatically by server ───────────
+  const navigateAfterSession = useCallback(async () => {
+    if (orientationLocked) await unlockOrientation().catch(() => {});
+    router.replace('/(tabs)/sessions');
+  }, [orientationLocked, router]);
+
   const endMutation = useMutation({
     mutationFn: () => sessionsApi.end(sessionId),
     onSuccess: async () => {
       qc.invalidateQueries({ queryKey: ['sessions'] });
       qc.invalidateQueries({ queryKey: ['session', sessionId] });
-      if (orientationLocked) await unlockOrientation().catch(() => {});
-      router.replace('/(tabs)/sessions');
+      const isAssessment = session?.lesson?.is_assessment;
+      if (isAssessment && !session?.evaluation_submitted_at) {
+        setEvalVisible(true);
+      } else {
+        await navigateAfterSession();
+      }
     },
-    onError: (e: any) => Alert.alert('خطأ', e?.response?.data?.message ?? 'تعذر إنهاء الحصة'),
+    onError: (e: any) => Alert.alert('Error', e?.response?.data?.message ?? 'Could not end the session'),
   });
 
   // ── Drag handle — resize Daily panel ──────────────────────────────────────
@@ -187,11 +240,11 @@ export default function ClassroomScreen() {
       router.back();
     };
     if (Platform.OS === 'web') {
-      if ((window as any).confirm('الحصة لا تزال نشطة. هل تريد مغادرة الفصل؟')) doLeave();
+      if ((window as any).confirm('The session is still active. Leave the classroom?')) doLeave();
     } else {
-      Alert.alert('مغادرة الفصل', 'الحصة لا تزال نشطة. هل تريد مغادرة الفصل؟', [
-        { text: 'ابقَ', style: 'cancel' },
-        { text: 'مغادرة', style: 'destructive', onPress: doLeave },
+      Alert.alert('Leave Classroom', 'The session is still active. Leave the classroom?', [
+        { text: 'Stay', style: 'cancel' },
+        { text: 'Leave', style: 'destructive', onPress: doLeave },
       ]);
     }
     return true;
@@ -223,9 +276,9 @@ export default function ClassroomScreen() {
       <View style={S.centered}>
         <Stack.Screen options={{ headerShown: false }} />
         <Ionicons name="alert-circle-outline" size={52} color={C.error} />
-        <Text style={{ color: '#fff', marginTop: 12 }}>رابط الغرفة غير متاح</Text>
+        <Text style={{ color: '#fff', marginTop: 12 }}>Room link unavailable</Text>
         <TouchableOpacity onPress={() => router.back()} style={{ marginTop: 16, padding: 12 }}>
-          <Text style={{ color: C.sky, fontWeight: '700' }}>العودة</Text>
+          <Text style={{ color: C.sky, fontWeight: '700' }}>Back</Text>
         </TouchableOpacity>
       </View>
     );
@@ -245,8 +298,8 @@ export default function ClassroomScreen() {
         >
           <Text style={{ fontSize: 22 }}>✋</Text>
           <View style={{ flex: 1 }}>
-            <Text style={S.handNotifTxt}>{handNotif.name} رفع يده</Text>
-            <Text style={S.handNotifSub}>اضغط للإغلاق</Text>
+            <Text style={S.handNotifTxt}>{handNotif.name} raised their hand</Text>
+            <Text style={S.handNotifSub}>Tap to dismiss</Text>
           </View>
           <Ionicons name="close" size={16} color="#fff" />
         </TouchableOpacity>
@@ -260,7 +313,7 @@ export default function ClassroomScreen() {
 
         <View style={S.topCenter}>
           <Text style={S.topTitle} numberOfLines={1}>
-            {session.lesson?.title ?? 'الفصل الافتراضي'}
+            {session.lesson?.title ?? 'Virtual Classroom'}
           </Text>
           <View style={S.liveBadge}>
             <View style={S.liveDot} />
@@ -302,11 +355,11 @@ export default function ClassroomScreen() {
               const doEnd = () => endMutation.mutate();
               if (Platform.OS === 'web') {
                 // Alert doesn't work on web
-                if ((window as any).confirm('هل تريد إنهاء الحصة الآن؟')) doEnd();
+                if ((window as any).confirm('End the session now?')) doEnd();
               } else {
-                Alert.alert('إنهاء الحصة', 'هل تريد إنهاء الحصة الآن؟', [
-                  { text: 'تراجع', style: 'cancel' },
-                  { text: 'إنهاء', style: 'destructive', onPress: doEnd },
+                Alert.alert('End Session', 'End the session now?', [
+                  { text: 'Cancel', style: 'cancel' },
+                  { text: 'End', style: 'destructive', onPress: doEnd },
                 ]);
               }
             }}
@@ -319,106 +372,81 @@ export default function ClassroomScreen() {
         </View>
       </View>
 
-      {/* ── TOP: Daily.co — fixed panel, resizable ────────────────────────── */}
-      <View style={[S.dailyPanel, { height: dailyH }]}>
-        <WebViewUniversal
-          key={`daily-teacher-${sessionId}`}
-          uri={dailyUrl}
-          style={StyleSheet.absoluteFillObject}
-          loadingColor={C.sky}
-          mediaCapturePermissionGrantType="grant"
-        />
-        {/* Collapse/expand quick button */}
-        <View style={S.dailyOverlay} pointerEvents="box-none">
-          <TouchableOpacity
-            style={S.dailyQuickBtn}
-            onPress={() => {
-              const next = dailyH > DAILY_MIN_H + 20 ? DAILY_MIN_H : DAILY_DEFAULT_H;
-              dailyHRef.current = next;
-              setDailyH(next);
-            }}
-          >
-            <Ionicons
-              name={dailyH > DAILY_MIN_H + 20 ? 'chevron-up' : 'chevron-down'}
-              size={14}
-              color="rgba(255,255,255,0.8)"
+      {Platform.OS === 'web' ? (
+        <>
+          {/* ── TOP: Daily.co — embedded iframe, resizable (web only) ──────── */}
+          <View style={[S.dailyPanel, { height: dailyH }]}>
+            <WebViewUniversal
+              key={`daily-teacher-${sessionId}`}
+              uri={dailyUrl}
+              style={StyleSheet.absoluteFillObject}
+              loadingColor={C.sky}
+              mediaCapturePermissionGrantType="grant"
             />
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      {/* ── DRAG HANDLE ─────────────────────────────────────────────────────── */}
-      <View
-        style={S.handle}
-        {...dragResponder.panHandlers}
-        // Web mouse drag
-        // @ts-ignore
-        onMouseDown={Platform.OS === 'web' ? (e: any) => {
-          const startY = e.clientY;
-          const startH = dailyHRef.current;
-          const onMove = (ev: MouseEvent) => {
-            const newH = Math.max(DAILY_MIN_H, Math.min(DAILY_MAX_H, startH + (ev.clientY - startY)));
-            dailyHRef.current = newH;
-            setDailyH(newH);
-          };
-          const onUp = () => {
-            window.removeEventListener('mousemove', onMove);
-            window.removeEventListener('mouseup', onUp);
-          };
-          window.addEventListener('mousemove', onMove);
-          window.addEventListener('mouseup', onUp);
-        } : undefined}
-      >
-        <View style={S.handlePill} />
-        <Text style={S.handleHint}>اسحب لتغيير الحجم</Text>
-        <View style={S.handlePill} />
-      </View>
-
-      {/* ── NEARPOD — opens in new tab (blocks iframe embedding) ────────────── */}
-      <View style={{ flex: 1, backgroundColor: '#0f172a', justifyContent: 'center', alignItems: 'center', gap: 20 }}>
-        {/* Nearpod branding */}
-        <View style={{ alignItems: 'center', gap: 8 }}>
-          <Text style={{ fontSize: 32 }}>📚</Text>
-          <Text style={{ color: '#fff', fontSize: 18, fontWeight: '800' }}>Nearpod</Text>
-          <Text style={{ color: '#94a3b8', fontSize: 13, textAlign: 'center', lineHeight: 20, paddingHorizontal: 32 }}>
-            Nearpod لا يسمح بالتضمين داخل التطبيق.{'\n'}افتحه في تبويب جديد للتحكم بالدرس.
-          </Text>
-        </View>
-
-        {/* Open in new tab button */}
-        <TouchableOpacity
-          style={S.nearpodOpenBtn}
-          onPress={() => {
-            if (Platform.OS === 'web') {
-              window.open(nearpodUrl, '_blank', 'noopener,noreferrer');
-            } else {
-              const { Linking } = require('react-native');
-              Linking.openURL(nearpodUrl);
-            }
-          }}
-        >
-          <Ionicons name="open-outline" size={18} color="#fff" />
-          <Text style={S.nearpodOpenTxt}>فتح Nearpod في تبويب جديد</Text>
-        </TouchableOpacity>
-
-        {/* PIN reminder if set */}
-        {pin && (
-          <View style={S.pinReminder}>
-            <Text style={{ color: '#94a3b8', fontSize: 12 }}>PIN الحصة الحالي:</Text>
-            <Text style={{ color: '#7c3aed', fontSize: 28, fontWeight: '900', letterSpacing: 6 }}>{pin}</Text>
-            <Text style={{ color: '#64748b', fontSize: 11, textAlign: 'center' }}>
-              الطالب يستخدم هذا الـ PIN للانضمام
-            </Text>
+            {/* Collapse/expand quick button */}
+            <View style={S.dailyOverlay} pointerEvents="box-none">
+              <TouchableOpacity
+                style={S.dailyQuickBtn}
+                onPress={() => {
+                  const next = dailyH > DAILY_MIN_H + 20 ? DAILY_MIN_H : DAILY_DEFAULT_H;
+                  dailyHRef.current = next;
+                  setDailyH(next);
+                }}
+              >
+                <Ionicons
+                  name={dailyH > DAILY_MIN_H + 20 ? 'chevron-up' : 'chevron-down'}
+                  size={14}
+                  color="rgba(255,255,255,0.8)"
+                />
+              </TouchableOpacity>
+            </View>
           </View>
-        )}
-      </View>
+
+          {/* ── DRAG HANDLE ───────────────────────────────────────────────── */}
+          <View
+            style={S.handle}
+            {...dragResponder.panHandlers}
+            {...({
+              // Web mouse drag
+              onMouseDown: (e: any) => {
+                const startY = e.clientY;
+                const startH = dailyHRef.current;
+                const onMove = (ev: MouseEvent) => {
+                  const newH = Math.max(DAILY_MIN_H, Math.min(DAILY_MAX_H, startH + (ev.clientY - startY)));
+                  dailyHRef.current = newH;
+                  setDailyH(newH);
+                };
+                const onUp = () => {
+                  window.removeEventListener('mousemove', onMove);
+                  window.removeEventListener('mouseup', onUp);
+                };
+                window.addEventListener('mousemove', onMove);
+                window.addEventListener('mouseup', onUp);
+              },
+            } as any)}
+          >
+            <View style={S.handlePill} />
+            <Text style={S.handleHint}>Drag to resize</Text>
+            <View style={S.handlePill} />
+          </View>
+
+          {/* Nearpod control fills the rest (web) */}
+          <NearpodControl nearpodUrl={nearpodUrl} pin={pin} />
+        </>
+      ) : (
+        /* ── Native: embedded Daily call + Nearpod in a responsive split ──── */
+        <SplitCallLayout
+          call={<DailyCallPanel roomUrl={dailyUrl} />}
+          content={<NearpodControl nearpodUrl={nearpodUrl} pin={pin} />}
+        />
+      )}
 
       {/* ── PIN Modal ───────────────────────────────────────────────────────── */}
       <Modal visible={pinVisible} transparent animationType="slide">
         <View style={S.modalOverlay}>
           <View style={S.modalCard}>
             <Text style={S.modalTitle}>🔑 Nearpod PIN</Text>
-            <Text style={S.modalSub}>افتح الدرس في Nearpod ثم أدخل الـ PIN لإرساله للطالب</Text>
+            <Text style={S.modalSub}>Open the lesson in Nearpod then enter the PIN to send it to the student</Text>
             <TextInput
               style={S.pinInput}
               value={pinInput}
@@ -432,7 +460,7 @@ export default function ClassroomScreen() {
             />
             <View style={S.modalActions}>
               <TouchableOpacity style={S.btnCancel} onPress={() => { setPinVisible(false); setPinInput(''); }}>
-                <Text style={S.btnCancelTxt}>إلغاء</Text>
+                <Text style={S.btnCancelTxt}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[S.btnConfirm, (!pinInput.trim() || pinMutation.isPending) && { opacity: 0.5 }]}
@@ -441,7 +469,7 @@ export default function ClassroomScreen() {
               >
                 {pinMutation.isPending
                   ? <ActivityIndicator color="#fff" size="small" />
-                  : <Text style={S.btnConfirmTxt}>حفظ وإرسال للطالب</Text>
+                  : <Text style={S.btnConfirmTxt}>Save & send to student</Text>
                 }
               </TouchableOpacity>
             </View>
@@ -449,7 +477,18 @@ export default function ClassroomScreen() {
         </View>
       </Modal>
 
-      {/* End session modal removed — attendance auto-determined by server */}
+      {/* Demo evaluation — required after assessment sessions */}
+      <DemoEvaluationModal
+        visible={evalVisible}
+        sessionId={sessionId}
+        studentName={session.student?.name}
+        onSuccess={async () => {
+          setEvalVisible(false);
+          qc.invalidateQueries({ queryKey: ['sessions'] });
+          qc.invalidateQueries({ queryKey: ['session', sessionId] });
+          await navigateAfterSession();
+        }}
+      />
     </View>
   );
 }
@@ -503,6 +542,7 @@ const S = StyleSheet.create({
     justifyContent: 'center', alignItems: 'center',
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)',
   },
+
 
   // Drag handle
   handle: {

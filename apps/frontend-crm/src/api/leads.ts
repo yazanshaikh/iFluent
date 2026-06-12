@@ -117,12 +117,31 @@ export interface LeadsPaginated {
   total:        number;
 }
 
+export interface StudentProgress {
+  has_account: boolean;
+  summary: {
+    overall_pct:       number;
+    completed_lessons: number;
+    total_lessons:     number;
+    learning_minutes:  number;
+    absent_sessions:   number;
+    passed_quizzes:    number;
+    full_mark_quizzes: number;
+    earned_badges:     number;
+    total_badges:      number;
+  } | null;
+}
+
 export const leadsApi = {
   list: (params?: LeadsParams) =>
     api.get<LeadsPaginated>('/crm/leads', { params }).then((r) => r.data),
 
   get: (id: number) =>
     api.get<Lead>(`/crm/leads/${id}`).then((r) => r.data),
+
+  /** GET /crm/leads/{id}/progress — same summary the student sees in their app */
+  getProgress: (id: number) =>
+    api.get<StudentProgress>(`/crm/leads/${id}/progress`).then((r) => r.data),
 
   create: (data: CreateLeadPayload) =>
     api.post<Lead>('/crm/leads', data).then((r) => r.data),

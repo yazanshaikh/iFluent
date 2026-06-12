@@ -18,6 +18,7 @@ import {
   StyleSheet,
   Platform,
   KeyboardAvoidingView,
+  TextInput,
   Alert,
 } from 'react-native';
 import { Ionicons }              from '@expo/vector-icons';
@@ -87,6 +88,7 @@ export function EvalBookingModal({ visible, onClose }: Props) {
   const [dayIdx,     setDayIdx]     = useState(0);
   const [slot,       setSlot]       = useState<string | null>(null);
   const [genderPref, setGenderPref] = useState<'male' | 'female' | null>(null);
+  const [note,       setNote]       = useState('');
   const [done,       setDone]       = useState(false);
 
   // Fetch assessment lessons (once)
@@ -116,6 +118,7 @@ export function EvalBookingModal({ visible, onClose }: Props) {
         lesson_id: lessonId,
         scheduled_at,
         ...(genderPref ? { teacher_gender_pref: genderPref } : {}),
+        ...(note.trim() ? { notes: note.trim() } : {}),
       }).then(r => r.data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['bookings'] });
@@ -162,6 +165,7 @@ export function EvalBookingModal({ visible, onClose }: Props) {
   const handleClose = () => {
     setDayIdx(0);
     setSlot(null);
+    setNote('');
     setDone(false);
     onClose();
   };
@@ -321,6 +325,24 @@ export function EvalBookingModal({ visible, onClose }: Props) {
                 })}
               </View>
 
+              {/* Note to the teacher */}
+              <Text style={[s.label, { marginTop: 20 }]}>
+                ملاحظة للمعلم
+                <Text style={{ fontSize: 11, color: '#9CA3AF', fontWeight: '500' }}> (اختياري)</Text>
+              </Text>
+              <TextInput
+                style={s.noteInput}
+                value={note}
+                onChangeText={setNote}
+                placeholder="مثال: أريد التركيز على المحادثة"
+                placeholderTextColor={C.gray}
+                textAlign="right"
+                multiline
+                numberOfLines={3}
+                maxLength={300}
+                textAlignVertical="top"
+              />
+
               {/* Submit */}
               <TouchableOpacity
                 style={[s.submitBtn, !canSubmit && s.submitBtnOff]}
@@ -443,6 +465,13 @@ const s = StyleSheet.create({
   nameInput: {
     backgroundColor: C.inputBg, borderRadius: 14, borderWidth: 1.5, borderColor: C.border,
     padding: 14, fontSize: 15, fontWeight: '600', color: C.navy, marginBottom: 20,
+  },
+
+  // Note input
+  noteInput: {
+    backgroundColor: C.inputBg, borderRadius: 14, borderWidth: 1.5, borderColor: C.border,
+    padding: 13, fontSize: 14, fontWeight: '500', color: C.navy,
+    minHeight: 76, marginBottom: 8,
   },
 
   // Submit button

@@ -58,11 +58,11 @@ export const STATUS_COLOR: Record<string, string> = {
 };
 
 export const STATUS_LABEL: Record<string, string> = {
-  pending:   'بانتظار القبول',
-  confirmed: 'مقبولة',
-  active:    'نشطة الآن',
-  completed: 'مكتملة',
-  cancelled: 'ملغاة',
-  rejected:  'مرفوضة',
-  waiting:   'قريباً',
+  pending:   'Pending',
+  confirmed: 'Confirmed',
+  active:    'Active Now',
+  completed: 'Completed',
+  cancelled: 'Cancelled',
+  rejected:  'Rejected',
+  waiting:   'Soon',
 };

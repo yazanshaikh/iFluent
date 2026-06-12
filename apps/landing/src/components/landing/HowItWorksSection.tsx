@@ -76,7 +76,7 @@ export function HowItWorksSection() {
             <View style={[styles.promoRow, isMobile && styles.promoRowMobile]}>
               <View style={[styles.adSquare, isMobile && styles.adSquareMobile]}>
                 <Image
-                  source={require('@/assets/images/mascot-class.jpeg')}
+                  source={require('../../../assets/images/mascot-class.jpeg')}
                   style={styles.adSquareImg}
                   resizeMode="contain"
                 />

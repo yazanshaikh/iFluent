@@ -5,8 +5,11 @@ namespace App\Http\Controllers\Api\V1\Teacher;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\Api\V1\LessonResource;
 use App\Http\Resources\Api\V1\SessionResource;
+use App\Models\LeadRemark;
 use App\Models\Lesson;
 use App\Models\Session;
+use App\Models\SessionRequest;
+use App\Models\Student;
 use App\Models\Subscription;
 use App\Models\Teacher;
 use App\Models\TeacherEarning;
@@ -251,6 +254,12 @@ class SessionController extends Controller
 
         $session->loadMissing(['lesson', 'student']);
 
+        // Ensure the room is public so the student (non-owner) can join reliably
+        // (handles rooms created as private before this change).
+        if ($session->daily_room_name) {
+            $this->daily->ensureRoomPublic($session->daily_room_name);
+        }
+
         // Generate teacher meeting token (is_owner = true)
         $teacherToken = null;
         if ($session->daily_room_name) {
@@ -322,7 +331,7 @@ class SessionController extends Controller
             $this->daily->deleteRoom($session->daily_room_name);
         }
 
-        DB::transaction(function () use ($session, $endedAt, $attendance, $balanceImpact) {
+        DB::transaction(function () use ($session, $endedAt, $attendance) {
             $session->update([
                 'status'            => Session::STATUS_COMPLETED,
                 'ended_at'          => $endedAt,
@@ -371,6 +380,14 @@ class SessionController extends Controller
             }
 
             // attended — النقطة مخصومة من الحجز، تقدم للدرس التالي
+            // ── Mark the lesson as completed (powers progress bars app-wide) ──
+            if ($session->lesson_id) {
+                \App\Models\StudentProgress::updateOrCreate(
+                    ['student_id' => $session->student_id, 'lesson_id' => $session->lesson_id],
+                    ['lesson_completed' => true, 'completed_at' => now()],
+                );
+            }
+
             // ── Advance lesson pointer (attended only) ────────────────────────
             if ($session->lesson_id) {
                 $studentProfile = \App\Models\Student::where('user_id', $session->student_id)->first();
@@ -409,10 +426,91 @@ class SessionController extends Controller
             // No need to store it — skip balance increment
         });
 
-        // Broadcast session end to student in real-time
-        broadcast(new \App\Events\SessionEnded($session, $attendance));
+        // Broadcast session end to student in real-time (best-effort — must never
+        // fail the end request if Reverb is unreachable).
+        try {
+            broadcast(new \App\Events\SessionEnded($session, $attendance));
+        } catch (\Throwable $e) {
+            Log::warning('SessionEnded broadcast failed', ['error' => $e->getMessage()]);
+        }
 
         return new SessionResource($session->load(['lesson', 'student']));
+    }
+
+    // ─── Submit Demo Evaluation ───────────────────────────────────────────────
+
+    /**
+     * After an assessment (demo) session ends, the teacher submits an evaluation
+     * form. The content is saved as an immutable remark on the linked lead in CRM.
+     */
+    public function submitEvaluation(Session $session, Request $request): JsonResponse
+    {
+        if ($session->teacher_id !== $request->user()->id) {
+            return response()->json(['message' => 'Forbidden.'], 403);
+        }
+
+        if (!$session->isCompleted()) {
+            return response()->json(['message' => 'يجب إنهاء الحصة أولاً قبل إرسال التقييم.'], 422);
+        }
+
+        $session->loadMissing('lesson');
+        if (!$session->lesson?->is_assessment) {
+            return response()->json(['message' => 'التقييم متاح للحصص التقييمية فقط.'], 422);
+        }
+
+        if ($session->evaluation_submitted_at) {
+            return response()->json(['message' => 'تم إرسال التقييم مسبقاً.'], 422);
+        }
+
+        $validated = $request->validate([
+            'evaluation_questions' => ['required', 'string', 'max:2000'],
+            'student_level'        => ['required', 'string', 'in:A1,A2,B1,B2'],
+            'strengths'            => ['required', 'string', 'max:1000'],
+            'weaknesses'           => ['required', 'string', 'max:1000'],
+            'general_notes'        => ['required', 'string', 'max:1000'],
+        ]);
+
+        $leadId = SessionRequest::where('session_id', $session->id)->value('lead_id');
+
+        if (!$leadId && $session->student_id) {
+            $leadId = Student::where('user_id', $session->student_id)->value('lead_id');
+        }
+
+        if (!$leadId) {
+            return response()->json(['message' => 'لم يتم العثور على ملف الطالب في النظام.'], 422);
+        }
+
+        $content = implode("\n", [
+            '📋 تقرير الحصة التقييمية',
+            '━━━━━━━━━━━━━━━━━━━━',
+            "مستوى الطالب: {$validated['student_level']}",
+            '',
+            'أسئلة التقييم بعد الحصة:',
+            $validated['evaluation_questions'],
+            '',
+            'سرعة الفهم / نقاط القوة:',
+            $validated['strengths'],
+            '',
+            'نقاط الضعف:',
+            $validated['weaknesses'],
+            '',
+            'ملاحظات عامة:',
+            $validated['general_notes'],
+        ]);
+
+        DB::transaction(function () use ($session, $leadId, $request, $content) {
+            LeadRemark::create([
+                'lead_id'  => $leadId,
+                'staff_id' => $request->user()->id,
+                'content'  => $content,
+            ]);
+
+            $session->update(['evaluation_submitted_at' => now()]);
+        });
+
+        return response()->json([
+            'message' => 'تم حفظ التقييم في ملاحظات الطالب بنجاح.',
+        ]);
     }
 
     // ─── Cancel Session ───────────────────────────────────────────────────────

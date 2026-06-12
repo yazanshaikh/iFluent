@@ -1,5 +1,5 @@
 /**
- * Earnings — الأرباح
+ * Earnings — Earnings
  */
 import {
   View, Text, ScrollView, StyleSheet, ActivityIndicator,
@@ -13,16 +13,16 @@ import { useAuthStore } from '@/stores/authStore';
 import { C, shadow } from '@/theme';
 
 function fmt(iso: string) {
-  return new Date(iso).toLocaleDateString('ar-JO', {
+  return new Date(iso).toLocaleDateString('en-US', {
     day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Amman',
   });
 }
 
 const TYPE_LABEL: Record<string, string> = {
-  demo:    'تقييمية',
-  core:    'أساسية',
-  private: 'خاصة',
-  group:   'جماعية',
+  demo:    'Assessment',
+  core:    'Core',
+  private: 'Private',
+  group:   'Group',
 };
 
 export default function EarningsScreen() {
@@ -46,32 +46,32 @@ export default function EarningsScreen() {
         colors={[C.sky, C.skyDark]}
         style={[styles.header, { paddingTop: insets.top + 16 }]}
       >
-        <Text style={styles.headerTitle}>الأرباح</Text>
+        <Text style={styles.headerTitle}>Earnings</Text>
 
         <View style={styles.balanceWrap}>
           <View style={styles.balanceCard}>
             <Ionicons name="wallet" size={24} color={C.sky} />
-            <Text style={styles.balanceLabel}>الرصيد الكلي</Text>
-            <Text style={styles.balanceAmt}>{total} د.أ</Text>
+            <Text style={styles.balanceLabel}>Total Balance</Text>
+            <Text style={styles.balanceAmt}>{total} JOD</Text>
           </View>
           <View style={styles.balanceCard}>
             <Ionicons name="calendar" size={24} color={C.sky} />
-            <Text style={styles.balanceLabel}>هذا الشهر</Text>
-            <Text style={styles.balanceAmt}>{monthly} د.أ</Text>
+            <Text style={styles.balanceLabel}>This Month</Text>
+            <Text style={styles.balanceAmt}>{monthly} JOD</Text>
           </View>
         </View>
       </LinearGradient>
 
       {/* History */}
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        <Text style={styles.sectionTitle}>سجل الأرباح</Text>
+        <Text style={styles.sectionTitle}>Earnings History</Text>
 
         {isLoading ? (
           <ActivityIndicator color={C.sky} style={{ marginTop: 40 }} />
         ) : history.length === 0 ? (
           <View style={styles.empty}>
             <Ionicons name="receipt-outline" size={52} color={C.skyLight} />
-            <Text style={styles.emptyTxt}>لا توجد أرباح بعد</Text>
+            <Text style={styles.emptyTxt}>No earnings yet</Text>
           </View>
         ) : (
           history.map((entry) => (
@@ -83,7 +83,7 @@ export default function EarningsScreen() {
                   <Text style={styles.typeTxt}>{TYPE_LABEL[entry.session_type] ?? entry.session_type}</Text>
                 </View>
               </View>
-              <Text style={styles.entryAmt}>+{entry.amount} د.أ</Text>
+              <Text style={styles.entryAmt}>+{entry.amount} JOD</Text>
             </View>
           ))
         )}

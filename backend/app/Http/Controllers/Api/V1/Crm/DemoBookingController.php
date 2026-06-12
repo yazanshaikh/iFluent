@@ -101,6 +101,7 @@ class DemoBookingController extends Controller
             'target_teacher_id' => $targetTeacherId,
             'requested_at_utc'  => $validated['scheduled_at'],
             'status'            => SessionRequest::STATUS_PENDING,
+            'note'              => $validated['notes'] ?? null,
         ]);
 
         return response()->json([

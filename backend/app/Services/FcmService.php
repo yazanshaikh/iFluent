@@ -16,76 +16,86 @@ use Illuminate\Support\Facades\Log;
  */
 class FcmService
 {
-    private string $serverKey;
-    private string $endpoint = 'https://fcm.googleapis.com/fcm/send';
+    // Expo Push API — Expo relays to FCM (Android) / APNs (iOS).
+    // Tokens are Expo push tokens ("ExponentPushToken[...]") stored in users.fcm_token.
+    private string $endpoint = 'https://exp.host/--/api/v2/push/send';
+    private ?string $accessToken;
 
     public function __construct()
     {
-        $this->serverKey = config('services.fcm.server_key', '');
+        // Optional Expo access token (only if "Enhanced Security" is enabled).
+        $this->accessToken = config('services.expo.access_token') ?: null;
     }
 
     // ─── Core Send ────────────────────────────────────────────────────────────
 
     /**
-     * Send to a single device token.
+     * Send to a single Expo push token.
      */
     public function sendToToken(string $token, string $title, string $body, array $data = []): bool
     {
-        if (empty($this->serverKey) || empty($token)) {
+        if (empty($token)) {
             return false;
         }
-
-        try {
-            $response = Http::withToken($this->serverKey)
-                ->post($this->endpoint, [
-                    'to'           => $token,
-                    'notification' => ['title' => $title, 'body' => $body, 'sound' => 'default'],
-                    'data'         => $data,
-                    'priority'     => 'high',
-                ]);
-
-            if (!$response->successful()) {
-                Log::warning('FCM send failed', ['token' => substr($token, 0, 20), 'response' => $response->body()]);
-                return false;
-            }
-
-            return true;
-        } catch (\Throwable $e) {
-            Log::error('FCM exception', ['error' => $e->getMessage()]);
-            return false;
-        }
+        return $this->push([$this->buildMessage($token, $title, $body, $data)]);
     }
 
     /**
-     * Send to a topic (e.g., group class broadcast).
+     * Topics are not supported by Expo Push — kept for API compatibility (no-op).
      */
     public function sendToTopic(string $topic, string $title, string $body, array $data = []): bool
     {
-        return $this->sendToToken("/topics/{$topic}", $title, $body, $data);
+        Log::info('sendToTopic skipped — Expo Push has no topics', ['topic' => $topic]);
+        return false;
     }
 
     /**
-     * Send to multiple tokens (batch).
+     * Send to multiple Expo push tokens (Expo accepts up to 100 messages/request).
      */
     public function sendToMultiple(array $tokens, string $title, string $body, array $data = []): void
     {
-        if (empty($this->serverKey) || empty($tokens)) {
+        $tokens = array_values(array_filter($tokens));
+        if (empty($tokens)) {
             return;
         }
+        foreach (array_chunk($tokens, 100) as $chunk) {
+            $messages = array_map(fn ($t) => $this->buildMessage($t, $title, $body, $data), $chunk);
+            $this->push($messages);
+        }
+    }
 
-        // FCM supports up to 1000 tokens per batch
-        foreach (array_chunk($tokens, 1000) as $chunk) {
-            try {
-                Http::withToken($this->serverKey)
-                    ->post($this->endpoint, [
-                        'registration_ids' => $chunk,
-                        'notification'     => ['title' => $title, 'body' => $body, 'sound' => 'default'],
-                        'data'             => $data,
-                        'priority'         => 'high',
-                    ]);
-            } catch (\Throwable $e) {
-                Log::error('FCM batch exception', ['error' => $e->getMessage()]);
+    // ─── Transport helpers ──────────────────────────────────────────────────
+
+    private function buildMessage(string $token, string $title, string $body, array $data): array
+    {
+        return [
+            'to'        => $token,
+            'title'     => $title,
+            'body'      => $body,
+            'data'      => $data,
+            'sound'     => 'default',
+            'priority'  => 'high',
+            'channelId' => 'default',
+        ];
+    }
+
+    private function push(array $messages): bool
+    {
+        try {
+            $req = Http::acceptJson()->asJson();
+            if ($this->accessToken) {
+                $req = $req->withToken($this->accessToken);
             }
+            $response = $req->post($this->endpoint, $messages);
+
+            if (!$response->successful()) {
+                Log::warning('Expo push failed', ['status' => $response->status(), 'body' => $response->body()]);
+                return false;
+            }
+            return true;
+        } catch (\Throwable $e) {
+            Log::error('Expo push exception', ['error' => $e->getMessage()]);
+            return false;
         }
     }
 
@@ -123,12 +133,12 @@ class FcmService
         );
     }
 
-    /** Session starting in 15 minutes → notify teacher + student */
+    /** Session starting in ~10 minutes → notify the student */
     public function sessionReminder(User $user, int $sessionId, string $scheduledAt): void
     {
         $this->notifyUser(
             $user,
-            'حصتك بعد 15 دقيقة ⏰',
+            'حصتك بعد 10 دقائق ⏰',
             'استعد! حصتك ستبدأ قريباً.',
             ['type' => 'session_reminder', 'session_id' => (string) $sessionId]
         );

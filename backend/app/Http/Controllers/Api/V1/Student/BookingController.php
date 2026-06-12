@@ -123,6 +123,15 @@ class BookingController extends Controller
                 if (!$enrolled) {
                     return response()->json(['message' => 'You are not enrolled in this unit.'], 403);
                 }
+
+                // Defense-in-depth: lesson must be inside the student's PAID range.
+                // Prevents booking an unpaid lesson from a partially-covered unit.
+                $paidLessonIds = Subscription::paidLessonIdsForUser($student->id);
+                if (!$paidLessonIds->contains($lesson->id)) {
+                    return response()->json([
+                        'message' => 'هذا الدرس خارج نطاق اشتراكك الحالي.',
+                    ], 403);
+                }
             }
 
             $alreadyPending = SessionRequest::where('student_id', $student->id)
@@ -236,6 +245,7 @@ class BookingController extends Controller
             'requested_at_utc'    => $validated['scheduled_at'],
             'status'              => SessionRequest::STATUS_PENDING,
             'teacher_gender_pref' => $validated['teacher_gender_pref'] ?? null,
+            'note'                => $validated['notes'] ?? null,
         ]);
 
         // ── Deduct 1 credit on booking (non-assessment only) ──────────────────

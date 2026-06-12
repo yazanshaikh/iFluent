@@ -18,6 +18,7 @@ class Lesson extends Model
         'nearpod_lesson_id',
         'nearpod_url',
         'pdf_url',
+        'activity_url',
         'is_active',
         'is_assessment',
     ];

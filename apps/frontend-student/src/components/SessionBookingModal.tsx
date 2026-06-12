@@ -23,6 +23,9 @@ import {
 } from 'react-native';
 import { Ionicons }          from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useQuery }          from '@tanstack/react-query';
+import { teachersApi }       from '@/api/teachers';
+import { AvailabilityList }  from '@/components/AvailabilityList';
 import { sessionsApi }       from '@/api/sessions';
 import { C, shadow }         from '@/theme';
 
@@ -84,6 +87,7 @@ export function SessionBookingModal({ visible, credits, onClose, onBooked }: Pro
   const [dayIdx,       setDayIdx]       = useState(0);
   const [slot,         setSlot]         = useState<string | null>(null);
   const [teacherCode,  setTeacherCode]  = useState('');
+  const [note,         setNote]         = useState('');
   const [genderPref,   setGenderPref]   = useState<'male' | 'female' | null>(null);
   const [loading,      setLoading]      = useState(false);
   const [done,         setDone]         = useState(false);
@@ -95,6 +99,16 @@ export function SessionBookingModal({ visible, credits, onClose, onBooked }: Pro
     const id = setInterval(() => setNowTick((t) => t + 1), 30_000);
     return () => clearInterval(id);
   }, [visible]);
+
+  // Look up the teacher (and their availability) once a code is typed
+  const codeLookup = teacherCode.trim();
+  const { data: teacherProfile, isFetching: loadingTeacher, isError: teacherNotFound } = useQuery({
+    queryKey: ['teacher-lookup', codeLookup],
+    queryFn:  () => teachersApi.getProfile(codeLookup),
+    enabled:  visible && codeLookup.length >= 2,
+    retry:    false,
+    staleTime: 60_000,
+  });
 
   const days = useMemo(() =>
     Array.from({ length: 7 }, (_, i) => {
@@ -141,10 +155,12 @@ export function SessionBookingModal({ visible, credits, onClose, onBooked }: Pro
     setLoading(true);
     try {
       const trimCode = teacherCode.trim();
+      const trimNote = note.trim();
       await sessionsApi.book({
         scheduled_at,
         ...(trimCode ? { teacher_code: trimCode } : {}),
         ...(genderPref ? { teacher_gender_pref: genderPref } : {}),
+        ...(trimNote ? { notes: trimNote } : {}),
       });
       setDone(true);
       onBooked();
@@ -159,6 +175,7 @@ export function SessionBookingModal({ visible, credits, onClose, onBooked }: Pro
     setDayIdx(0);
     setSlot(null);
     setTeacherCode('');
+    setNote('');
     setGenderPref(null);
     setDone(false);
     onClose();
@@ -313,6 +330,45 @@ export function SessionBookingModal({ visible, credits, onClose, onBooked }: Pro
                 returnKeyType="done"
               />
 
+              {/* Teacher availability — shown once a valid code is entered */}
+              {codeLookup.length >= 2 && (
+                <View style={s.availBox}>
+                  {loadingTeacher ? (
+                    <View style={{ paddingVertical: 10, alignItems: 'center' }}>
+                      <ActivityIndicator color={C.amber} />
+                    </View>
+                  ) : teacherNotFound || !teacherProfile ? (
+                    <Text style={s.availNotFound}>لا يوجد معلم بهذا الكود.</Text>
+                  ) : (
+                    <>
+                      <Text style={s.availHeader}>
+                        <Ionicons name="calendar" size={13} color={C.navy} />{'  '}
+                        مواعيد {teacherProfile.teacher.name ?? 'المعلم'} المتاحة
+                      </Text>
+                      <AvailabilityList slots={teacherProfile.availability} />
+                    </>
+                  )}
+                </View>
+              )}
+
+              {/* Optional: note to the teacher */}
+              <Text style={[s.label, { marginTop: 20 }]}>
+                ملاحظة للمعلم
+                <Text style={s.optionalTag}> (اختياري)</Text>
+              </Text>
+              <TextInput
+                style={[s.teacherInput, s.noteInput]}
+                value={note}
+                onChangeText={setNote}
+                placeholder="مثال: أريد التركيز على المحادثة"
+                placeholderTextColor={s.teacherInput.color as string}
+                textAlign="right"
+                multiline
+                numberOfLines={3}
+                maxLength={300}
+                textAlignVertical="top"
+              />
+
               {/* Submit */}
               <TouchableOpacity
                 style={[s.submitBtn, !effectiveSlot && s.submitBtnOff]}
@@ -409,6 +465,14 @@ const s = StyleSheet.create({
   // Optional tag
   optionalTag: { fontSize: 11, fontWeight: '500', color: C.gray },
 
+  // Teacher availability box
+  availBox: {
+    marginTop: 10, backgroundColor: C.cream, borderRadius: 14,
+    borderWidth: 1.5, borderColor: C.border, padding: 12,
+  },
+  availHeader: { fontSize: 12.5, fontWeight: '800', color: C.navy, textAlign: 'right', marginBottom: 10 },
+  availNotFound: { fontSize: 12.5, color: C.gray, textAlign: 'center', paddingVertical: 6, fontWeight: '600' },
+
   // Teacher code input
   teacherInput: {
     backgroundColor: C.inputBg,
@@ -420,6 +484,10 @@ const s = StyleSheet.create({
     fontWeight: '600',
     color: C.navy,
     marginBottom: 4,
+  },
+  noteInput: {
+    minHeight: 76,
+    fontWeight: '500',
   },
 
   // Submit

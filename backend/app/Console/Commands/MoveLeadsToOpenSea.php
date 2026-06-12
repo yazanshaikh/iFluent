@@ -17,8 +17,12 @@ class MoveLeadsToOpenSea extends Command
         // is_small_treasure = true  → محمية، ما تنتقل أبداً (PRD 5.3)
         // is_small_treasure = false → تنتقل بعد 5 أيام
         // is_small_treasure = NULL  → نعاملها كـ false (أمان إضافي)
-        // الحالات التي تندرج في Lead Pool (يعمل عليها الموظف) — new مستثنى
+        // الحالات التي تندرج في Lead Pool (يعمل عليها الموظف).
+        // 'new' مُضمَّنة: تعيين الليدة يُبقي حالتها 'new' حتى يصنّفها الموظف،
+        // فالليدة المُعيَّنة التي بقيت 'new' دون عمل 5 أيام = مهملة → للبحر المفتوح.
+        // (الليدات الجديدة غير المعيَّنة محميّة بشرط assigned_to NOT NULL أدناه.)
         $poolStatuses = [
+            Lead::STATUS_NEW,
             Lead::STATUS_IN_PROGRESS,
             Lead::STATUS_INTERESTED,
             Lead::STATUS_NOT_INTERESTED,

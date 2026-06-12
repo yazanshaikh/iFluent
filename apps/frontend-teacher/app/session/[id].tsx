@@ -1,5 +1,5 @@
 /**
- * Session Profile — بروفايل الحصة
+ * Session Profile — Session Profile
  * Same design as request profile but for an already-accepted session.
  * Teacher can: view lesson/student info, open Nearpod, set PIN, then start.
  */
@@ -14,6 +14,7 @@ import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { sessionsApi, type TeacherSession, type SessionStartError } from '@/api/sessions';
+import DemoEvaluationModal from '@/components/DemoEvaluationModal';
 import { C, shadow } from '@/theme';
 
 function InfoRow({ icon, label, value }: { icon: string; label: string; value: string }) {
@@ -30,7 +31,7 @@ function InfoRow({ icon, label, value }: { icon: string; label: string; value: s
 
 function fmt(iso: string | null) {
   if (!iso) return '—';
-  return new Date(iso).toLocaleString('ar-SA', {
+  return new Date(iso).toLocaleString('en-US', {
     weekday: 'long', day: 'numeric', month: 'long',
     hour: '2-digit', minute: '2-digit',
     timeZone: 'Asia/Amman',
@@ -47,6 +48,7 @@ export default function SessionDetailScreen() {
   const [confirming, setConfirming] = useState(false); // inline PIN confirm
   const [startError, setStartError] = useState<SessionStartError | null>(null);
   const [countdown, setCountdown] = useState<number | null>(null);
+  const [evalVisible, setEvalVisible] = useState(false);
 
   const { data: session, isLoading } = useQuery<TeacherSession>({
     queryKey: ['session', sessionId],
@@ -55,26 +57,27 @@ export default function SessionDetailScreen() {
   });
 
   // ⏱️ Countdown timer — update every second
-  // Window: من (scheduled_at - 15 min) إلى (scheduled_at + 15 min)
+  // Window: (scheduled_at - 15 min) to (scheduled_at + 15 min)
   useEffect(() => {
     if (!session?.scheduled_at) return;
+    const scheduledAt = session.scheduled_at; // narrowed to string for the closure
 
     const updateCountdown = () => {
       const now = Date.now();
-      const scheduled = new Date(session.scheduled_at).getTime();
+      const scheduled = new Date(scheduledAt).getTime();
       const fifteenMinBefore = scheduled - 15 * 60 * 1000;
       const fifteenMinAfter = scheduled + 15 * 60 * 1000;
 
-      // لما نكون قبل الموعد بأكثر من 15 دقيقة
+      // more than 15 min before the scheduled time
       if (now < fifteenMinBefore) {
         const minsUntil = Math.ceil((fifteenMinBefore - now) / 60000);
         setCountdown(minsUntil);
       }
-      // لما نكون داخل الـ window (من -15 min إلى +15 min)
+      // inside the window (-15 min to +15 min)
       else if (now >= fifteenMinBefore && now <= fifteenMinAfter) {
-        setCountdown(null); // ✅ يقدر يفعل
+        setCountdown(null); // can activate
       }
-      // لما نكون بعد الموعد بأكثر من 15 دقيقة
+      // more than 15 min after the scheduled time
       else {
         setCountdown(-1); // -1 = too late
       }
@@ -94,7 +97,7 @@ export default function SessionDetailScreen() {
   const pinMutation = useMutation({
     mutationFn: (p: string) => sessionsApi.setNearpodPin(sessionId, p),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['session', sessionId] }),
-    onError:   (e: any) => Alert.alert('خطأ', e?.response?.data?.message ?? 'تعذر حفظ PIN'),
+    onError:   (e: any) => Alert.alert('Error', e?.response?.data?.message ?? 'Could not save PIN'),
   });
 
   // Release session back to pool
@@ -106,10 +109,42 @@ export default function SessionDetailScreen() {
       router.back();
     },
     onError: (e: any) =>
-      Alert.alert('تعذر إلغاء السحب', e?.response?.data?.message ?? 'حدث خطأ'),
+      Alert.alert('Could not release', e?.response?.data?.message ?? 'An error occurred'),
   });
 
   const handleRelease = () => releaseMutation.mutate();
+
+  // End the meeting & close the session
+  const endMutation = useMutation({
+    mutationFn: () => sessionsApi.end(sessionId),
+    onSuccess: async () => {
+      qc.invalidateQueries({ queryKey: ['sessions'] });
+      qc.invalidateQueries({ queryKey: ['session', sessionId] });
+      if (session?.lesson?.is_assessment && !session?.evaluation_submitted_at) {
+        setEvalVisible(true); // assessment → collect evaluation before leaving
+      } else {
+        router.replace('/(tabs)/sessions');
+      }
+    },
+    onError: (e: any) => {
+      const msg = e?.response?.data?.message ?? 'Could not end the session';
+      if (Platform.OS === 'web') (window as any).alert(msg);
+      else Alert.alert('Error', msg);
+    },
+  });
+
+  const handleEnd = () => {
+    const doEnd = () => endMutation.mutate();
+    // Alert.alert is a no-op on web — use window.confirm there.
+    if (Platform.OS === 'web') {
+      if ((window as any).confirm('Do you want to end the meeting and close the session now?')) doEnd();
+    } else {
+      Alert.alert('End Session', 'Do you want to end the meeting and close the session now?', [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'End', style: 'destructive', onPress: doEnd },
+      ]);
+    }
+  };
 
   // Start session — sends PIN, activates, returns room URL with teacher token
   const startMutation = useMutation({
@@ -130,7 +165,7 @@ export default function SessionDetailScreen() {
         setStartError(errData);
         setConfirming(false);
       } else {
-        Alert.alert('خطأ', errData?.message ?? 'تعذر بدء الحصة');
+        Alert.alert('Error', errData?.message ?? 'Could not start the session');
       }
     },
   });
@@ -145,7 +180,7 @@ export default function SessionDetailScreen() {
     const url = lessonId
       ? `https://nearpod.com/login?redirect=https://nearpod.com/presentation?pin=${lessonId}`
       : (session?.lesson?.nearpod_url ?? 'https://nearpod.com');
-    Linking.openURL(url).catch(() => Alert.alert('خطأ', 'تعذر فتح Nearpod'));
+    Linking.openURL(url).catch(() => Alert.alert('Error', 'Could not open Nearpod'));
   };
 
   if (isLoading || !session) {
@@ -161,11 +196,14 @@ export default function SessionDetailScreen() {
   const student    = session.student;
   const level      = lesson?.level ?? lesson?.unit?.level ?? null;
   const levelCode  = level?.code ?? '';
-  const lessonNum  = lesson?.order != null ? `درس ${lesson.order}` : '';
-  const isActive   = session.status === 'active';
-  const canStart   = session.status === 'waiting' || session.status === 'confirmed';
+  const lessonNum  = lesson?.order != null ? `Lesson ${lesson.order}` : '';
+  const isActive      = session.status === 'active';
+  const canStart      = session.status === 'waiting' || session.status === 'confirmed';
+  const needsEval     = session.status === 'completed'
+    && session.lesson?.is_assessment
+    && !session.evaluation_submitted_at;
 
-  // إلغاء السحب: مسموح فقط لحالة waiting وقبل 30 دقيقة من الموعد
+  // Release: only allowed in waiting status, 30+ min before the time
   const canRelease = session.status === 'waiting' && (() => {
     if (!session.scheduled_at) return false;
     const minsUntil = (new Date(session.scheduled_at).getTime() - Date.now()) / 60000;
@@ -189,7 +227,7 @@ export default function SessionDetailScreen() {
             <Ionicons name="chevron-forward" size={22} color="#fff" />
           </Pressable>
           <View style={{ flex: 1, alignItems: 'flex-end' }}>
-            <Text style={styles.headerTitle}>بروفايل الحصة</Text>
+            <Text style={styles.headerTitle}>Session Profile</Text>
             {(levelCode || lessonNum) && (
               <View style={styles.headerBadge}>
                 <Text style={styles.headerBadgeTxt}>
@@ -207,30 +245,30 @@ export default function SessionDetailScreen() {
         >
           {/* ── Lesson card ── */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>معلومات الحصة</Text>
+            <Text style={styles.sectionTitle}>Session Info</Text>
             <View style={styles.card}>
-              <InfoRow icon="book-outline"   label="اسم الحصة" value={lesson?.title ?? '—'} />
-              <InfoRow icon="calendar-outline" label="الموعد"  value={fmt(session.scheduled_at)} />
+              <InfoRow icon="book-outline"   label="Session Name" value={lesson?.title ?? '—'} />
+              <InfoRow icon="calendar-outline" label="Time"  value={fmt(session.scheduled_at)} />
               {level && (
                 <InfoRow
                   icon="layers-outline"
-                  label="المستوى"
+                  label="Level"
                   value={`${level.code} — ${level.name}`}
                 />
               )}
               {lesson?.order != null && (
-                <InfoRow icon="list-outline" label="رقم الدرس" value={`${lesson.order}`} />
+                <InfoRow icon="list-outline" label="Lesson No." value={`${lesson.order}`} />
               )}
             </View>
           </View>
 
           {/* ── Student card ── */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>معلومات الطالب</Text>
+            <Text style={styles.sectionTitle}>Student Info</Text>
             <View style={styles.card}>
-              <InfoRow icon="person-outline" label="الاسم" value={student?.name ?? '—'} />
+              <InfoRow icon="person-outline" label="Name" value={student?.name ?? '—'} />
               {student?.age != null && (
-                <InfoRow icon="calendar-outline" label="العمر" value={`${student.age} سنة`} />
+                <InfoRow icon="calendar-outline" label="Age" value={`${student.age} yrs`} />
               )}
             </View>
           </View>
@@ -241,7 +279,7 @@ export default function SessionDetailScreen() {
               <Text style={styles.sectionTitle}>Nearpod</Text>
               <View style={styles.card}>
                 <Text style={styles.nearpodHint}>
-                  افتح Nearpod لإنشاء الحصة والحصول على رقم PIN، ثم أدخله هنا وابدأ الحصة.
+                  Open Nearpod to create the session and get the PIN, then enter it here and start the session.
                 </Text>
 
                 {/* Open Nearpod */}
@@ -252,7 +290,7 @@ export default function SessionDetailScreen() {
                     style={styles.nearpodBtnGrad}
                   >
                     <Ionicons name="open-outline" size={18} color="#fff" />
-                    <Text style={styles.nearpodBtnTxt}>فتح في Nearpod</Text>
+                    <Text style={styles.nearpodBtnTxt}>Open in Nearpod</Text>
                   </LinearGradient>
                 </Pressable>
 
@@ -261,7 +299,7 @@ export default function SessionDetailScreen() {
                   <Ionicons name="keypad-outline" size={18} color={C.grayMid} />
                   <TextInput
                     style={styles.pinInput}
-                    placeholder="أدخل رقم PIN من Nearpod"
+                    placeholder="Enter the PIN from Nearpod"
                     placeholderTextColor={C.grayMid}
                     value={pin}
                     onChangeText={setPin}
@@ -280,7 +318,7 @@ export default function SessionDetailScreen() {
                   >
                     {pinMutation.isPending
                       ? <ActivityIndicator size="small" color="#fff" />
-                      : <Text style={styles.pinSaveTxt}>حفظ</Text>
+                      : <Text style={styles.pinSaveTxt}>Save</Text>
                     }
                   </Pressable>
                 </View>
@@ -291,18 +329,18 @@ export default function SessionDetailScreen() {
           {/* ── Inline PIN Confirm ── */}
           {confirming && (
             <View style={styles.confirmBox}>
-              <Text style={styles.confirmTitle}>تأكيد PIN</Text>
+              <Text style={styles.confirmTitle}>Confirm PIN</Text>
               <Text style={styles.confirmMsg}>
-                لقد أدخلت الكود:{'\n'}
+                You entered the code:{'\n'}
                 <Text style={styles.confirmPin}>{pin.trim()}</Text>
-                {'\n\n'}هل تتأكد أنه الكود الخاص بهذه الحصة؟
+                {'\n\n'}Are you sure this is the code for this session?
               </Text>
               <View style={styles.confirmBtns}>
                 <Pressable
                   style={styles.confirmCancel}
                   onPress={() => setConfirming(false)}
                 >
-                  <Text style={styles.confirmCancelTxt}>تراجع</Text>
+                  <Text style={styles.confirmCancelTxt}>Cancel</Text>
                 </Pressable>
                 <Pressable
                   style={[styles.confirmOk, startMutation.isPending && { opacity: 0.6 }]}
@@ -311,24 +349,70 @@ export default function SessionDetailScreen() {
                 >
                   {startMutation.isPending
                     ? <ActivityIndicator color="#fff" size="small" />
-                    : <Text style={styles.confirmOkTxt}>نعم، ابدأ</Text>
+                    : <Text style={styles.confirmOkTxt}>Yes, start</Text>
                   }
                 </Pressable>
               </View>
             </View>
           )}
 
-          {/* ── CTA ── */}
-          {isActive ? (
+          {/* ── Pending evaluation (assessment session completed) ── */}
+          {needsEval && (
+            <View style={styles.evalBanner}>
+              <Ionicons name="clipboard-outline" size={22} color="#0369a1" />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.evalBannerTitle}>Evaluation Required</Text>
+                <Text style={styles.evalBannerTxt}>
+                  Please fill in the assessment session report so it is saved to the student's notes in the CRM.
+                </Text>
+              </View>
+            </View>
+          )}
+
+          {needsEval && (
             <Pressable
               style={({ pressed }) => [styles.ctaBtn, pressed && { opacity: 0.85 }]}
-              onPress={() => router.push({ pathname: '/classroom/[id]', params: { id: String(sessionId) } })}
+              onPress={() => setEvalVisible(true)}
             >
-              <LinearGradient colors={['#16a34a', '#15803d']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.ctaGrad}>
-                <Ionicons name="videocam" size={22} color="#fff" />
-                <Text style={styles.ctaTxt}>العودة للفصل الافتراضي</Text>
+              <LinearGradient colors={['#0369a1', '#0284c7']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.ctaGrad}>
+                <Ionicons name="create-outline" size={22} color="#fff" />
+                <Text style={styles.ctaTxt}>Fill Session Evaluation</Text>
               </LinearGradient>
             </Pressable>
+          )}
+
+          {/* ── CTA ── */}
+          {isActive ? (
+            <>
+              <Pressable
+                style={({ pressed }) => [styles.ctaBtn, pressed && { opacity: 0.85 }]}
+                onPress={() => router.push({ pathname: '/classroom/[id]', params: { id: String(sessionId) } })}
+              >
+                <LinearGradient colors={['#16a34a', '#15803d']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.ctaGrad}>
+                  <Ionicons name="videocam" size={22} color="#fff" />
+                  <Text style={styles.ctaTxt}>Back to Virtual Classroom</Text>
+                </LinearGradient>
+              </Pressable>
+
+              {/* End meeting & close session */}
+              <Pressable
+                style={({ pressed }) => [
+                  styles.endBtn,
+                  pressed && { opacity: 0.85 },
+                  endMutation.isPending && { opacity: 0.6 },
+                ]}
+                onPress={handleEnd}
+                disabled={endMutation.isPending}
+              >
+                {endMutation.isPending
+                  ? <ActivityIndicator color="#fff" />
+                  : <>
+                      <Ionicons name="stop-circle" size={22} color="#fff" />
+                      <Text style={styles.endTxt}>End Session</Text>
+                    </>
+                }
+              </Pressable>
+            </>
           ) : canStart ? (
             <>
               {/* ⏱️ Countdown warning if too early */}
@@ -336,9 +420,9 @@ export default function SessionDetailScreen() {
                 <View style={styles.countdownBox}>
                   <Ionicons name="time-outline" size={20} color="#D97706" />
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.countdownTitle}>فتح بعد {countdown} دقيقة</Text>
+                    <Text style={styles.countdownTitle}>Opens in {countdown} min</Text>
                     <Text style={styles.countdownMsg}>
-                      ممكن تفعيل الحصة قبل موعدها بـ 15 دقيقة فقط
+                      You can activate the session only 15 minutes before its time
                     </Text>
                   </View>
                 </View>
@@ -350,10 +434,10 @@ export default function SessionDetailScreen() {
                   <Ionicons name="alert-circle" size={18} color="#DC2626" />
                   <View style={{ flex: 1 }}>
                     <Text style={[styles.errorTitle, styles.errorTitleLate]}>
-                      انتهى وقت تفعيل الحصة
+                      Session activation time has passed
                     </Text>
                     <Text style={[styles.errorMsg, styles.errorMsgLate]}>
-                      يمكن تفعيل الحصة حتى 15 دقيقة بعد الموعد فقط
+                      The session can be activated up to 15 minutes after its time
                     </Text>
                   </View>
                 </View>
@@ -395,7 +479,7 @@ export default function SessionDetailScreen() {
                     : <>
                         <Ionicons name="play-circle" size={22} color="#fff" />
                         <Text style={styles.ctaTxt}>
-                          {countdown && countdown > 0 ? `فتح بعد ${countdown}م` : 'بدء الحصة'}
+                          {countdown && countdown > 0 ? `Opens in ${countdown}m` : 'Start Session'}
                         </Text>
                       </>
                   }
@@ -404,7 +488,7 @@ export default function SessionDetailScreen() {
             </>
           ) : null}
 
-          {/* إلغاء السحب */}
+          {/* Release */}
           {canRelease && (
             <Pressable
               style={({ pressed }) => [
@@ -419,7 +503,7 @@ export default function SessionDetailScreen() {
                 ? <ActivityIndicator color={C.error} />
                 : <>
                     <Ionicons name="arrow-undo-outline" size={18} color={C.error} />
-                    <Text style={styles.releaseTxt}>إلغاء السحب</Text>
+                    <Text style={styles.releaseTxt}>Release</Text>
                   </>
               }
             </Pressable>
@@ -427,6 +511,17 @@ export default function SessionDetailScreen() {
 
         </ScrollView>
       </View>
+
+      <DemoEvaluationModal
+        visible={evalVisible}
+        sessionId={sessionId}
+        studentName={session.student?.name}
+        onSuccess={() => {
+          setEvalVisible(false);
+          qc.invalidateQueries({ queryKey: ['session', sessionId] });
+          qc.invalidateQueries({ queryKey: ['sessions'] });
+        }}
+      />
     </KeyboardAvoidingView>
   );
 }
@@ -476,6 +571,13 @@ const styles = StyleSheet.create({
   ctaGrad: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingVertical: 18 },
   ctaTxt:  { color: '#fff', fontSize: 17, fontWeight: '900' },
 
+  endBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 10, marginTop: 12, paddingVertical: 16, borderRadius: 18,
+    backgroundColor: C.error,
+  },
+  endTxt: { color: '#fff', fontSize: 16, fontWeight: '900' },
+
   confirmBox: {
     backgroundColor: '#FFF7ED', borderRadius: 18, padding: 18, marginTop: 8,
     borderWidth: 1.5, borderColor: '#FED7AA',
@@ -523,4 +625,12 @@ const styles = StyleSheet.create({
   errorTitleLate: { color: '#991B1B' },
   errorMsg: { fontSize: 12, color: '#B45309', marginTop: 2 },
   errorMsgLate: { color: '#7F1D1D' },
+
+  evalBanner: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: 12,
+    backgroundColor: '#E0F2FE', borderRadius: 16, padding: 14,
+    marginBottom: 12, borderWidth: 1.5, borderColor: '#BAE6FD',
+  },
+  evalBannerTitle: { fontSize: 14, fontWeight: '900', color: '#0369a1', textAlign: 'right' },
+  evalBannerTxt:   { fontSize: 12, color: '#0284c7', textAlign: 'right', marginTop: 4, lineHeight: 18 },
 });

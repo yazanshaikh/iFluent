@@ -1,5 +1,5 @@
 /**
- * Requests Center — مركز الطلبات
+ * Requests Center — Requests Center
  * Tabs: Demo | Core | Private | Group
  */
 import { useState } from 'react';
@@ -17,15 +17,15 @@ import { C, shadow } from '@/theme';
 type Tab = 'demo' | 'core' | 'private' | 'group';
 
 const TABS: { key: Tab; label: string; icon: string }[] = [
-  { key: 'demo',    label: 'تقييمية',  icon: 'star-outline' },
-  { key: 'core',    label: 'أساسية',   icon: 'book-outline' },
-  { key: 'private', label: 'خاصة',     icon: 'person-outline' },
-  { key: 'group',   label: 'جماعية',   icon: 'people-outline' },
+  { key: 'demo',    label: 'Assessment',  icon: 'star-outline' },
+  { key: 'core',    label: 'Core',   icon: 'book-outline' },
+  { key: 'private', label: 'Private',     icon: 'person-outline' },
+  { key: 'group',   label: 'Group',   icon: 'people-outline' },
 ];
 
 function fmt(iso: string | null) {
   if (!iso) return '—';
-  return new Date(iso).toLocaleString('ar-SA', {
+  return new Date(iso).toLocaleString('en-US', {
     weekday: 'short', day: 'numeric', month: 'short',
     hour: '2-digit', minute: '2-digit',
     timeZone: 'Asia/Amman',
@@ -38,7 +38,7 @@ function RequestCard({ req, onAccept, accepting }: {
   accepting: boolean;
 }) {
   const levelCode  = req.lesson?.level?.code ?? '';
-  const lessonNum  = req.lesson?.order != null ? `درس ${req.lesson.order}` : '';
+  const lessonNum  = req.lesson?.order != null ? `Lesson ${req.lesson.order}` : '';
   const lessonMeta = [levelCode, lessonNum].filter(Boolean).join('  ·  ');
 
   return (
@@ -51,13 +51,13 @@ function RequestCard({ req, onAccept, accepting }: {
 
         {/* Student name + gender pref */}
         <View style={styles.studentRow}>
-          <Text style={styles.cardStudent}>{req.student?.name ?? 'طالب'}</Text>
+          <Text style={styles.cardStudent}>{req.student?.name ?? 'Student'}</Text>
           {req.teacher_gender_pref && (
             <View style={[styles.genderBadge,
               req.teacher_gender_pref === 'male' ? styles.genderBadgeMale : styles.genderBadgeFemale
             ]}>
               <Text style={styles.genderBadgeTxt}>
-                {req.teacher_gender_pref === 'male' ? '👨 ذكر' : '👩 أنثى'}
+                {req.teacher_gender_pref === 'male' ? '👨 Male' : '👩 Female'}
               </Text>
             </View>
           )}
@@ -76,6 +76,14 @@ function RequestCard({ req, onAccept, accepting }: {
           </View>
         )}
 
+        {/* Student note */}
+        {req.note ? (
+          <View style={styles.noteBox}>
+            <Ionicons name="chatbubble-ellipses-outline" size={13} color={C.skyDark} />
+            <Text style={styles.noteTxt}>{req.note}</Text>
+          </View>
+        ) : null}
+
         {/* Accept button */}
         <TouchableOpacity
           style={[styles.acceptBtn, accepting && { opacity: 0.6 }]}
@@ -92,7 +100,7 @@ function RequestCard({ req, onAccept, accepting }: {
               ? <ActivityIndicator color="#fff" size="small" />
               : <>
                   <Ionicons name="checkmark-circle-outline" size={17} color="#fff" />
-                  <Text style={styles.acceptTxt}>سحب الحصة</Text>
+                  <Text style={styles.acceptTxt}>Claim Session</Text>
                 </>
             }
           </LinearGradient>
@@ -135,7 +143,7 @@ export default function RequestsScreen() {
     },
     onError: (e: any) => {
       setAcceptingId(null);
-      Alert.alert('خطأ', e?.response?.data?.message ?? 'تعذر سحب الطلب');
+      Alert.alert('Error', e?.response?.data?.message ?? 'Could not claim the request');
     },
   });
 
@@ -151,8 +159,8 @@ export default function RequestsScreen() {
         colors={[C.sky, C.skyDark]}
         style={[styles.header, { paddingTop: insets.top + 16 }]}
       >
-        <Text style={styles.headerTitle}>مركز الطلبات</Text>
-        <Text style={styles.headerSub}>{allData.length} طلب معلق</Text>
+        <Text style={styles.headerTitle}>Requests Center</Text>
+        <Text style={styles.headerSub}>{allData.length} pending requests</Text>
       </LinearGradient>
 
       {/* Tab Bar */}
@@ -199,7 +207,7 @@ export default function RequestsScreen() {
         ) : data.length === 0 ? (
           <View style={styles.empty}>
             <Ionicons name="mail-outline" size={52} color={C.skyLight} />
-            <Text style={styles.emptyTxt}>لا توجد طلبات في هذه الفئة</Text>
+            <Text style={styles.emptyTxt}>No requests in this category</Text>
           </View>
         ) : (
           data.map((req) => (
@@ -275,6 +283,16 @@ const styles = StyleSheet.create({
   cardMeta:    { flexDirection: 'row', alignItems: 'center', gap: 6, justifyContent: 'flex-end', marginBottom: 4 },
   cardMetaTxt: { fontSize: 12, color: C.grayMid },
 
+  noteBox: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: 6,
+    backgroundColor: C.sky + '12',
+    borderRadius: 10, padding: 9, marginBottom: 10,
+    borderWidth: 1, borderColor: C.sky + '26',
+  },
+  noteTxt: {
+    flex: 1, fontSize: 12, color: C.skyDark, fontWeight: '600',
+    textAlign: 'right', lineHeight: 18,
+  },
   lessonBadge: {
     backgroundColor: C.sky + '18', borderRadius: 8,
     paddingHorizontal: 7, paddingVertical: 2, marginRight: 4,

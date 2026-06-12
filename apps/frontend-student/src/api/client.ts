@@ -10,7 +10,7 @@ import Constants from 'expo-constants';
 const BASE_URL =
   (Constants.expoConfig?.extra?.apiUrl as string | undefined) ??
   process.env.EXPO_PUBLIC_API_URL ??
-  'http://192.168.0.104:8000/api/v1';
+  'http://192.168.0.101:8000/api/v1';
 
 const client = axios.create({
   baseURL: BASE_URL,

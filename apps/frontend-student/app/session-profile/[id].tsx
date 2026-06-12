@@ -28,6 +28,7 @@ import { useMutation } from '@tanstack/react-query';
 import { useAuthStore }  from '@/stores/authStore';
 import { getEcho, disconnectEcho } from '@/lib/echo';
 import { fixStorageUrl } from '@/api/client';
+import { TeacherAvailabilityModal } from '@/components/TeacherAvailabilityModal';
 import { C, shadow } from '@/theme';
 
 // ─── Tokens ───────────────────────────────────────────────────────────────────
@@ -253,6 +254,7 @@ export default function SessionProfileScreen() {
   const [rtData, setRtData] = useState<Partial<SessionProfile> | null>(null);
   const [showRating, setShowRating] = useState(false);
   const [alreadyRated, setAlreadyRated] = useState(false);
+  const [availVisible, setAvailVisible] = useState(false);
   const ratingShownRef = useRef(false); // prevent showing twice
 
   // ── Real-time: subscribe to session events via Reverb ─────────────────────
@@ -489,6 +491,19 @@ export default function SessionProfileScreen() {
             </View>
           )}
 
+          {/* المواعيد المتاحة للمعلم */}
+          {data.teacher?.teacher_code && (
+            <TouchableOpacity
+              style={styles.availBtn}
+              activeOpacity={0.85}
+              onPress={() => setAvailVisible(true)}
+            >
+              <Ionicons name="chevron-back" size={16} color={PURPLE} />
+              <Text style={styles.availBtnTxt}>المواعيد المتاحة للمعلم</Text>
+              <Ionicons name="calendar-outline" size={16} color={PURPLE} />
+            </TouchableOpacity>
+          )}
+
           {/* PDF — only for regular lessons */}
           {!isAssessment && fixStorageUrl(lesson.pdf_url) && (
             <TouchableOpacity
@@ -587,23 +602,28 @@ export default function SessionProfileScreen() {
             )}
           </Card>
 
-          {/* نشاط ما بعد الدرس */}
-          <Card
-            icon="pencil-outline"
-            title="نشاط ما بعد الدرس"
-            accent={PURPLE}
-            locked={!data.quiz_unlocked}
-            lockedMsg="النشاط يُفتح بعد إتمام الحصة 🔐"
-          >
-            <TouchableOpacity
-              style={styles.quizBtn}
-              activeOpacity={0.85}
-              onPress={() => router.push({ pathname: '/quiz/[id]', params: { id: String(lesson.id) } })}
+          {/* النشاط التفاعلي (Wordwall) — only when the lesson has an activity link */}
+          {lesson.activity_url ? (
+            <Card
+              icon="game-controller-outline"
+              title="النشاط التفاعلي"
+              accent="#22C55E"
+              locked={!data.quiz_unlocked}
+              lockedMsg="النشاط يُفتح بعد إتمام الحصة 🔐"
             >
-              <Ionicons name="pencil" size={18} color="#fff" />
-              <Text style={styles.quizTxt}>ابدأ النشاط</Text>
-            </TouchableOpacity>
-          </Card>
+              <TouchableOpacity
+                style={styles.activityBtn}
+                activeOpacity={0.85}
+                onPress={() => router.push({
+                  pathname: '/activity/[id]',
+                  params: { id: String(lesson.id), url: lesson.activity_url!, title: lesson.title },
+                })}
+              >
+                <Ionicons name="game-controller" size={18} color="#fff" />
+                <Text style={styles.quizTxt}>افتح النشاط</Text>
+              </TouchableOpacity>
+            </Card>
+          ) : null}
 
 
         </View>
@@ -620,6 +640,14 @@ export default function SessionProfileScreen() {
           setAlreadyRated(true);
           qc.invalidateQueries({ queryKey: ['session-profile', sessionId] });
         }}
+      />
+
+      {/* Teacher availability popup */}
+      <TeacherAvailabilityModal
+        visible={availVisible}
+        teacherCode={data.teacher?.teacher_code ?? null}
+        teacherName={data.teacher?.name}
+        onClose={() => setAvailVisible(false)}
       />
     </View>
   );
@@ -682,6 +710,13 @@ const styles = StyleSheet.create({
     borderRadius: 16, paddingHorizontal: 14, paddingVertical: 10,
     alignSelf: 'flex-end', marginTop: 10,
   },
+  availBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    backgroundColor: 'rgba(255,255,255,0.95)',
+    borderRadius: 14, paddingHorizontal: 14, paddingVertical: 10,
+    alignSelf: 'flex-end', marginTop: 10,
+  },
+  availBtnTxt: { fontSize: 13, fontWeight: '800', color: '#7C3AED' },
   teacherAvatar: {
     width: 40, height: 40, borderRadius: 20,
     backgroundColor: 'rgba(255,255,255,0.9)',
@@ -720,6 +755,7 @@ const styles = StyleSheet.create({
   stateSub:  { fontSize: 12, color: C.grayMid, textAlign: 'center' },
 
   quizBtn: { backgroundColor: PURPLE, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingVertical: 14, borderRadius: 14 },
+  activityBtn: { backgroundColor: '#22C55E', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingVertical: 14, borderRadius: 14 },
   quizTxt: { color: '#fff', fontSize: 15, fontWeight: '800' },
 
   // ── PDF ───────────────────────────────────────────────────────────────────

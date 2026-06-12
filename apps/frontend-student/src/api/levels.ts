@@ -40,6 +40,7 @@ export interface Lesson {
   is_active:       boolean;
   is_locked:       boolean;        // gating: true until previous lesson passed
   nearpod_url:     string | null;
+  activity_url:    string | null;  // Wordwall (or other) interactive activity link
   is_assessment:   boolean;
 }
 

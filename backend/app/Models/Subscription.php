@@ -109,6 +109,91 @@ class Subscription extends Model
     }
 
     /**
+     * Returns the set of lesson IDs the given user has PAID for — the union of
+     * all their active subscription ranges (from_lesson_id → to_lesson_id).
+     *
+     * Used to gate the curriculum so the student only ever sees / books lessons
+     * inside their paid range, even when a unit is partially covered.
+     */
+    public static function paidLessonIdsForUser(int $userId): \Illuminate\Support\Collection
+    {
+        $student = Student::where('user_id', $userId)->first();
+        if (!$student) {
+            return collect();
+        }
+
+        $subs = self::where('student_id', $student->id)
+            ->where('status', self::STATUS_ACTIVE)
+            ->whereNotNull('from_lesson_id')
+            ->whereNotNull('to_lesson_id')
+            ->get(['from_lesson_id', 'to_lesson_id']);
+
+        $ids = collect();
+        foreach ($subs as $sub) {
+            $lo = min($sub->from_lesson_id, $sub->to_lesson_id);
+            $hi = max($sub->from_lesson_id, $sub->to_lesson_id);
+            $ids = $ids->merge(
+                Lesson::whereBetween('id', [$lo, $hi])->pluck('id')
+            );
+        }
+
+        return $ids->unique()->values();
+    }
+
+    /**
+     * Enroll the student in every unit covered by this subscription's lesson
+     * range (from_lesson_id → to_lesson_id). Units already enrolled are skipped.
+     *
+     * This bridges the gap between the subscription (tracked by lesson-ID range)
+     * and the curriculum view in the student app (driven by student_units).
+     *
+     * Returns the number of NEW unit enrollments created.
+     * Safe to call multiple times (idempotent).
+     */
+    public function enrollCoveredUnits(): int
+    {
+        if (!$this->hasLessonRange()) {
+            return 0;
+        }
+
+        $lo = min($this->from_lesson_id, $this->to_lesson_id);
+        $hi = max($this->from_lesson_id, $this->to_lesson_id);
+
+        // Distinct units that have at least one lesson inside the range
+        // (assessment lessons have no unit_id → naturally excluded)
+        $unitIds = Lesson::whereBetween('id', [$lo, $hi])
+            ->whereNotNull('unit_id')
+            ->distinct()
+            ->pluck('unit_id');
+
+        if ($unitIds->isEmpty()) {
+            return 0;
+        }
+
+        // Resolve the user (student_units pivot keys on users.id via the relation)
+        $user = $this->student?->user;
+        if (!$user) {
+            return 0;
+        }
+
+        // Skip units the student is already enrolled in
+        $alreadyEnrolled = $user->enrolledUnits()->pluck('units.id');
+        $toEnroll = $unitIds->diff($alreadyEnrolled);
+
+        if ($toEnroll->isEmpty()) {
+            return 0;
+        }
+
+        $pivot = $toEnroll->mapWithKeys(fn ($id) => [
+            $id => ['status' => 'active', 'enrolled_at' => now()],
+        ])->all();
+
+        $user->enrolledUnits()->attach($pivot);
+
+        return $toEnroll->count();
+    }
+
+    /**
      * Advance current_lesson_id to the next lesson within the range.
      *
      * Strategy: find lessons ordered by (level.order, unit.order, lesson.order)

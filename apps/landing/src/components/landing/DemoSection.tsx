@@ -30,7 +30,7 @@ export function DemoSection({ settings: _s, onCtaPress }: DemoSectionProps) {
         {/* صورة */}
         <View style={[styles.imgWrap, isMobile && { width: '100%', maxWidth: '100%' }]}>
           <Image
-            source={require('@/assets/images/mascot-session.jpeg')}
+            source={require('../../../assets/images/mascot-session.jpeg')}
             style={[styles.img, { height: rv({ mobile: 240, tablet: 300, desktop: 400 }) }]}
             resizeMode="cover"
           />

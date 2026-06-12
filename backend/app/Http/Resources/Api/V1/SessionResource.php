@@ -17,7 +17,8 @@ class SessionResource extends JsonResource
             'attendance_status' => $this->attendance_status,
             'scheduled_at'      => $this->scheduled_at?->toIso8601String(),
             'started_at'        => $this->started_at?->toIso8601String(),
-            'ended_at'          => $this->ended_at?->toIso8601String(),
+            'ended_at'                  => $this->ended_at?->toIso8601String(),
+            'evaluation_submitted_at'   => $this->evaluation_submitted_at?->toIso8601String(),
 
             // Daily.co room — only when session is active or for teacher
             'daily_room_url' => $this->when(

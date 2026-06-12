@@ -12,6 +12,18 @@ export interface Profile {
   enrolled_units:    number;
 }
 
+export interface ProgressSummary {
+  overall_pct:       number;
+  completed_lessons: number;
+  total_lessons:     number;
+  learning_minutes:  number;
+  passed_quizzes:    number;
+  full_mark_quizzes: number;
+  earned_badges:     number;
+  total_badges:      number;
+  achievements:      { id: number; earned: boolean }[];
+}
+
 // ─── API ──────────────────────────────────────────────────────────────────────
 
 export const profileApi = {
@@ -20,4 +32,22 @@ export const profileApi = {
     client
       .get<{ profile: Profile }>('/student/profile')
       .then((r) => r.data.profile),
+
+  /** GET /student/progress-summary — overall %, stats, achievement flags */
+  progress: (): Promise<ProgressSummary> =>
+    client
+      .get<ProgressSummary>('/student/progress-summary')
+      .then((r) => r.data),
+
+  /** POST /student/device-token — save Expo push token for reminders */
+  updateDeviceToken: (token: string): Promise<void> =>
+    client
+      .post('/student/device-token', { fcm_token: token })
+      .then(() => undefined),
+
+  /** POST /student/device-token with null — clear token to stop notifications */
+  clearDeviceToken: (): Promise<void> =>
+    client
+      .post('/student/device-token', { fcm_token: '' })
+      .then(() => undefined),
 };

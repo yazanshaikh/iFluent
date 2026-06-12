@@ -28,7 +28,7 @@ export default function LoginScreen() {
 
   const handleLogin = async () => {
     if (!email.trim() || !password.trim()) {
-      Alert.alert('تنبيه', 'الرجاء إدخال البريد الإلكتروني وكلمة المرور');
+      Alert.alert('Notice', 'Please enter your email and password');
       return;
     }
     setLoading(true);
@@ -37,8 +37,8 @@ export default function LoginScreen() {
       await setAuth(token, user);
       router.replace('/(tabs)/requests');
     } catch (err: any) {
-      const msg = err?.response?.data?.message ?? 'بيانات غير صحيحة. تحقق من البريد وكلمة المرور.';
-      Alert.alert('خطأ في تسجيل الدخول', msg);
+      const msg = err?.response?.data?.message ?? 'Invalid credentials. Check your email and password.';
+      Alert.alert('Login Error', msg);
     } finally {
       setLoading(false);
     }
@@ -65,7 +65,7 @@ export default function LoginScreen() {
             <Ionicons name="school" size={48} color="#fff" />
           </View>
           <Text style={styles.brand}>iFluent</Text>
-          <Text style={styles.brandSub}>بوابة المعلمين</Text>
+          <Text style={styles.brandSub}>Teachers Portal</Text>
 
           {/* Decorative circles */}
           <View style={[styles.blob, { top: -30, right: -30, width: 120, height: 120 }]} pointerEvents="none" />
@@ -74,11 +74,11 @@ export default function LoginScreen() {
 
         {/* ── Form Card ── */}
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>تسجيل الدخول 👋</Text>
-          <Text style={styles.cardSub}>أدخل بيانات حسابك للمتابعة</Text>
+          <Text style={styles.cardTitle}>Sign In 👋</Text>
+          <Text style={styles.cardSub}>Enter your account details to continue</Text>
 
           {/* Email */}
-          <Text style={styles.label}>البريد الإلكتروني</Text>
+          <Text style={styles.label}>Email</Text>
           <View style={styles.inputWrap}>
             <Ionicons name="mail-outline" size={18} color={C.grayMid} style={styles.inputIcon} />
             <TextInput
@@ -94,7 +94,7 @@ export default function LoginScreen() {
           </View>
 
           {/* Password */}
-          <Text style={[styles.label, { marginTop: 16 }]}>كلمة المرور</Text>
+          <Text style={[styles.label, { marginTop: 16 }]}>Password</Text>
           <View style={styles.inputWrap}>
             <Ionicons name="lock-closed-outline" size={18} color={C.grayMid} style={styles.inputIcon} />
             <TextInput
@@ -128,14 +128,14 @@ export default function LoginScreen() {
                 ? <ActivityIndicator color="#fff" />
                 : <>
                     <Ionicons name="log-in-outline" size={20} color="#fff" />
-                    <Text style={styles.btnTxt}>تسجيل الدخول</Text>
+                    <Text style={styles.btnTxt}>Sign In</Text>
                   </>
               }
             </LinearGradient>
           </TouchableOpacity>
 
           <Text style={styles.note}>
-            حساب المعلم يتم إنشاؤه حصراً بواسطة الإدارة
+            Teacher accounts are created exclusively by the administration
           </Text>
         </View>
       </ScrollView>
