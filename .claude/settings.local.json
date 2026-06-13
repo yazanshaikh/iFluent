@@ -200,7 +200,16 @@
       "Bash(php -l app/Services/DailyCoService.php)",
       "Bash(grep -iB1 reverb)",
       "Bash([ -f \"$d/package.json\" ])",
-      "Bash(grep '\"main\"' __TRACKED_VAR__/package.json)"
+      "Bash(grep '\"main\"' __TRACKED_VAR__/package.json)",
+      "Bash(node -e \"console.log\\(JSON.stringify\\(require\\('./apps/frontend-crm/package.json'\\).scripts,null,2\\)\\)\")",
+      "Bash(node -e \"console.log\\(JSON.stringify\\(require\\('./package.json'\\).scripts||{},null,2\\)\\)\")",
+      "Bash(grep -q '\"__TRACKED_VAR__\"' apps/__TRACKED_VAR__/package.json)",
+      "Bash(node -e \"const j=require\\('./google-services.json'\\); console.log\\('project:', j.project_info.project_id\\); console.log\\('key:', j.client[0].api_key[0].current_key\\); console.log\\('package:', j.client[0].client_info.android_client_info.package_name\\);\")",
+      "Bash(php -l app/Http/Controllers/Api/V1/Auth/StudentAuthController.php)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" -X POST http://localhost:8000/api/v1/auth/request-otp -H \"Content-Type: application/json\" -H \"Accept: application/json\" -d '{\"phone\":\"0791234567\"}')",
+      "Bash(curl -s -o /dev/null -w \"format-check -> HTTP %{http_code}\\\\n\" -X POST http://localhost:8000/api/v1/auth/request-otp -H \"Content-Type: application/json\" -H \"Accept: application/json\" -d '{\"phone\":\"abc123\"}')",
+      "Bash(curl -s -o /dev/null -X POST http://localhost:8000/api/v1/auth/check-phone -H \"Content-Type: application/json\" -d '{\"phone\":\"0790000000\"}')",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" -X POST http://localhost:8000/api/v1/auth/request-otp -H \"Content-Type: application/json\" -H \"Accept: application/json\" -d '{\"phone\":\"0795558888\"}')"
     ]
   }
 }

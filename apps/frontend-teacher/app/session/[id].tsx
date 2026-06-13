@@ -14,6 +14,7 @@ import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { sessionsApi, type TeacherSession, type SessionStartError } from '@/api/sessions';
+import { fmtManila } from '@/lib/time';
 import DemoEvaluationModal from '@/components/DemoEvaluationModal';
 import { C, shadow } from '@/theme';
 
@@ -248,7 +249,11 @@ export default function SessionDetailScreen() {
             <Text style={styles.sectionTitle}>Session Info</Text>
             <View style={styles.card}>
               <InfoRow icon="book-outline"   label="Session Name" value={lesson?.title ?? '—'} />
-              <InfoRow icon="calendar-outline" label="Time"  value={fmt(session.scheduled_at)} />
+              <InfoRow
+                icon="calendar-outline"
+                label="Time"
+                value={`${fmt(session.scheduled_at)}${session.scheduled_at ? `\n🇵🇭 ${fmtManila(session.scheduled_at)} (Manila)` : ''}`}
+              />
               {level && (
                 <InfoRow
                   icon="layers-outline"

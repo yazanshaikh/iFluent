@@ -14,6 +14,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\RateLimiter;
 
 class StudentAuthController extends Controller
 {
@@ -33,6 +34,70 @@ class StudentAuthController extends Controller
     public function checkPhone(Request $request): JsonResponse
     {
         $request->validate(['phone' => ['required', 'string', 'max:20']]);
+
+        $exists = User::where('phone', $request->phone)
+            ->where('role', User::ROLE_STUDENT)
+            ->exists();
+
+        return response()->json(['exists' => $exists]);
+    }
+
+    /**
+     * Step 1-A (protected): gate called RIGHT BEFORE the client triggers the
+     * Firebase OTP SMS. Because the SMS is sent client-side by Firebase, this is
+     * the server's only chance to throttle abuse and protect the SMS budget.
+     *
+     * Protection layers:
+     *   1. Format validation — phone must be a plausible number (cuts junk).
+     *   2. Rate limiting — max 3 OTP requests / hour, BOTH per phone AND per IP.
+     *
+     * POST /api/v1/auth/request-otp   Body: { phone }
+     *   200 { exists: bool }   → frontend may proceed to Firebase OTP
+     *   422                    → invalid phone format
+     *   429 { message, retry_after } → limit reached
+     */
+    public function requestOtp(Request $request): JsonResponse
+    {
+        $request->validate([
+            // 7–15 digits, optional leading +. Blocks obviously invalid input
+            // before we ever touch Firebase.
+            'phone' => ['required', 'string', 'regex:/^\+?[0-9]{7,15}$/'],
+        ], [
+            'phone.regex' => 'رقم الهاتف غير صحيح. أدخل رقماً صالحاً.',
+        ]);
+
+        // Normalise to digits-only so "+962791…", "0791…" share one limiter key.
+        $normalized = preg_replace('/\D/', '', $request->phone);
+        $window     = 3600; // 1 hour
+
+        // Two limiters:
+        //   • phone → 3/hour : precise protection of the SMS budget (one number
+        //     can't be spammed with OTPs). Works regardless of network setup.
+        //   • ip    → 10/hour: coarse safety-net against one source trying MANY
+        //     numbers. Higher cap avoids locking out households/NAT/proxy that
+        //     legitimately share an IP. (For an exact per-IP cap, the server must
+        //     see the real client IP — configure a trusted proxy / real_ip in prod.)
+        $limits = [
+            ['key' => 'otp:phone:' . $normalized,   'max' => 3],
+            ['key' => 'otp:ip:' . $request->ip(),   'max' => 10],
+        ];
+
+        foreach ($limits as $l) {
+            if (RateLimiter::tooManyAttempts($l['key'], $l['max'])) {
+                $retryAfter = RateLimiter::availableIn($l['key']);
+                $minutes    = (int) ceil($retryAfter / 60);
+
+                return response()->json([
+                    'message'     => "لقد طلبت رمز التحقق عدة مرات. يرجى المحاولة بعد {$minutes} دقيقة.",
+                    'retry_after' => $retryAfter,
+                ], 429);
+            }
+        }
+
+        // Count this request against both limiters (each decays after 1 hour).
+        foreach ($limits as $l) {
+            RateLimiter::hit($l['key'], $window);
+        }
 
         $exists = User::where('phone', $request->phone)
             ->where('role', User::ROLE_STUDENT)

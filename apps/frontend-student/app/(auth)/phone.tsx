@@ -20,6 +20,7 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import auth from '@react-native-firebase/auth';
 import { authApi } from '@/api/auth';
+import { toE164 } from '@/lib/phone';
 import { useAuthStore } from '@/stores/authStore';
 
 const SECRET_CODE = '221133'; // bypass code — no SMS needed
@@ -96,33 +97,45 @@ export default function PhoneScreen() {
   // ── LOGIN ──────────────────────────────────────────────────────────────
   const handleLogin = async () => {
     const cleaned = phone.trim().replace(/\s/g, '');
-    if (cleaned.length < 9) {
-      Alert.alert('تنبيه', 'الرجاء إدخال رقم هاتف صحيح');
+
+    // ① Validate format BEFORE any network/Firebase call (saves SMS budget)
+    const e164 = toE164(cleaned);
+    if (!e164) {
+      Alert.alert('تنبيه', 'الرجاء إدخال رقم هاتف صحيح بصيغة دولية، مثال: +9627XXXXXXXX');
       return;
     }
 
     setLoading(true);
     setNotFound(false);
     try {
-      // Step 1: check backend
-      const { exists } = await authApi.checkPhone(cleaned);
+      // ② Rate-limited backend gate (3 OTP/hour per phone + per IP).
+      //    Returns { exists }; throws 429 if the limit is reached.
+      const { exists } = await authApi.requestOtp(cleaned);
 
       if (!exists) {
         setNotFound(true);
         return;
       }
 
-      // Step 2: trigger Firebase Phone Auth
-      // Phone must be in E.164 format e.g. +962791234567
-      const e164 = cleaned.startsWith('+') ? cleaned : `+962${cleaned.replace(/^0/, '')}`;
+      // ③ Trigger Firebase Phone Auth. On native, Firebase runs Play Integrity
+      //    (Android) / APNs-silent-push + reCAPTCHA fallback (iOS) automatically
+      //    to verify a real human/device before sending the SMS.
       const confirmation = await auth().signInWithPhoneNumber(e164);
 
       setConfirmationResult(confirmation);
       router.push({ pathname: '/(auth)/verify', params: { phone: cleaned } });
 
     } catch (err: any) {
-      const msg = err?.response?.data?.message ?? err?.message ?? 'تعذر الاتصال. حاول مجدداً.';
-      Alert.alert('خطأ', msg);
+      const status = err?.response?.status;
+      if (status === 429) {
+        Alert.alert(
+          'محاولات كثيرة ⏳',
+          err?.response?.data?.message ?? 'لقد طلبت رمز التحقق عدة مرات. حاول لاحقاً.',
+        );
+      } else {
+        const msg = err?.response?.data?.message ?? err?.message ?? 'تعذر الاتصال. حاول مجدداً.';
+        Alert.alert('خطأ', msg);
+      }
     } finally {
       setLoading(false);
     }

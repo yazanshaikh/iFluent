@@ -11,6 +11,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { sessionsApi, type TeacherSession } from '@/api/sessions';
+import { fmtManila } from '@/lib/time';
 import { C, shadow, STATUS_COLOR, STATUS_LABEL } from '@/theme';
 
 function fmt(iso: string | null) {
@@ -53,6 +54,9 @@ function SessionCard({ session, onPress }: { session: TeacherSession; onPress: (
             <Text style={[styles.badgeTxt, { color }]}>{label}</Text>
           </View>
           <Text style={styles.cardTime}>{fmt(session.scheduled_at)}</Text>
+          {session.scheduled_at && (
+            <Text style={styles.cardTimePH}>🇵🇭 {fmtManila(session.scheduled_at)} (Manila)</Text>
+          )}
         </View>
 
         <Text style={styles.studentName}>{session.student?.name ?? 'Student'}</Text>
@@ -177,6 +181,7 @@ const styles = StyleSheet.create({
   badgeDot: { width: 6, height: 6, borderRadius: 3 },
   badgeTxt: { fontSize: 11, fontWeight: '700' },
   cardTime: { fontSize: 11, color: C.grayMid },
+  cardTimePH: { fontSize: 10, color: C.sky, fontWeight: '700', marginTop: 1 },
   studentName: { fontSize: 16, fontWeight: '800', color: C.skyDark, textAlign: 'right', marginBottom: 4 },
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: 6, justifyContent: 'flex-end', marginBottom: 4 },
   metaTxt: { fontSize: 12, color: C.grayMid, flex: 1, textAlign: 'right' },

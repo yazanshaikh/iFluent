@@ -75,6 +75,7 @@ Route::prefix('auth')->group(function () {
 
     // Firebase Phone Auth flow
     Route::post('check-phone',      [StudentAuthController::class, 'checkPhone']);
+    Route::post('request-otp',      [StudentAuthController::class, 'requestOtp']); // rate-limited gate before OTP
     Route::post('register',         [StudentAuthController::class, 'register']);
     Route::post('firebase-verify',  [StudentAuthController::class, 'firebaseVerify']);
     Route::post('secret-login',     [StudentAuthController::class, 'secretLogin']);

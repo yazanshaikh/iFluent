@@ -45,6 +45,16 @@ export const authApi = {
       .post<CheckPhoneResponse>('/auth/check-phone', { phone })
       .then((r) => r.data),
 
+  /**
+   * Rate-limited gate to call right BEFORE triggering the Firebase OTP SMS.
+   * Returns { exists }. Throws 429 (with { message, retry_after }) if the phone
+   * or IP exceeded 3 OTP requests in the last hour, or 422 on invalid format.
+   */
+  requestOtp: (phone: string) =>
+    client
+      .post<CheckPhoneResponse>('/auth/request-otp', { phone })
+      .then((r) => r.data),
+
   /** Self-register a new student (creates Lead + User in backend) */
   register: (name: string, phone: string) =>
     client

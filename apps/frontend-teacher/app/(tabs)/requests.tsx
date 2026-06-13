@@ -12,6 +12,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { requestsApi, type SessionRequest } from '@/api/requests';
+import { fmtManila } from '@/lib/time';
 import { C, shadow } from '@/theme';
 
 type Tab = 'demo' | 'core' | 'private' | 'group';
@@ -48,6 +49,9 @@ function RequestCard({ req, onAccept, accepting }: {
 
         {/* Time */}
         <Text style={styles.cardTime}>{fmt(req.scheduled_at)}</Text>
+        {req.scheduled_at && (
+          <Text style={styles.cardTimePH}>🇵🇭 {fmtManila(req.scheduled_at)} (Manila)</Text>
+        )}
 
         {/* Student name + gender pref */}
         <View style={styles.studentRow}>
@@ -273,6 +277,7 @@ const styles = StyleSheet.create({
   statusTxt:   { fontSize: 11, fontWeight: '700' },
 
   cardTime:    { fontSize: 11, color: C.grayMid },
+  cardTimePH:  { fontSize: 10, color: C.sky, fontWeight: '700', marginTop: 1 },
   studentRow:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 8, marginBottom: 6 },
   cardStudent: { fontSize: 16, fontWeight: '800', color: C.skyDark, textAlign: 'right' },
   genderBadge: { borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3 },

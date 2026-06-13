@@ -18,6 +18,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import auth from '@react-native-firebase/auth';
 import { authApi } from '@/api/auth';
+import { toE164 } from '@/lib/phone';
 import { useAuthStore } from '@/stores/authStore';
 
 // ── Brand palette ──────────────────────────────────────────────────────────
@@ -48,9 +49,10 @@ export default function VerifyScreen() {
   const clearConfirmationResult = useAuthStore((s) => s.clearConfirmationResult);
   const setAuth               = useAuthStore((s) => s.setAuth);
 
-  const [digits,  setDigits]  = useState<string[]>(() => splitCode());
-  const [loading, setLoading] = useState(false);
-  const [resend,  setResend]  = useState(60);
+  const [digits,   setDigits]   = useState<string[]>(() => splitCode());
+  const [loading,  setLoading]  = useState(false);
+  const [resend,   setResend]   = useState(60);
+  const [resending, setResending] = useState(false);
 
   const boxRefs = useRef<(TextInput | null)[]>([]);
 
@@ -130,18 +132,48 @@ export default function VerifyScreen() {
   };
 
   // ── Resend via Firebase ───────────────────────────────────────────────
+  // Same protections as the first send:
+  //   ① 60s UI debounce (countdown) + in-flight guard → blocks rapid taps.
+  //   ② request-otp gate → SHARES the same 3/hour-per-phone counter, so
+  //      (first send + resends) together can't exceed the limit.
+  //   ③ signInWithPhoneNumber → re-runs the SAME human/device verifier
+  //      (Play Integrity / reCAPTCHA). Resend never bypasses it.
   const handleResend = async () => {
-    if (resend > 0 || !phone) return;
+    if (resend > 0 || resending || !phone) return;
+
+    const e164 = toE164(phone);
+    if (!e164) {
+      Alert.alert('خطأ', 'رقم الهاتف غير صالح.');
+      return;
+    }
+
+    setResending(true);
     try {
-      const e164 = phone.startsWith('+') ? phone : `+962${phone.replace(/^0/, '')}`;
+      // ② shared rate-limit counter (throws 429 when the cap is reached)
+      await authApi.requestOtp(phone);
+
+      // ③ same verifier as the initial send
       const newConfirmation = await auth().signInWithPhoneNumber(e164);
       useAuthStore.getState().setConfirmationResult(newConfirmation);
+
       setResend(60);
       setDigits(Array(6).fill(''));
       setTimeout(() => boxRefs.current[0]?.focus(), 80);
-      Alert.alert('✅ تم', 'تم إعادة إرسال الرمز  ');
+      Alert.alert('✅ تم', 'تم إعادة إرسال الرمز');
     } catch (err: any) {
-      Alert.alert('خطأ', err?.message ?? 'تعذر إعادة الإرسال.');
+      const status = err?.response?.status;
+      if (status === 429) {
+        Alert.alert(
+          'محاولات كثيرة ⏳',
+          err?.response?.data?.message ?? 'لقد طلبت الرمز عدة مرات. حاول لاحقاً.',
+        );
+        // Keep the button locked even past the 60s so they wait out the window.
+        setResend(60);
+      } else {
+        Alert.alert('خطأ', err?.response?.data?.message ?? err?.message ?? 'تعذر إعادة الإرسال.');
+      }
+    } finally {
+      setResending(false);
     }
   };
 
@@ -214,13 +246,17 @@ export default function VerifyScreen() {
           <TouchableOpacity
             style={styles.resendRow}
             onPress={handleResend}
-            disabled={resend > 0}
+            disabled={resend > 0 || resending}
           >
-            <Text style={[styles.resendTxt, resend > 0 && styles.resendOff]}>
-              {resend > 0
-                ? `⏱️  إعادة الإرسال بعد ${resend} ثانية`
-                : '🔄  إعادة إرسال الرمز'}
-            </Text>
+            {resending ? (
+              <ActivityIndicator color={C.navy} size="small" />
+            ) : (
+              <Text style={[styles.resendTxt, resend > 0 && styles.resendOff]}>
+                {resend > 0
+                  ? `⏱️  إعادة الإرسال بعد ${resend} ثانية`
+                  : '🔄  إعادة إرسال الرمز'}
+              </Text>
+            )}
           </TouchableOpacity>
 
           <View style={styles.infoBox}>
