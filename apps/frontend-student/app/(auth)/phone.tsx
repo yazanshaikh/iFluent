@@ -87,7 +87,7 @@ export default function PhoneScreen() {
       await useAuthStore.getState().setAuth(token, user);
       router.replace('/(tabs)/levels');
     } catch (err: any) {
-      const msg = err?.response?.data?.message ?? 'تعذر تسجيل الدخول.';
+      const msg = err?.response?.data?.message ?? err?.message ?? 'تعذر تسجيل الدخول.';
       Alert.alert('خطأ', msg);
     } finally {
       setLoading(false);

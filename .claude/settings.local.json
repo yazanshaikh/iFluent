@@ -209,7 +209,13 @@
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" -X POST http://localhost:8000/api/v1/auth/request-otp -H \"Content-Type: application/json\" -H \"Accept: application/json\" -d '{\"phone\":\"0791234567\"}')",
       "Bash(curl -s -o /dev/null -w \"format-check -> HTTP %{http_code}\\\\n\" -X POST http://localhost:8000/api/v1/auth/request-otp -H \"Content-Type: application/json\" -H \"Accept: application/json\" -d '{\"phone\":\"abc123\"}')",
       "Bash(curl -s -o /dev/null -X POST http://localhost:8000/api/v1/auth/check-phone -H \"Content-Type: application/json\" -d '{\"phone\":\"0790000000\"}')",
-      "Bash(curl -s -o /dev/null -w \"%{http_code}\" -X POST http://localhost:8000/api/v1/auth/request-otp -H \"Content-Type: application/json\" -H \"Accept: application/json\" -d '{\"phone\":\"0795558888\"}')"
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" -X POST http://localhost:8000/api/v1/auth/request-otp -H \"Content-Type: application/json\" -H \"Accept: application/json\" -d '{\"phone\":\"0795558888\"}')",
+      "Bash(node -e \"const e=require\\('./eas.json'\\); console.log\\('preview:', JSON.stringify\\(e.build.preview\\)\\); console.log\\('production:', JSON.stringify\\(e.build.production.android\\)\\);\")",
+      "Bash(node -e \"const e=require\\('./eas.json'\\); console.log\\('production buildType:', e.build.production.android.buildType\\); console.log\\('preview buildType:', e.build.preview.android.buildType\\);\")",
+      "Bash(docker rm *)",
+      "Bash(docker run *)",
+      "Bash(curl -s -o /dev/null -w \"GET /api/v1 -> HTTP %{http_code}\\\\n\" https://becomes-tour-pleasant-extra.trycloudflare.com/api/v1)",
+      "Bash(curl -s -o /dev/null -w \"POST check-phone -> HTTP %{http_code}\\\\n\" -X POST https://becomes-tour-pleasant-extra.trycloudflare.com/api/v1/auth/check-phone -H \"Content-Type: application/json\" -H \"Accept: application/json\" -d '{\"phone\":\"0790000000\"}')"
     ]
   }
 }
