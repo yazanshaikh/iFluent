@@ -145,20 +145,32 @@ function RemarksHistory({ remarks, open, onToggle }: { remarks: Remark[]; open: 
 /** الحالات التي يختارها الموظف يدوياً — open_sea وsubscriber تتغير نظامياً */
 const SELECTABLE_STATUSES: LeadStatus[] = ['new', 'in_progress', 'interested', 'not_interested', 'postponed'];
 
-/* ── Time slots 9 AM → 12 AM (16 slots × 4 cols) ── */
-const TIME_SLOTS = Array.from({ length: 16 }, (_, i) => {
-  const hour   = i + 9;                           // 9 … 24 (00)
-  const display = hour === 24 ? 0 : hour;
-  const h      = display === 0 ? 12 : display > 12 ? display - 12 : display;
-  const period = display < 12 ? 'ص' : 'م';
-  return { hour: hour === 24 ? 0 : hour, label: `${h}:00 ${period}` };
-});
+/* ── Time slots 9:00 AM → 12:00 AM (midnight), every 30 min ──
+   Each slot is identified by MINUTES from midnight (540 … 1440). Using minutes
+   (not a 0–24 hour) avoids the old bug where the midnight slot collapsed to
+   hour 0 and was therefore always treated as "past" today. 1440 = 24:00 = the
+   midnight that ENDS the day (booked as 00:00 the next day). */
+const SLOT_START_MIN = 9 * 60;    // 9:00 AM
+const SLOT_END_MIN   = 24 * 60;   // 12:00 AM (midnight), inclusive
+const SLOT_STEP_MIN  = 30;        // half-hour gaps
+
+const TIME_SLOTS = Array.from(
+  { length: Math.floor((SLOT_END_MIN - SLOT_START_MIN) / SLOT_STEP_MIN) + 1 },
+  (_, i) => {
+    const min    = SLOT_START_MIN + i * SLOT_STEP_MIN;  // 540 … 1440
+    const h24    = Math.floor(min / 60) % 24;           // 9 … 23, then 0 at 1440
+    const mm     = min % 60;
+    const h12    = h24 % 12 === 0 ? 12 : h24 % 12;
+    const period = h24 < 12 ? 'ص' : 'م';
+    return { min, label: `${h12}:${String(mm).padStart(2, '0')} ${period}` };
+  },
+);
 
 /** هل الـ slot ما زال قابلاً للحجز؟ (30 دقيقة على الأقل من الآن) */
-function isSlotAvailable(hour: number, dateMode: 'today' | 'tomorrow' | 'custom'): boolean {
+function isSlotAvailable(min: number, dateMode: 'today' | 'tomorrow' | 'custom'): boolean {
   if (dateMode !== 'today') return true;
   const now = new Date();
-  return hour * 60 >= now.getHours() * 60 + now.getMinutes() + 30;
+  return min >= now.getHours() * 60 + now.getMinutes() + 30;
 }
 
 export default function LeadProfilePage() {
@@ -192,7 +204,7 @@ export default function LeadProfilePage() {
   const [bookStep,       setBookStep]       = useState<1 | 2 | 'success'>(1);
   const [bookDateMode,   setBookDateMode]   = useState<'today' | 'tomorrow' | 'custom'>('today');
   const [bookCustomDate, setBookCustomDate] = useState('');
-  const [bookHour,       setBookHour]       = useState<number | null>(null);
+  const [bookMin,        setBookMin]        = useState<number | null>(null);
   const [bookNotes,      setBookNotes]      = useState('');
   const [bookError,      setBookError]      = useState('');
 
@@ -480,7 +492,7 @@ export default function LeadProfilePage() {
       setBookStep(1);
       setBookDateMode('today');
       setBookCustomDate('');
-      setBookHour(null);
+      setBookMin(null);
       setBookNotes('');
       setBookError('');
       setBookApiError(null);
@@ -489,10 +501,10 @@ export default function LeadProfilePage() {
 
   const handleNext1 = () => {
     if (bookDateMode === 'custom' && !bookCustomDate) { setBookError('الرجاء اختيار تاريخ أولاً'); return; }
-    if (bookHour === null) { setBookError('الرجاء اختيار وقت للحصة'); return; }
-    if (!isSlotAvailable(bookHour, bookDateMode)) {
+    if (bookMin === null) { setBookError('الرجاء اختيار وقت للحصة'); return; }
+    if (!isSlotAvailable(bookMin, bookDateMode)) {
       setBookError('هذا الوقت انتهى — اختر وقتاً لاحقاً أو تاريخاً آخر');
-      setBookHour(null);
+      setBookMin(null);
       return;
     }
     setBookError('');
@@ -501,14 +513,21 @@ export default function LeadProfilePage() {
   };
 
   const handleBookSubmit = () => {
-    if (bookHour === null) return;
+    if (bookMin === null) return;
     const todayStr    = new Date().toISOString().split('T')[0];
     const tomorrowD   = new Date(); tomorrowD.setDate(tomorrowD.getDate() + 1);
     const tomorrowStr = tomorrowD.toISOString().split('T')[0];
     const dateStr     = bookDateMode === 'today' ? todayStr
                       : bookDateMode === 'tomorrow' ? tomorrowStr
                       : bookCustomDate;
-    const dt = new Date(`${dateStr}T${String(bookHour).padStart(2, '0')}:00:00`);
+    // Build the local datetime from minutes-since-midnight. 1440 (midnight that
+    // ENDS the day) rolls over to 00:00 of the next day.
+    const dayOffset = Math.floor(bookMin / 1440);
+    const h = Math.floor((bookMin % 1440) / 60);
+    const m = bookMin % 60;
+    const dt = new Date(`${dateStr}T00:00:00`);
+    dt.setDate(dt.getDate() + dayOffset);
+    dt.setHours(h, m, 0, 0);
     bookMutation.mutate({ scheduled_at: dt.toISOString(), notes: bookNotes || undefined });
   };
 
@@ -1219,7 +1238,7 @@ export default function LeadProfilePage() {
                       <button
                         key={mode}
                         type="button"
-                        onClick={() => { setBookDateMode(mode); setBookHour(null); setBookError(''); }}
+                        onClick={() => { setBookDateMode(mode); setBookMin(null); setBookError(''); }}
                         className={`rounded-xl border-2 px-2 py-2.5 text-sm font-semibold transition-all text-center ${
                           bookDateMode === mode
                             ? 'border-amber-400 border-b-amber-600 border-b-[3px] bg-amber-50 dark:bg-amber-950/30 text-foreground'
@@ -1252,17 +1271,17 @@ export default function LeadProfilePage() {
                 <Label>الوقت</Label>
                 <div className="grid grid-cols-4 gap-2">
                   {TIME_SLOTS.map((slot) => {
-                    const available = isSlotAvailable(slot.hour, bookDateMode);
+                    const available = isSlotAvailable(slot.min, bookDateMode);
                     return (
                       <button
-                        key={slot.hour}
+                        key={slot.min}
                         type="button"
                         disabled={!available}
-                        onClick={() => { setBookHour(slot.hour); setBookError(''); }}
+                        onClick={() => { setBookMin(slot.min); setBookError(''); }}
                         className={`rounded-xl border-2 py-2 text-sm font-medium transition-all ${
                           !available
                             ? 'border-border/40 bg-muted/20 text-muted-foreground/30 cursor-not-allowed line-through'
-                            : bookHour === slot.hour
+                            : bookMin === slot.min
                             ? 'border-amber-400 border-b-amber-600 border-b-[3px] bg-amber-50 dark:bg-amber-950/30 text-foreground font-bold'
                             : 'border-border bg-muted/40 text-muted-foreground hover:bg-muted'
                         }`}

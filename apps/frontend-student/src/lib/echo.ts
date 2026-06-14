@@ -1,7 +1,7 @@
 /**
  * Real-time WebSocket for Laravel Reverb.
- * ✅ Uses React Native built-in WebSocket — zero native modules needed
- * ✅ Works in Expo Go without any native build
+ * Uses React Native built-in WebSocket — zero native modules needed
+ * Works in Expo Go without any native build
  */
 
 const REVERB_HOST = process.env.EXPO_PUBLIC_REVERB_HOST    ?? '192.168.0.101';

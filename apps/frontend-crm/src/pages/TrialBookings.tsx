@@ -16,7 +16,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Search, Filter, CalendarClock, ChevronLeft, X, CalendarRange } from 'lucide-react';
 
 /* ── Status helpers ─────────────────────────────────────────────────────────── */
-// ✅ Support both SessionRequest statuses AND Session statuses
+// Support both SessionRequest statuses AND Session statuses
 const STATUS_LABEL: Record<string, string> = {
   pending:   'بانتظار التنفيذ',
   confirmed: 'مؤكدة',

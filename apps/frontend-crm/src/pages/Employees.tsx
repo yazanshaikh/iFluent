@@ -207,7 +207,7 @@ export default function EmployeesPage() {
   const navigate          = useNavigate();
   const [addOpen, setAddOpen] = useState(false);
 
-  // ✅ جميع الـ hooks يجب أن تُستدعى قبل أي return مشروط (React Rules of Hooks)
+  // جميع الـ hooks يجب أن تُستدعى قبل أي return مشروط (React Rules of Hooks)
   const { data: rawStaff, isLoading, isError } = useQuery({
     queryKey: ['staff'],
     queryFn:  staffApi.list,

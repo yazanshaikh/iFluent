@@ -2,14 +2,14 @@
  * Session Profile — بروفايل الحصة
  *
  * Layout:
- *  ┌─────────────────────────────┐
- *  │  LinearGradient hero        │  ← lesson title + meta
- *  ├─────────────────────────────┤
+ * ┌─────────────────────────────┐
+ * │  LinearGradient hero        │  ← lesson title + meta
+ * ├─────────────────────────────┤
  *
- *  │  Card: الحصة المباشرة          │
- *  │  Card: الكويز               │
- *  └─────────────────────────────┘
- *  FAB ↘ PDF download
+ * │  Card: الحصة المباشرة          │
+ * │  Card: الكويز               │
+ * └─────────────────────────────┘
+ * FAB ↘ PDF download
  */
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import {
@@ -259,19 +259,19 @@ export default function SessionProfileScreen() {
 
   // ── Real-time: subscribe to session events via Reverb ─────────────────────
   useEffect(() => {
-    // ⚠️ CRITICAL GUARD 1: Wait for auth hydration (data loading)
+    // CRITICAL GUARD 1: Wait for auth hydration (data loading)
     if (!hydrated) {
       console.log('[SESSION-PROFILE] ⏳ Reverb: waiting for auth hydration...');
       return;  // ← EXIT if not hydrated
     }
 
-    // ⚠️ CRITICAL GUARD 2: Verify both token AND userId exist
+    // CRITICAL GUARD 2: Verify both token AND userId exist
     if (!token || !userId) {
       console.log(`[SESSION-PROFILE] ❌ Reverb: blocked (token=${!!token}, userId=${!!userId})`);
       return;  // ← EXIT if credentials missing
     }
 
-    // ✅ NOW SAFE: All guards passed, proceed with Reverb connection
+    // NOW SAFE: All guards passed, proceed with Reverb connection
     console.log(`[SESSION-PROFILE] 🔌 Connecting to Reverb: student.${userId}`);
 
     const cleanupFns: (() => void)[] = [];
@@ -323,7 +323,7 @@ export default function SessionProfileScreen() {
       return sessionsApi.getProfile(sessionId);
     },
     staleTime:    0,
-    // ⏱️ Poll while waiting OR after session ends
+    // Poll while waiting OR after session ends
     // - While waiting (status='waiting'): poll every 10s
     // - While active (status='active'): don't poll (WebSocket handles it)
     // - After completed (status='completed'): poll once to get final lesson
@@ -339,7 +339,7 @@ export default function SessionProfileScreen() {
   // Merge real-time override with query data
   const data = rawData ? { ...rawData, ...(rtData ?? {}) } : rawData;
 
-  // ✅ When session ends → invalidate sessions list so it updates immediately
+  // When session ends → invalidate sessions list so it updates immediately
   const prevStatusRef = useRef<string | undefined>(undefined);
   useEffect(() => {
     const prev = prevStatusRef.current;
@@ -352,7 +352,7 @@ export default function SessionProfileScreen() {
     prevStatusRef.current = curr;
   }, [data?.status, qc]);
 
-  // ✅ Auto-show rating modal: attended + not rated + not shown yet
+  // Auto-show rating modal: attended + not rated + not shown yet
   useEffect(() => {
     if (
       data?.status === 'completed' &&

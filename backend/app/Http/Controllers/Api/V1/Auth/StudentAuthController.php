@@ -9,6 +9,7 @@ use App\Models\Lead;
 use App\Models\OtpCode;
 use App\Models\Student;
 use App\Models\User;
+use App\Support\Phone;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -35,7 +36,8 @@ class StudentAuthController extends Controller
     {
         $request->validate(['phone' => ['required', 'string', 'max:20']]);
 
-        $exists = User::where('phone', $request->phone)
+        $phone  = Phone::toE164($request->phone) ?? $request->phone;
+        $exists = User::where('phone', $phone)
             ->where('role', User::ROLE_STUDENT)
             ->exists();
 
@@ -99,7 +101,8 @@ class StudentAuthController extends Controller
             RateLimiter::hit($l['key'], $window);
         }
 
-        $exists = User::where('phone', $request->phone)
+        $phone  = Phone::toE164($request->phone) ?? $request->phone;
+        $exists = User::where('phone', $phone)
             ->where('role', User::ROLE_STUDENT)
             ->exists();
 
@@ -117,6 +120,11 @@ class StudentAuthController extends Controller
      */
     public function register(Request $request): JsonResponse
     {
+        // Canonicalise BEFORE the unique check so "07…" and "+9627…" collide.
+        if ($request->filled('phone')) {
+            $request->merge(['phone' => Phone::toE164($request->phone) ?? $request->phone]);
+        }
+
         $data = $request->validate([
             'name'  => ['required', 'string', 'max:100'],
             'phone' => ['required', 'string', 'max:20', 'unique:users,phone'],
@@ -159,6 +167,9 @@ class StudentAuthController extends Controller
         if (! $phone) {
             return response()->json(['message' => 'Invalid or expired Firebase token.'], 401);
         }
+
+        // Token phone is already E.164, but canonicalise to be 100% consistent.
+        $phone = Phone::toE164($phone) ?? $phone;
 
         $user = DB::transaction(function () use ($phone) {
             $user = User::firstOrCreate(
@@ -212,7 +223,7 @@ class StudentAuthController extends Controller
      */
     public function sendOtp(SendOtpRequest $request): JsonResponse
     {
-        $phone = $request->phone;
+        $phone = Phone::toE164($request->phone) ?? $request->phone;
 
         OtpCode::where('phone', $phone)
             ->whereNull('used_at')
@@ -242,7 +253,7 @@ class StudentAuthController extends Controller
      */
     public function verifyOtp(VerifyOtpRequest $request): JsonResponse
     {
-        $phone = $request->phone;
+        $phone = Phone::toE164($request->phone) ?? $request->phone;
 
         $otp = OtpCode::where('phone', $phone)
             ->where('code', $request->code)
@@ -308,7 +319,8 @@ class StudentAuthController extends Controller
     /**
      * POST /api/v1/auth/secret-login
      * Bypass SMS — for internal testing only.
-     * Accepts { phone, secret } where secret must match the env/hardcoded key.
+     * Accepts { phone, secret }. The code lives in SECRET_LOGIN_CODE; when that
+     * env var is unset the bypass is disabled (production-safe by default).
      */
     public function secretLogin(Request $request): JsonResponse
     {
@@ -317,12 +329,14 @@ class StudentAuthController extends Controller
             'secret' => ['required', 'string'],
         ]);
 
-        // Hardcoded secret — matches the frontend constant
-        if ($request->secret !== '221133') {
+        $code = config('services.student_auth.secret_login_code');
+
+        // Disabled when no code is configured; otherwise must match exactly.
+        if (empty($code) || $request->secret !== $code) {
             return response()->json(['message' => 'رمز سري غير صحيح.'], 401);
         }
 
-        $phone = $request->phone;
+        $phone = Phone::toE164($request->phone) ?? $request->phone;
 
         $user = User::where('phone', $phone)->where('role', User::ROLE_STUDENT)->first();
 

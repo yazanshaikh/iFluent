@@ -44,6 +44,18 @@ class User extends Authenticatable
         ];
     }
 
+    /**
+     * Always store phone numbers in canonical E.164 so the SAME human number
+     * never produces duplicate user rows (Firebase sends +962…, secret-login
+     * sends 07…, the CRM sometimes uses Arabic-Indic digits ٠٧…).
+     */
+    public function setPhoneAttribute($value): void
+    {
+        $this->attributes['phone'] = $value === null
+            ? null
+            : \App\Support\Phone::normalizeOrRaw($value);
+    }
+
     // ─── Role Helpers ─────────────────────────────────────────────────────────
 
     public function isSuperAdmin(): bool

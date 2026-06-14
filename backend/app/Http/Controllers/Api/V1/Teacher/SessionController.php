@@ -50,11 +50,11 @@ class SessionController extends Controller
      * Schedule a session for a student.
      *
      * Regular lesson   (is_assessment = false):
-     *   → Student MUST have an active subscription and be enrolled in the lesson's unit.
+     * → Student MUST have an active subscription and be enrolled in the lesson's unit.
      *
      * Assessment lesson (is_assessment = true):
-     *   → Student must NOT have any active subscription.
-     *     (Used to evaluate prospects before they buy.)
+     * → Student must NOT have any active subscription.
+     * (Used to evaluate prospects before they buy.)
      */
     public function store(Request $request): SessionResource|JsonResponse
     {
@@ -178,13 +178,13 @@ class SessionController extends Controller
             ], 422);
         }
 
-        // ⚠️ TIMING VALIDATION: Teacher can only start within 15 minutes BEFORE scheduled time
+        // TIMING VALIDATION: Teacher can only start within 15 minutes BEFORE scheduled time
         $now = now();
         $scheduledTime = Carbon::parse($session->scheduled_at);
         $fifteenMinutesBefore = $scheduledTime->copy()->subMinutes(15);
         $gracePeriod = $scheduledTime->copy()->addMinutes(15);
 
-        // ❌ Too early: before 15 min window
+        // Too early: before 15 min window
         if ($now->isBefore($fifteenMinutesBefore)) {
             $minutesUntilWindow = $fifteenMinutesBefore->diffInMinutes($now);
             return response()->json([
@@ -197,7 +197,7 @@ class SessionController extends Controller
             ], 422);
         }
 
-        // ❌ Too late: after grace period
+        // Too late: after grace period
         if ($now->isAfter($gracePeriod)) {
             $minutesLate = $now->diffInMinutes($gracePeriod);
             return response()->json([
@@ -248,7 +248,7 @@ class SessionController extends Controller
 
             $session->update($update);
 
-            // ✅ Mark teacher as PRESENT (they clicked start)
+            // Mark teacher as PRESENT (they clicked start)
             SessionAttendanceService::markTeacherPresent($session);
         });
 
@@ -324,7 +324,7 @@ class SessionController extends Controller
         // teacher_absent = !teacher_present (set by scheduler or auto-expire)
         $endedAt = now();
 
-        // ✅ Auto-determine attendance from presence flags (no manual input needed)
+        // Auto-determine attendance from presence flags (no manual input needed)
         $attendance = SessionAttendanceService::determineAttendanceStatus($session);
 
         if ($session->daily_room_name) {
@@ -339,7 +339,7 @@ class SessionController extends Controller
                 'attendance_status' => $attendance,
             ]);
 
-            // ✅ Update SessionRequest updated_at timestamp so it stays visible in CRM for 24h
+            // Update SessionRequest updated_at timestamp so it stays visible in CRM for 24h
             // The CRM now uses Session.status (completed) instead of SessionRequest.status
             $sessionRequest = \App\Models\SessionRequest::where('session_id', $session->id)->first();
             if ($sessionRequest) {
@@ -358,17 +358,16 @@ class SessionController extends Controller
             // النقطة تُخصم عند الحجز مسبقاً.
             // عند إنهاء الحصة:
             //
-            // attended      → النقطة تبقى مخصومة ✅ + تقدم للدرس التالي
+            // attended      → النقطة تبقى مخصومة  + تقدم للدرس التالي
             //
-            // absent        → النقطة تبقى مخصومة ✅ (الطالب مسؤول)
-            //                 لا تقدم (يبقى على نفس الدرس)
+            // absent        → النقطة تبقى مخصومة  (الطالب مسؤول)
+            // لا تقدم (يبقى على نفس الدرس)
             //
-            // teacher_absent → ترجع النقطة للطالب 🔄 + لا تقدم
+            // teacher_absent → ترجع النقطة للطالب  + لا تقدم
             //
             if ($attendance === Session::ATTENDANCE_TEACHER_ABSENT) {
-                // المعلم غاب — أرجع النقطة للطالب
-                if ($session->student_id) {
-                    $session->student->increment('lesson_credits');
+                // المعلم غاب — أرجع النقطة للطالب (مرة واحدة فقط، آمن ضد التسابق)
+                if ($session->refundCreditOnce()) {
                     \Log::info("Credit refunded (teacher_absent)", ['student_id' => $session->student_id]);
                 }
                 return;

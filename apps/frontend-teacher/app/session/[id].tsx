@@ -57,7 +57,7 @@ export default function SessionDetailScreen() {
     staleTime: 15_000,
   });
 
-  // ⏱️ Countdown timer — update every second
+  // Countdown timer — update every second
   // Window: (scheduled_at - 15 min) to (scheduled_at + 15 min)
   useEffect(() => {
     if (!session?.scheduled_at) return;

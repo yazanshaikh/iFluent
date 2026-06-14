@@ -51,8 +51,9 @@ class ProfileController extends Controller
 
     public function updateFcmToken(Request $request): JsonResponse
     {
-        $request->validate(['fcm_token' => ['required', 'string']]);
-        $request->user()->update(['fcm_token' => $request->fcm_token]);
-        return response()->json(['message' => 'Device token registered.']);
+        // Nullable so the client can CLEAR the token (notifications turned off).
+        $request->validate(['fcm_token' => ['present', 'nullable', 'string']]);
+        $request->user()->update(['fcm_token' => $request->fcm_token ?: null]);
+        return response()->json(['message' => 'Device token updated.']);
     }
 }

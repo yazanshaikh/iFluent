@@ -4,7 +4,6 @@ namespace App\Console;
 
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Console\Kernel as ConsoleKernel;
-use App\Services\SessionAttendanceService;
 
 class Kernel extends ConsoleKernel
 {
@@ -13,13 +12,10 @@ class Kernel extends ConsoleKernel
      */
     protected function schedule(Schedule $schedule): void
     {
-        // ⚠️ CRITICAL: Auto-expire sessions every 5 minutes
-        // Ends any active session that has been running for > 1 hour
-        $schedule->call(function () {
-            SessionAttendanceService::handleAutoExpiry();
-        })->everyFiveMinutes()
-          ->withoutOverlapping()
-          ->runInBackground();
+        // Auto-expiry runs via the `crm:expire-sessions` command, scheduled in
+        // routes/console.php. It used to ALSO run here as a duplicate closure —
+        // both fired every 5 min on the same tick and double-refunded credits
+        // (student ended up with MORE credits than they started). Removed.
     }
 
     /**

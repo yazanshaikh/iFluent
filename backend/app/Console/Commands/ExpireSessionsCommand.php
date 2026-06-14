@@ -54,10 +54,8 @@ class ExpireSessionsCommand extends Command
             ]);
             SessionRequest::where('session_id', $session->id)->update(['updated_at' => $now]);
 
-            // Refund credit — teacher never showed up
-            if ($session->student_id) {
-                $session->student->increment('lesson_credits');
-            }
+            // Refund credit — teacher never showed up (idempotent, race-safe)
+            $session->refundCreditOnce();
 
             try { broadcast(new \App\Events\SessionEnded($session, Session::ATTENDANCE_TEACHER_ABSENT)); } catch (\Throwable) {}
         }
@@ -79,9 +77,9 @@ class ExpireSessionsCommand extends Command
             ]);
             SessionRequest::where('session_id', $session->id)->update(['updated_at' => $now]);
 
-            // Refund credit if teacher absent (credit was deducted at booking time)
-            if ($attendance === Session::ATTENDANCE_TEACHER_ABSENT && $session->student_id) {
-                $session->student->increment('lesson_credits');
+            // Refund credit if teacher absent (idempotent, race-safe)
+            if ($attendance === Session::ATTENDANCE_TEACHER_ABSENT) {
+                $session->refundCreditOnce();
             }
 
             try { broadcast(new \App\Events\SessionEnded($session, $attendance)); } catch (\Throwable) {}

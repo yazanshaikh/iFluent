@@ -20,7 +20,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { WebView } from 'react-native-webview';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { lockCurrent, unlock as unlockOrientation } from '@/lib/screenOrientation';
+import { lockCurrent, unlock as unlockOrientation, lockPortrait } from '@/lib/screenOrientation';
 import { DailyCallPanel } from '@/components/DailyCallPanel';
 import { SplitCallLayout } from '@/components/SplitCallLayout';
 import { sessionsApi, type JoinSessionResponse } from '@/api/sessions';
@@ -129,7 +129,12 @@ export default function SessionRoomScreen() {
     }
   }, [orientationLocked]);
 
-  useEffect(() => () => { unlockOrientation().catch(() => {}); }, []);
+  // Allow free rotation while in the session (landscape for the split view),
+  // then restore portrait when the screen unmounts.
+  useEffect(() => {
+    unlockOrientation().catch(() => {});
+    return () => { lockPortrait().catch(() => {}); };
+  }, []);
 
   // ── Raise Hand ────────────────────────────────────────────────────────────
   const handleRaiseHand = useCallback(async () => {
@@ -149,7 +154,7 @@ export default function SessionRoomScreen() {
     Alert.alert('مغادرة الحصة', 'هل تريد مغادرة الحصة؟ يمكنك العودة في أي وقت.', [
       { text: 'ابقَ', style: 'cancel' },
       { text: 'مغادرة', style: 'destructive', onPress: async () => {
-        if (orientationLocked) await unlockOrientation().catch(() => {});
+        await lockPortrait().catch(() => {});
         qc.invalidateQueries({ queryKey: ['sessions'] });
         router.back();
       }},

@@ -14,7 +14,7 @@ import { useState, useRef } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity,
   StyleSheet, KeyboardAvoidingView, Platform,
-  ActivityIndicator, Alert, Image, ScrollView,
+  ActivityIndicator, Alert, Image, ScrollView, Linking,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -22,8 +22,23 @@ import auth from '@react-native-firebase/auth';
 import { authApi } from '@/api/auth';
 import { toE164 } from '@/lib/phone';
 import { useAuthStore } from '@/stores/authStore';
+import { ResponsiveContainer } from '@/components/ResponsiveContainer';
+import { rf, s } from '@/lib/responsive';
 
-const SECRET_CODE = '221133'; // bypass code — no SMS needed
+// SMS-bypass code (testing). Read from env so it isn't committed in source and
+// can be omitted from production builds. Empty → the bypass UI is hidden.
+const SECRET_CODE = process.env.EXPO_PUBLIC_SECRET_LOGIN_CODE ?? '';
+
+// Terms & Conditions PDF — served from the Laravel public/ root (strip /api/v1).
+const POLICIES_URL =
+  (process.env.EXPO_PUBLIC_API_URL ?? '').replace(/\/api\/v1\/?$/, '') +
+  '/legal/ifluent-policies.pdf';
+
+const openPolicies = () => {
+  Linking.openURL(POLICIES_URL).catch(() =>
+    Alert.alert('تعذر الفتح', 'لم نتمكن من فتح ملف الشروط والأحكام. حاول لاحقاً.'),
+  );
+};
 
 // ── Brand palette ──────────────────────────────────────────────────────────
 const C = {
@@ -53,6 +68,7 @@ export default function PhoneScreen() {
   const [notFound,   setNotFound]   = useState(false);
   const [showSecret, setShowSecret] = useState(false);
   const [secretCode, setSecretCode] = useState('');
+  const [agreed,     setAgreed]     = useState(false);
 
   const switchMode = (m: Mode) => {
     setMode(m);
@@ -60,6 +76,7 @@ export default function PhoneScreen() {
     setNotFound(false);
     setShowSecret(false);
     setSecretCode('');
+    setAgreed(false);
   };
 
   // ── SECRET CODE LOGIN (bypass SMS) ─────────────────────────────────────
@@ -152,6 +169,10 @@ export default function PhoneScreen() {
       Alert.alert('تنبيه', 'الرجاء إدخال رقم هاتف صحيح');
       return;
     }
+    if (!agreed) {
+      Alert.alert('الشروط والأحكام', 'يرجى الموافقة على الشروط والأحكام قبل إنشاء الحساب.');
+      return;
+    }
 
     setLoading(true);
     try {
@@ -178,11 +199,11 @@ export default function PhoneScreen() {
       keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 24}
     >
       <ScrollView
-        contentContainerStyle={{ flexGrow: 1 }}
+        contentContainerStyle={{ flexGrow: 1, alignItems: 'center' }}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {/* ── Yellow header ─────────────────────────────────────────────── */}
+        {/* ── Yellow header (full-bleed banner) ─────────────────────────── */}
         <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
           <View style={[styles.dot, { top: insets.top + 14, left: 24, width: 50, height: 50 }]} />
           <View style={[styles.dot, { top: insets.top + 60, right: 20, width: 28, height: 28 }]} />
@@ -192,6 +213,8 @@ export default function PhoneScreen() {
           <Text style={styles.brandSub}>رحلتك في تعلم الإنجليزية 🌟</Text>
         </View>
 
+        {/* ── Centered content column (caps width on tablet/laptop) ─────── */}
+        <ResponsiveContainer gutter={0}>
         {/* ── Mascot ────────────────────────────────────────────────────── */}
         <View style={styles.mascotWrap}>
           <Image
@@ -294,11 +317,38 @@ export default function PhoneScreen() {
             </Text>
           )}
 
+          {/* Terms & Conditions agreement — register mode only */}
+          {isRegister && (
+            <TouchableOpacity
+              style={styles.termsRow}
+              onPress={() => setAgreed((v) => !v)}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.checkbox, agreed && styles.checkboxOn]}>
+                {agreed && <Text style={styles.checkboxTick}>✓</Text>}
+              </View>
+              <Text style={styles.termsTxt}>
+                أوافق على{' '}
+                <Text
+                  style={styles.termsLink}
+                  onPress={openPolicies}
+                  suppressHighlighting
+                >
+                  الشروط والأحكام
+                </Text>
+              </Text>
+            </TouchableOpacity>
+          )}
+
           {/* CTA */}
           <TouchableOpacity
-            style={[styles.btn, isRegister && styles.btnRegister, loading && styles.btnOff]}
+            style={[
+              styles.btn,
+              isRegister && styles.btnRegister,
+              (loading || (isRegister && !agreed)) && styles.btnOff,
+            ]}
             onPress={isRegister ? handleRegister : handleLogin}
-            disabled={loading}
+            disabled={loading || (isRegister && !agreed)}
             activeOpacity={0.85}
           >
             {loading
@@ -309,8 +359,8 @@ export default function PhoneScreen() {
             }
           </TouchableOpacity>
 
-          {/* ── Secret code login — login mode only ── */}
-          {!isRegister && (
+          {/* ── Secret code login — login mode only, when a code is configured ── */}
+          {!isRegister && !!SECRET_CODE && (
             <>
               <TouchableOpacity
                 onPress={() => { setShowSecret(!showSecret); setSecretCode(''); }}
@@ -354,6 +404,7 @@ export default function PhoneScreen() {
         <Text style={[styles.footer, { marginBottom: insets.bottom + 20 }]}>
           بالمتابعة، أنت توافق على شروط الاستخدام وسياسة الخصوصية
         </Text>
+        </ResponsiveContainer>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -364,6 +415,7 @@ const styles = StyleSheet.create({
 
   header: {
     backgroundColor: C.yellow,
+    alignSelf: 'stretch',
     alignItems: 'center',
     justifyContent: 'center',
     paddingBottom: 22,
@@ -383,11 +435,11 @@ const styles = StyleSheet.create({
     backgroundColor: C.white,
     opacity: 0.22,
   },
-  brandTitle: { fontSize: 34, fontWeight: '900', color: C.navy, letterSpacing: 1.5 },
-  brandSub:   { fontSize: 15, color: C.navyMid },
+  brandTitle: { fontSize: rf(34), fontWeight: '900', color: C.navy, letterSpacing: 1.5 },
+  brandSub:   { fontSize: rf(15), color: C.navyMid },
 
   mascotWrap: { alignItems: 'center', marginTop: 8, marginBottom: -8 },
-  mascot:     { width: 220, height: 220 },
+  mascot:     { width: s(200), height: s(200) },
 
   toggleWrap: { paddingHorizontal: 20, marginTop: 18, marginBottom: 16 },
   toggleBar: {
@@ -497,6 +549,28 @@ const styles = StyleSheet.create({
   btnRegister: { backgroundColor: C.yellow, shadowColor: C.amber },
   btnOff:      { opacity: 0.55 },
   btnTxt:      { color: C.white, fontSize: 16, fontWeight: '800', letterSpacing: 0.3 },
+
+  termsRow: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    gap: 10,
+    marginTop: 18,
+  },
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 7,
+    borderWidth: 2,
+    borderColor: C.border,
+    backgroundColor: C.inputBg,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkboxOn: { backgroundColor: C.navy, borderColor: C.navy },
+  checkboxTick: { color: C.white, fontSize: 15, fontWeight: '900', lineHeight: 18 },
+  termsTxt:  { flex: 1, fontSize: 13, color: C.navy, textAlign: 'right' },
+  termsLink: { color: C.amber, fontWeight: '800', textDecorationLine: 'underline' },
 
   footer: { textAlign: 'center', fontSize: 11, color: C.gray, marginTop: 22, paddingHorizontal: 36 },
 

@@ -11,8 +11,14 @@
 import { useEffect, useRef } from 'react';
 import * as Notifications from 'expo-notifications';
 import * as SecureStore    from 'expo-secure-store';
+import Constants           from 'expo-constants';
 import { Platform }        from 'react-native';
 import { profileApi }      from '@/api/profile';
+
+// EAS project id — REQUIRED by getExpoPushTokenAsync (esp. in standalone builds).
+const EAS_PROJECT_ID =
+  (Constants.expoConfig?.extra?.eas?.projectId as string | undefined) ??
+  ((Constants as any).easConfig?.projectId as string | undefined);
 
 const STORED_TOKEN_KEY = 'expo_push_token';
 
@@ -54,8 +60,10 @@ export async function registerForPushNotifications(): Promise<void> {
       });
     }
 
-    // Get Expo push token
-    const { data: token } = await Notifications.getExpoPushTokenAsync();
+    // Get Expo push token (projectId is mandatory for standalone builds)
+    const { data: token } = await Notifications.getExpoPushTokenAsync(
+      EAS_PROJECT_ID ? { projectId: EAS_PROJECT_ID } : undefined,
+    );
     if (!token) return;
 
     // Avoid redundant API calls if the token hasn't changed

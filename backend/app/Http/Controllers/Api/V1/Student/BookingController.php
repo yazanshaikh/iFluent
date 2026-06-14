@@ -236,51 +236,69 @@ class BookingController extends Controller
             }
         }
 
-        $sessionRequest = SessionRequest::create([
-            'type'                => $type,
-            'requested_by'        => $student->id,
-            'student_id'          => $student->id,
-            'lesson_id'           => $lesson?->id,
-            'target_teacher_id'   => $targetTeacherId,
-            'requested_at_utc'    => $validated['scheduled_at'],
-            'status'              => SessionRequest::STATUS_PENDING,
-            'teacher_gender_pref' => $validated['teacher_gender_pref'] ?? null,
-            'note'                => $validated['notes'] ?? null,
-        ]);
+        // ── Atomic booking: create request + deduct credit + link lead ────────
+        // Money-sensitive, so it all commits together or not at all. The student
+        // row is locked (lockForUpdate) and the balance re-checked INSIDE the
+        // transaction to stop two concurrent requests from spending the same
+        // credit (double-spend). If insufficient, abort with 403 (rolls back).
+        $sessionRequest = DB::transaction(function () use (
+            $student, $lesson, $type, $targetTeacherId, $validated
+        ) {
+            $isPaid = ! $lesson?->is_assessment;
 
-        // ── Deduct 1 credit on booking (non-assessment only) ──────────────────
-        // Assessment sessions are free (evaluation before subscription)
-        // Credit is refunded if teacher_absent, kept if attended or student_absent
-        if (!$lesson?->is_assessment) {
-            $student->decrement('lesson_credits');
-        }
-
-        // ── Create / update Lead only for assessment session bookings ──────────
-        // Regular core/private sessions do NOT create a Lead.
-        // Assessment sessions (is_assessment = true) signal that the student
-        // is being evaluated → appear in CRM New Leads with appointment date.
-        if ($lesson && $lesson->is_assessment) {
-            $studentProfile = Student::where('user_id', $student->id)->first();
-
-            $lead = Lead::firstOrCreate(
-                ['phone' => $student->phone],
-                [
-                    'name'   => $student->name,
-                    'source' => 'app_assessment',
-                    'status' => Lead::STATUS_NEW,
-                ],
-            );
-
-            // Save appointment date on the lead
-            $lead->update(['scheduled_at' => $validated['scheduled_at']]);
-
-            // Link the session request and student profile to the lead
-            $sessionRequest->update(['lead_id' => $lead->id]);
-
-            if ($studentProfile && !$studentProfile->lead_id) {
-                $studentProfile->update(['lead_id' => $lead->id]);
+            if ($isPaid) {
+                // Lock the balance row; re-verify after acquiring the lock.
+                $locked = User::whereKey($student->id)->lockForUpdate()->first();
+                if (! $locked || $locked->lesson_credits < 1) {
+                    throw new \Illuminate\Http\Exceptions\HttpResponseException(
+                        response()->json([
+                            'message' => 'لا يوجد رصيد حصص متاح. يرجى التواصل مع الإدارة لتجديد اشتراكك.',
+                        ], 403)
+                    );
+                }
             }
-        }
+
+            $sessionRequest = SessionRequest::create([
+                'type'                => $type,
+                'requested_by'        => $student->id,
+                'student_id'          => $student->id,
+                'lesson_id'           => $lesson?->id,
+                'target_teacher_id'   => $targetTeacherId,
+                'requested_at_utc'    => $validated['scheduled_at'],
+                'status'              => SessionRequest::STATUS_PENDING,
+                'teacher_gender_pref' => $validated['teacher_gender_pref'] ?? null,
+                'note'                => $validated['notes'] ?? null,
+            ]);
+
+            // Deduct 1 credit on booking (non-assessment only). Assessment
+            // sessions are free; credit is refunded later if teacher_absent.
+            if ($isPaid) {
+                $student->decrement('lesson_credits');
+            }
+
+            // Create / update Lead only for assessment bookings (CRM New Leads).
+            if ($lesson && $lesson->is_assessment) {
+                $studentProfile = Student::where('user_id', $student->id)->first();
+
+                $lead = Lead::firstOrCreate(
+                    ['phone' => $student->phone],
+                    [
+                        'name'   => $student->name,
+                        'source' => 'app_assessment',
+                        'status' => Lead::STATUS_NEW,
+                    ],
+                );
+
+                $lead->update(['scheduled_at' => $validated['scheduled_at']]);
+                $sessionRequest->update(['lead_id' => $lead->id]);
+
+                if ($studentProfile && !$studentProfile->lead_id) {
+                    $studentProfile->update(['lead_id' => $lead->id]);
+                }
+            }
+
+            return $sessionRequest;
+        });
 
         return response()->json([
             'message' => $type === SessionRequest::TYPE_PRIVATE
@@ -432,15 +450,31 @@ class BookingController extends Controller
             return response()->json(['message' => 'Only pending requests can be cancelled.'], 422);
         }
 
-        $sessionRequest->update([
-            'status'               => SessionRequest::STATUS_CANCELLED,
-            'cancellation_reason'  => $request->input('reason'),
-        ]);
+        // Atomic cancel + refund. The conditional UPDATE only succeeds for the
+        // first caller (status still pending); a concurrent double-cancel updates
+        // 0 rows and skips the refund — so the credit is returned exactly once.
+        $cancelled = DB::transaction(function () use ($sessionRequest, $student, $request) {
+            $affected = SessionRequest::whereKey($sessionRequest->id)
+                ->where('status', SessionRequest::STATUS_PENDING)
+                ->update([
+                    'status'              => SessionRequest::STATUS_CANCELLED,
+                    'cancellation_reason' => $request->input('reason'),
+                ]);
 
-        // Refund credit — student cancelled their own booking
-        $lesson = $sessionRequest->lesson;
-        if (!$lesson?->is_assessment) {
-            $student->increment('lesson_credits');
+            if ($affected === 0) {
+                return false; // already cancelled by another request
+            }
+
+            // Refund credit — student cancelled their own booking.
+            if (! $sessionRequest->lesson?->is_assessment) {
+                $student->increment('lesson_credits');
+            }
+
+            return true;
+        });
+
+        if (! $cancelled) {
+            return response()->json(['message' => 'Only pending requests can be cancelled.'], 422);
         }
 
         return response()->json(['message' => 'Booking request cancelled.']);

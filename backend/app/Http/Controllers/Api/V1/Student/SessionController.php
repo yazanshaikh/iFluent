@@ -24,7 +24,7 @@ class SessionController extends Controller
             )
             // ── Visibility rules ──────────────────────────────────────────────
             // 1. NEVER show waiting sessions past their grace period (teacher didn't show)
-            //    → Scheduler will mark them completed, but until then hide them
+            // → Scheduler will mark them completed, but until then hide them
             // 2. Hide completed/cancelled regular sessions older than 24h
             // 3. Always show assessment sessions
             ->where(function ($q) {
@@ -57,9 +57,9 @@ class SessionController extends Controller
      * Full profile data for a session — shown on the "بروفايل الحصة" screen.
      * Accessible regardless of session status (all statuses).
      * Returns:
-     *   - lesson info (title, unit, level, pdf_url)
-     *   - session status + timestamps
-     *   - quiz_unlocked: true only when completed + 10 min since both joined
+     * - lesson info (title, unit, level, pdf_url)
+     * - session status + timestamps
+     * - quiz_unlocked: true only when completed + 10 min since both joined
      */
     public function profile(Session $session, Request $request): JsonResponse
     {
@@ -146,14 +146,14 @@ class SessionController extends Controller
     /**
      * Student taps "Join":
      * Returns the split-screen data needed by the mobile app:
-     *   - daily_room_url  → passed to @daily-co/react-native-daily-js
-     *   - nearpod_pin     → entered into Nearpod WebView
-     *   - nearpod_url     → URL for the Nearpod WebView
+     * - daily_room_url  → passed to @daily-co/react-native-daily-js
+     * - nearpod_pin     → entered into Nearpod WebView
+     * - nearpod_url     → URL for the Nearpod WebView
      *
      * Guards:
-     *   - Session must belong to this student
-     *   - Session must be active
-     *   - PIN must already be set by the teacher
+     * - Session must belong to this student
+     * - Session must be active
+     * - PIN must already be set by the teacher
      */
     public function join(Session $session, Request $request): JsonResponse
     {
@@ -178,7 +178,7 @@ class SessionController extends Controller
             ], 425); // 425 Too Early
         }
 
-        // ✅ Mark student as PRESENT (they clicked join)
+        // Mark student as PRESENT (they clicked join)
         SessionAttendanceService::markStudentPresent($session);
 
         // Record that the student has entered the session (for commission calculation)

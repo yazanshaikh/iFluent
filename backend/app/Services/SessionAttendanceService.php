@@ -12,22 +12,22 @@ class SessionAttendanceService
      *
      * Rules:
      * 1. If teacher not present → teacher_absent (always)
-     * 2. If teacher present + student present → attended ✅
-     * 3. If teacher present + student not present → absent ❌
+     * 2. If teacher present + student present → attended
+     * 3. If teacher present + student not present → absent
      */
     public static function determineAttendanceStatus(Session $session): string
     {
-        // ❌ Rule 1: Teacher didn't show up = teacher_absent
+        // Rule 1: Teacher didn't show up = teacher_absent
         if (!$session->teacher_present) {
             return 'teacher_absent';
         }
 
-        // ❌ Rule 2: Student didn't join at all
+        // Rule 2: Student didn't join at all
         if (!$session->student_present) {
             return 'absent';
         }
 
-        // ✅ Rule 3: Both present — check 10 minute minimum
+        // Rule 3: Both present — check 10 minute minimum
         // attended = both joined AND student stayed 10+ minutes
         $studentJoinedAt = $session->student_joined_at;
         $endedAt         = $session->ended_at ?? now();
@@ -77,19 +77,19 @@ class SessionAttendanceService
      * Covers 3 scenarios:
      *
      * ① waiting → teacher_absent
-     *    Condition: status=waiting AND scheduled_at + 15min grace has passed
-     *    Reason: Teacher never started the session
-     *    Action: complete with teacher_absent, NO deduction from student
+     * Condition: status=waiting AND scheduled_at + 15min grace has passed
+     * Reason: Teacher never started the session
+     * Action: complete with teacher_absent, NO deduction from student
      *
      * ② active → teacher_absent OR absent
-     *    Condition: status=active AND started_at > 1 hour ago
-     *    Reason: Session stuck open (teacher never clicked End)
-     *    Action: complete using presence flags
+     * Condition: status=active AND started_at > 1 hour ago
+     * Reason: Session stuck open (teacher never clicked End)
+     * Action: complete using presence flags
      *
      * ③ waiting (SessionRequest) → expired
-     *    Condition: SessionRequest pending/confirmed AND requested_at_utc + 15min passed
-     *    Reason: No teacher accepted in time
-     *    Action: mark SessionRequest as expired (not Session, it's still waiting)
+     * Condition: SessionRequest pending/confirmed AND requested_at_utc + 15min passed
+     * Reason: No teacher accepted in time
+     * Action: mark SessionRequest as expired (not Session, it's still waiting)
      */
     public static function handleAutoExpiry(): void
     {
@@ -107,10 +107,8 @@ class SessionAttendanceService
                 'attendance_status' => Session::ATTENDANCE_TEACHER_ABSENT,
             ]);
 
-            // Refund credit — teacher never showed up
-            if ($session->student_id) {
-                $session->student->increment('lesson_credits');
-            }
+            // Refund credit — teacher never showed up (idempotent, race-safe)
+            $session->refundCreditOnce();
 
             // Update linked SessionRequest timestamp for CRM 24h window
             \App\Models\SessionRequest::where('session_id', $session->id)
@@ -148,9 +146,9 @@ class SessionAttendanceService
                 'attendance_status' => $attendance,
             ]);
 
-            // Refund credit if teacher absent
-            if ($attendance === Session::ATTENDANCE_TEACHER_ABSENT && $session->student_id) {
-                $session->student->increment('lesson_credits');
+            // Refund credit if teacher absent (idempotent, race-safe)
+            if ($attendance === Session::ATTENDANCE_TEACHER_ABSENT) {
+                $session->refundCreditOnce();
             }
 
             // Update linked SessionRequest timestamp for CRM

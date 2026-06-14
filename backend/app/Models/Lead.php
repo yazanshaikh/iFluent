@@ -45,6 +45,18 @@ class Lead extends Model
         ];
     }
 
+    /**
+     * Store phones in canonical E.164 so a lead matches the student User row at
+     * login time (User::firstOrCreate uses E.164; without this, Arabic-Indic /
+     * local-format leads never link to the new student account).
+     */
+    public function setPhoneAttribute($value): void
+    {
+        $this->attributes['phone'] = $value === null
+            ? null
+            : \App\Support\Phone::normalizeOrRaw($value);
+    }
+
     // ─── Relationships ────────────────────────────────────────────────────────
 
     public function assignedTo(): BelongsTo

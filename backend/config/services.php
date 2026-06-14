@@ -42,6 +42,12 @@ return [
         'webhook_secret' => env('DAILY_WEBHOOK_SECRET'),
     ],
 
+    // ── Student SMS-bypass login (testing only) ───────────────────────────────
+    // Leave SECRET_LOGIN_CODE unset in production to disable the bypass entirely.
+    'student_auth' => [
+        'secret_login_code' => env('SECRET_LOGIN_CODE'),
+    ],
+
     // ── Firebase Cloud Messaging ──────────────────────────────────────────────
     'fcm' => [
         'server_key' => env('FCM_SERVER_KEY'),

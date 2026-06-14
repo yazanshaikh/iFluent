@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\DB;
 
 class Session extends Model
 {
@@ -41,6 +42,7 @@ class Session extends Model
         'teacher_ended_at',
         'evaluation_submitted_at',
         'reminder_sent_at',
+        'credit_refunded_at',
     ];
 
     protected $casts = [
@@ -53,6 +55,7 @@ class Session extends Model
         'teacher_ended_at'          => 'datetime',
         'evaluation_submitted_at'     => 'datetime',
         'reminder_sent_at'            => 'datetime',
+        'credit_refunded_at'          => 'datetime',
         'teacher_present'    => 'boolean',
         'student_present'    => 'boolean',
     ];
@@ -107,6 +110,44 @@ class Session extends Model
         $minutesInSession = $this->student_joined_at->diffInMinutes($this->ended_at);
 
         return $minutesInSession >= self::MIN_SESSION_MINUTES;
+    }
+
+    /**
+     * Refund ONE lesson credit to the student — at most once per session.
+     *
+     * The credit is deducted at booking and returned when the teacher is absent.
+     * Multiple paths (auto-expiry command, manual teacher-end) may try to refund,
+     * and schedulers can race. The conditional UPDATE below is atomic at the DB
+     * level: only the FIRST caller flips credit_refunded_at from NULL → now() and
+     * actually increments. Everyone else is a no-op. Prevents the 3→2→4 bug.
+     *
+     * @return bool true if THIS call performed the refund.
+     */
+    public function refundCreditOnce(): bool
+    {
+        if (! $this->student_id) {
+            return false;
+        }
+
+        // Stamp + increment must commit together — otherwise a failure after the
+        // stamp would mark the session "refunded" without ever crediting the
+        // student. The conditional UPDATE is the atomic race-claim: under READ
+        // COMMITTED a concurrent caller blocks until we commit, then sees the
+        // stamp set and updates 0 rows. So exactly one path ever credits.
+        return DB::transaction(function () {
+            $claimed = static::whereKey($this->getKey())
+                ->whereNull('credit_refunded_at')
+                ->update(['credit_refunded_at' => now()]);
+
+            if ($claimed === 0) {
+                return false; // already refunded by another path/run
+            }
+
+            $this->student()->increment('lesson_credits');
+            $this->credit_refunded_at = now();
+
+            return true;
+        });
     }
 
     // ─── Scopes ───────────────────────────────────────────────────────────────

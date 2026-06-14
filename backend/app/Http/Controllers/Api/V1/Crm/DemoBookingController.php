@@ -14,11 +14,11 @@ use Illuminate\Http\Request;
  * CRM Demo Booking — Sales Staff books a demo session for a lead.
  *
  * Flow:
- *   1. CC/SS picks a date/time and optionally a teacher (by teacher_code)
- *   2. System creates a session_request of type=demo
- *   3. If target_teacher_id set: directed to that teacher
- *   4. If no teacher: goes to pool (any teacher can accept)
- *   5. Teacher accepts → Daily.co room created → session started when teacher clicks start
+ * 1. CC/SS picks a date/time and optionally a teacher (by teacher_code)
+ * 2. System creates a session_request of type=demo
+ * 3. If target_teacher_id set: directed to that teacher
+ * 4. If no teacher: goes to pool (any teacher can accept)
+ * 5. Teacher accepts → Daily.co room created → session started when teacher clicks start
  */
 class DemoBookingController extends Controller
 {
@@ -173,7 +173,7 @@ class DemoBookingController extends Controller
         return response()->json([
             'data'         => $bookings->map(fn ($r) => [
                 'id'          => $r->id,
-                // ✅ Smart status mapping:
+                // Smart status mapping:
                 // - If session exists AND is completed → show 'completed' (منتهية)
                 // - Otherwise → show SessionRequest status (pending/confirmed/cancelled/etc)
                 'status'             => ($r->session?->status === 'completed') ? 'completed' : $r->status,
