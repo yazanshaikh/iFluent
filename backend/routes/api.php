@@ -50,6 +50,7 @@ use Illuminate\Support\Facades\Route;
 
 // ─── Public (no auth) ─────────────────────────────────────────────────────────
 Route::get ('settings',                            [PublicSiteSettingController::class, 'index']);
+Route::get ('maintenance',                          [PublicSiteSettingController::class, 'maintenance']);
 Route::post('public/booking',                      [PublicBookingController::class,     'store']);
 Route::get ('public/invoice/{uuid}',               [PublicInvoiceController::class,     'show']);
 Route::post('public/invoice/{uuid}/receipt',       [PublicInvoiceController::class,     'uploadReceipt']);
@@ -124,6 +125,7 @@ Route::middleware(['auth:sanctum', 'role:super_admin,cc,ss'])
         Route::get ('process-orders',                               [ProcessOrderController::class,  'index']);
         Route::post('process-orders/{subscription}/upload-receipt', [ProcessOrderController::class,  'uploadReceipt']);
         Route::post('process-orders/{subscription}/cancel',         [CheckoutController::class,       'cancel']);
+        Route::post('invoices/{invoiceUuid}/send-to-app',           [CheckoutController::class,       'sendInvoiceToApp']);
 
         // ── Paid Students ──────────────────────────────────────────────────────
         Route::get('paid-students', [PaidStudentController::class, 'index']);
@@ -200,6 +202,8 @@ Route::middleware(['auth:sanctum', 'role:super_admin'])
 
         // ── Landing Page CMS ───────────────────────────────────────────────────
         Route::get  ('settings',                  [AdminSiteSettingController::class, 'index']);
+        Route::get  ('maintenance',               [AdminSiteSettingController::class, 'getMaintenance']);
+        Route::post ('maintenance',               [AdminSiteSettingController::class, 'setMaintenance']);
         Route::patch('settings',                  [AdminSiteSettingController::class, 'bulkUpdate']);
         Route::put  ('settings/{key}',            [AdminSiteSettingController::class, 'update']);
         Route::post ('settings/{key}/image',      [AdminSiteSettingController::class, 'uploadImage']);

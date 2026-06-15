@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Models\Session;
 use App\Models\SessionRequest;
+use App\Models\User;
 use App\Services\SessionAttendanceService;
 use Illuminate\Console\Command;
 
@@ -35,10 +36,25 @@ class ExpireSessionsCommand extends Command
                 SessionRequest::STATUS_CONFIRMED,
             ])
             ->where('requested_at_utc', '<', $now->copy()->subMinutes(15))
+            ->with('lesson:id,is_assessment')
             ->get();
 
         foreach ($expiredRequests as $req) {
-            $req->update(['status' => SessionRequest::STATUS_EXPIRED]);
+            // Atomic claim of the exact state we read — guarantees a single
+            // runner expires (and refunds) this request even if two schedulers race.
+            $affected = SessionRequest::whereKey($req->id)
+                ->where('status', $req->status)
+                ->update(['status' => SessionRequest::STATUS_EXPIRED]);
+
+            // Refund the held credit ONLY when nobody ever accepted (was pending)
+            // and it was a paid (non-assessment) booking. A confirmed request has
+            // a Session whose own teacher_absent flow refunds — never double-refund.
+            if ($affected
+                && $req->status === SessionRequest::STATUS_PENDING
+                && $req->student_id
+                && ! $req->lesson?->is_assessment) {
+                User::whereKey($req->student_id)->increment('lesson_credits');
+            }
         }
 
         // ── ② Waiting sessions past grace period ─────────────────────────────

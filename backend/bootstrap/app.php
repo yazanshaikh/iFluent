@@ -19,5 +19,6 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
-        //
+        // Report uncaught exceptions to Sentry (Laravel 11 handles reporting here).
+        \Sentry\Laravel\Integration::handles($exceptions);
     })->create();

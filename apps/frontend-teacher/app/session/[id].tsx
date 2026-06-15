@@ -6,7 +6,7 @@
 import { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, Pressable, TextInput,
-  StyleSheet, ActivityIndicator, Alert, Linking, KeyboardAvoidingView, Platform,
+  StyleSheet, ActivityIndicator, Alert, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -176,13 +176,7 @@ export default function SessionDetailScreen() {
     setConfirming(true);     // show inline confirmation
   };
 
-  const openNearpod = () => {
-    const lessonId = session?.lesson?.nearpod_lesson_id;
-    const url = lessonId
-      ? `https://nearpod.com/login?redirect=https://nearpod.com/presentation?pin=${lessonId}`
-      : (session?.lesson?.nearpod_url ?? 'https://nearpod.com');
-    Linking.openURL(url).catch(() => Alert.alert('Error', 'Could not open Nearpod'));
-  };
+  const browseLessons = () => router.push('/lessons');
 
   if (isLoading || !session) {
     return (
@@ -284,18 +278,18 @@ export default function SessionDetailScreen() {
               <Text style={styles.sectionTitle}>Nearpod</Text>
               <View style={styles.card}>
                 <Text style={styles.nearpodHint}>
-                  Open Nearpod to create the session and get the PIN, then enter it here and start the session.
+                  Browse the lessons, open the one you're teaching in Nearpod, launch it to get the PIN, then enter it here and start the session.
                 </Text>
 
-                {/* Open Nearpod */}
-                <Pressable style={({ pressed }) => [styles.nearpodBtn, pressed && { opacity: 0.8 }]} onPress={openNearpod}>
+                {/* Browse lessons */}
+                <Pressable style={({ pressed }) => [styles.nearpodBtn, pressed && { opacity: 0.8 }]} onPress={browseLessons}>
                   <LinearGradient
                     colors={['#6366F1', '#4F46E5']}
                     start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
                     style={styles.nearpodBtnGrad}
                   >
-                    <Ionicons name="open-outline" size={18} color="#fff" />
-                    <Text style={styles.nearpodBtnTxt}>Open in Nearpod</Text>
+                    <Ionicons name="library-outline" size={18} color="#fff" />
+                    <Text style={styles.nearpodBtnTxt}>Browse Lessons</Text>
                   </LinearGradient>
                 </Pressable>
 

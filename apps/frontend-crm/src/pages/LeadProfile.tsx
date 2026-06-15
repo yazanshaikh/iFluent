@@ -5,7 +5,7 @@ import {
 } from '@tanstack/react-query';
 import { leadsApi, type LeadStatus, type UpdateLeadPayload, type Remark } from '@/api/leads';
 import { staffApi } from '@/api/staff';
-import { checkoutApi, lessonsApi, type InvoiceCreatedResponse } from '@/api/checkout';
+import { checkoutApi, type InvoiceCreatedResponse } from '@/api/checkout';
 import { invoiceFullUrl } from '@/lib/appUrl';
 import { useAuthStore } from '@/stores/authStore';
 import { STATUS_LABELS, STATUS_VARIANT } from './Leads';
@@ -22,8 +22,8 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from '@/components/ui/dialog';
 import {
-  ArrowRight, Loader2, Phone, Mail, Calendar, MessageSquarePlus, User, ChevronDown, ChevronLeft, Gem,
-  Pencil, Check, X, CalendarClock, UserRoundCog, ShoppingCart, Copy, ExternalLink, UserCheck,
+  ArrowRight, Loader2, Phone, Calendar, MessageSquarePlus, User, ChevronDown, ChevronLeft, Gem,
+  Pencil, Check, X, CalendarClock, UserRoundCog, ShoppingCart, Copy, ExternalLink, UserCheck, Smartphone,
   TrendingUp, BookOpen, Clock, Award,
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
@@ -199,6 +199,7 @@ export default function LeadProfilePage() {
   const [purchaseResult,      setPurchaseResult]      = useState<InvoiceCreatedResponse | null>(null);
   const [purchaseError,       setPurchaseError]       = useState('');
   const [purchaseCopied,      setPurchaseCopied]      = useState(false);
+  const [sentToApp,           setSentToApp]           = useState(false);
 
   const [bookingOpen,    setBookingOpen]    = useState(false);
   const [bookStep,       setBookStep]       = useState<1 | 2 | 'success'>(1);
@@ -292,6 +293,19 @@ export default function LeadProfilePage() {
     },
   });
 
+  const sendToAppMutation = useMutation({
+    mutationFn: () =>
+      checkoutApi.sendInvoiceToApp(
+        purchaseResult!.invoice_uuid,
+        invoiceFullUrl(purchaseResult!.invoice_url),
+      ),
+    onSuccess: () => { setSentToApp(true); setPurchaseError(''); },
+    onError: (err: unknown) => {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      setPurchaseError(msg || 'تعذّر إرسال الفاتورة إلى التطبيق.');
+    },
+  });
+
   const handlePurchaseOpen = () => {
     setPurchaseOpen(true);
     setPurchaseLessonsFrom(null);
@@ -300,6 +314,7 @@ export default function LeadProfilePage() {
     setPurchaseResult(null);
     setPurchaseError('');
     setPurchaseCopied(false);
+    setSentToApp(false);
   };
 
   const handleCopyAlias = (alias: string) => {
@@ -833,24 +848,12 @@ export default function LeadProfilePage() {
             <Phone className="h-4 w-4 text-muted-foreground shrink-0" />
             <span dir="ltr" className="text-sm">{lead.phone}</span>
           </div>
-          {lead.email && (
-            <div className="flex items-center gap-3">
-              <Mail className="h-4 w-4 text-muted-foreground shrink-0" />
-              <span dir="ltr" className="text-sm">{lead.email}</span>
-            </div>
-          )}
           <div className="flex items-center gap-3">
             <Calendar className="h-4 w-4 text-muted-foreground shrink-0" />
             <span className="text-sm text-muted-foreground">
               آخر تحديث: {new Date(lead.updated_at).toLocaleDateString('ar-SA')}
             </span>
           </div>
-          {lead.notes && (
-            <>
-              <Separator />
-              <p className="text-sm text-muted-foreground whitespace-pre-wrap">{lead.notes}</p>
-            </>
-          )}
         </CardContent>
       </Card>
 
@@ -906,8 +909,6 @@ export default function LeadProfilePage() {
               {demoHistory.requests.map((req) => {
                 const d = new Date(req.scheduled_at);
                 const isPending  = req.status === 'pending';
-                const isExpired  = req.status === 'expired';
-                const isConfirmed = req.status === 'confirmed';
                 const isDone     = ['completed','expired','cancelled'].includes(req.status);
                 const attendanceStatus = req.attendance?.attendance_status ?? null;
                 const showAttendance = isDone && req.attendance;
@@ -1559,8 +1560,23 @@ export default function LeadProfilePage() {
               </div>
             </div>
 
-            <DialogFooter>
-              <Button onClick={() => { setPurchaseOpen(false); setPurchaseResult(null); }}>
+            <DialogFooter className="gap-2 sm:gap-2">
+              <Button
+                onClick={() => sendToAppMutation.mutate()}
+                disabled={sendToAppMutation.isPending || sentToApp}
+                className="gap-1.5 bg-emerald-600 hover:bg-emerald-700"
+              >
+                {sendToAppMutation.isPending
+                  ? <Loader2 className="h-4 w-4 animate-spin" />
+                  : sentToApp
+                  ? <Check className="h-4 w-4" />
+                  : <Smartphone className="h-4 w-4" />}
+                {sentToApp ? 'تم الإرسال للتطبيق' : 'الدفع من خلال التطبيق'}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => { setPurchaseOpen(false); setPurchaseResult(null); }}
+              >
                 إغلاق
               </Button>
             </DialogFooter>

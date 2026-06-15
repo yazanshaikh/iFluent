@@ -26,6 +26,7 @@ class MessageController extends Controller
                     'id'         => $m->id,
                     'title'      => $m->title,
                     'body'       => $m->body,
+                    'link'       => $m->link,
                     'read_at'    => $pivot?->read_at,
                     'created_at' => $m->created_at->toIso8601String(),
                 ];

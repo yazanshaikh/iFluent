@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Models\SessionRequest;
+use App\Models\User;
 use Illuminate\Console\Command;
 
 /**
@@ -23,7 +24,7 @@ class ExpireStudentBookings extends Command
     {
         $cutoff = now()->subMinutes(30);
 
-        $expired = SessionRequest::whereIn('type', [
+        $requests = SessionRequest::whereIn('type', [
                 SessionRequest::TYPE_CORE,
                 SessionRequest::TYPE_PRIVATE,
             ])
@@ -33,7 +34,29 @@ class ExpireStudentBookings extends Command
             ])
             ->whereNull('session_id')
             ->where('requested_at_utc', '<', $cutoff)
-            ->update(['status' => SessionRequest::STATUS_EXPIRED]);
+            ->with('lesson:id,is_assessment')
+            ->get();
+
+        $expired = 0;
+        foreach ($requests as $req) {
+            // Atomic claim — only one runner expires (and refunds) a given row.
+            $affected = SessionRequest::whereKey($req->id)
+                ->where('status', $req->status)
+                ->update(['status' => SessionRequest::STATUS_EXPIRED]);
+
+            if (! $affected) {
+                continue;
+            }
+            $expired++;
+
+            // Refund the held credit when nobody accepted (was pending) and the
+            // booking was a paid (non-assessment) lesson.
+            if ($req->status === SessionRequest::STATUS_PENDING
+                && $req->student_id
+                && ! $req->lesson?->is_assessment) {
+                User::whereKey($req->student_id)->increment('lesson_credits');
+            }
+        }
 
         $this->info("✓ Expired {$expired} student booking request(s) past their scheduled time.");
 

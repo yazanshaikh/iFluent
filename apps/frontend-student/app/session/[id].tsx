@@ -20,7 +20,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { WebView } from 'react-native-webview';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { lockCurrent, unlock as unlockOrientation, lockPortrait } from '@/lib/screenOrientation';
+import { unlock as unlockOrientation, lockPortrait } from '@/lib/screenOrientation';
 import { DailyCallPanel } from '@/components/DailyCallPanel';
 import { SplitCallLayout } from '@/components/SplitCallLayout';
 import { sessionsApi, type JoinSessionResponse } from '@/api/sessions';
@@ -90,7 +90,6 @@ export default function SessionRoomScreen() {
 
   const [roomData,          setRoomData]          = useState<JoinSessionResponse | null>(null);
   const [joined,            setJoined]            = useState(false);
-  const [orientationLocked, setOrientationLocked] = useState(false);
   const [handRaised,        setHandRaised]        = useState(false);
   const [raisingHand,       setRaisingHand]       = useState(false);
 
@@ -117,17 +116,6 @@ export default function SessionRoomScreen() {
       setJoined(true);
     }
   }, [data, joined]);
-
-  // ── Orientation lock toggle ────────────────────────────────────────────────
-  const toggleOrientationLock = useCallback(async () => {
-    if (orientationLocked) {
-      await unlockOrientation();
-      setOrientationLocked(false);
-    } else {
-      await lockCurrent();
-      setOrientationLocked(true);
-    }
-  }, [orientationLocked]);
 
   // Allow free rotation while in the session (landscape for the split view),
   // then restore portrait when the screen unmounts.
@@ -160,7 +148,7 @@ export default function SessionRoomScreen() {
       }},
     ]);
     return true;
-  }, [router, qc, orientationLocked]);
+  }, [router, qc]);
 
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', handleLeave);
@@ -212,16 +200,12 @@ export default function SessionRoomScreen() {
             </TouchableOpacity>
           )}
 
-          <TouchableOpacity
-            style={[S.topBtn, orientationLocked && S.topBtnOn]}
-            onPress={toggleOrientationLock}
-          >
-            <Ionicons
-              name={orientationLocked ? 'lock-closed-outline' : 'lock-open-outline'}
-              size={17}
-              color={orientationLocked ? '#FCD34D' : '#fff'}
-            />
-          </TouchableOpacity>
+          {joined && !!roomData?.nearpod_pin && (
+            <View style={S.pinChip}>
+              <Ionicons name="key" size={12} color="#1A2980" />
+              <Text style={S.pinChipTxt}>{roomData.nearpod_pin.toUpperCase()}</Text>
+            </View>
+          )}
 
           {joined && (
             <View style={S.liveBadge}>
@@ -246,7 +230,7 @@ export default function SessionRoomScreen() {
           <Ionicons name="checkmark-circle" size={18} color="#10b981" />
           <Text style={S.endedTxt}>انتهت الحصة</Text>
           <TouchableOpacity onPress={async () => {
-            if (orientationLocked) await unlockOrientation().catch(() => {});
+            await lockPortrait().catch(() => {});
             router.back();
           }}>
             <Text style={S.endedAction}>العودة</Text>
@@ -278,9 +262,13 @@ const S = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.1)',
     justifyContent: 'center', alignItems: 'center',
   },
-  topBtnOn: {
-    backgroundColor: 'rgba(252,211,77,0.2)',
-    borderWidth: 1.5, borderColor: 'rgba(252,211,77,0.5)',
+  pinChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    backgroundColor: '#FCD34D', borderRadius: 10,
+    paddingHorizontal: 10, paddingVertical: 5,
+  },
+  pinChipTxt: {
+    color: '#1A2980', fontSize: 14, fontWeight: '900', letterSpacing: 1.5,
   },
   topBtnHandOn: {
     backgroundColor: 'rgba(251,146,60,0.3)',

@@ -9,6 +9,7 @@ import { Redirect, Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Animated, Platform, StyleSheet } from 'react-native';
 import { BottomTabBar } from '@react-navigation/bottom-tabs';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '@/stores/authStore';
 import { C } from '@/theme';
 import { tabBarScrollAnim } from '@/animations';
@@ -17,8 +18,6 @@ const TAB_BAR_STYLE = StyleSheet.create({
   bar: {
     backgroundColor: C.navy,
     borderTopWidth:  0,
-    height:          Platform.OS === 'ios' ? 82 : 62,
-    paddingBottom:   Platform.OS === 'ios' ? 22 : 6,
     paddingTop:      6,
     shadowColor:     C.navy,
     shadowOpacity:   0.35,
@@ -30,6 +29,10 @@ const TAB_BAR_STYLE = StyleSheet.create({
 
 export default function TabsLayout() {
   const { token, hydrated } = useAuthStore();
+  const insets = useSafeAreaInsets();
+
+  // Lift the bar above the device's nav buttons / gesture area.
+  const bottomPad = insets.bottom > 0 ? insets.bottom : (Platform.OS === 'ios' ? 22 : 10);
 
   if (hydrated && !token) {
     return <Redirect href="/(auth)/phone" />;
@@ -46,7 +49,7 @@ export default function TabsLayout() {
         headerShown: false,
         tabBarActiveTintColor:   C.yellow,
         tabBarInactiveTintColor: 'rgba(255,255,255,0.45)',
-        tabBarStyle:      TAB_BAR_STYLE.bar,
+        tabBarStyle:      [TAB_BAR_STYLE.bar, { height: 56 + bottomPad, paddingBottom: bottomPad }],
         tabBarLabelStyle: {
           fontSize:      10,
           fontWeight:    '700',

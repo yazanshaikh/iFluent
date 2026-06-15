@@ -1,8 +1,14 @@
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { C } from '@/theme';
 
 export default function TabsLayout() {
+  const insets = useSafeAreaInsets();
+  // Lift the bar above the device's nav buttons / gesture area.
+  const bottomPad = insets.bottom > 0 ? insets.bottom : (Platform.OS === 'ios' ? 22 : 10);
+
   return (
     <Tabs
       screenOptions={{
@@ -16,8 +22,8 @@ export default function TabsLayout() {
           shadowColor: C.sky,
           shadowOpacity: 0.12,
           shadowRadius: 12,
-          height: 72,
-          paddingBottom: 18,
+          height: 56 + bottomPad,
+          paddingBottom: bottomPad,
           paddingTop: 6,
         },
         tabBarLabelStyle: { fontSize: 11, fontWeight: '700' },

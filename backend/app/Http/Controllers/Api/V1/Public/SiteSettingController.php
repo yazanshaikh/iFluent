@@ -27,4 +27,17 @@ class SiteSettingController extends Controller
 
         return response()->json(['settings' => $result]);
     }
+
+    /**
+     * Lightweight maintenance check — polled by the mobile apps on launch so they
+     * can show a friendly "under maintenance" screen instead of network errors.
+     */
+    public function maintenance(): JsonResponse
+    {
+        return response()->json([
+            'maintenance' => (bool) SiteSetting::get('maintenance_mode', false),
+            'message'     => SiteSetting::get('maintenance_message')
+                ?: 'التطبيق في صيانة دورية لتحسين التجربة. سنعود قريباً 🙏',
+        ]);
+    }
 }

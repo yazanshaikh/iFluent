@@ -4,6 +4,7 @@ export interface StudentMessage {
   id:         number;
   title:      string;
   body:       string;
+  link:       string | null;
   read_at:    string | null;
   created_at: string;
 }

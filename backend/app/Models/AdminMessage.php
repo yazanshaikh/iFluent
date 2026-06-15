@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class AdminMessage extends Model
 {
-    protected $fillable = ['title', 'body', 'target', 'sent_by'];
+    protected $fillable = ['title', 'body', 'link', 'target', 'sent_by'];
 
     public function sender(): BelongsTo
     {

@@ -73,6 +73,14 @@ export const checkoutApi = {
       .post<InvoiceCreatedResponse>(`/crm/leads/${leadId}/checkout`, payload)
       .then((r) => r.data),
 
+  /** Send the invoice link to the student inside the app (in-app message + push) */
+  sendInvoiceToApp: (invoiceUuid: string, invoiceUrl: string) =>
+    client
+      .post<{ message: string }>(`/crm/invoices/${invoiceUuid}/send-to-app`, {
+        invoice_url: invoiceUrl,
+      })
+      .then((r) => r.data),
+
   /** List all pending_screenshot orders */
   listPendingOrders: (page = 1) =>
     client

@@ -10,6 +10,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useAuthStore } from '@/stores/authStore';
 import Sidebar from '@/components/Sidebar';
+import { MaintenanceGate } from '@/components/MaintenanceGate';
 import { registerForPushNotifications } from '@/hooks/usePushNotifications';
 
 const queryClient = new QueryClient({
@@ -52,8 +53,10 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <QueryClientProvider client={queryClient}>
           <StatusBar style="dark" />
-          <Stack screenOptions={{ headerShown: false }} />
-          <Sidebar />
+          <MaintenanceGate>
+            <Stack screenOptions={{ headerShown: false }} />
+            <Sidebar />
+          </MaintenanceGate>
         </QueryClientProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>

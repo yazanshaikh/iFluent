@@ -265,7 +265,7 @@ function FilterPills({
           color={value === 'done' ? C.navy : C.navyMid}
         />
         <Text style={[styles.filterPillTxt, value === 'done' && styles.filterPillTxtActive]}>
-          المكتملة
+          السابقة
         </Text>
         {doneCount > 0 && (
           <View style={[styles.filterBadge, value === 'done' && styles.filterBadgeActive]}>
@@ -403,8 +403,8 @@ export default function SessionsScreen() {
             <View style={styles.emptyIconWrap}>
               <Ionicons name="checkmark-done-outline" size={36} color={C.yellow} />
             </View>
-            <Text style={styles.emptyTitle}>لا توجد حصص مكتملة</Text>
-            <Text style={styles.emptySub}>حصصك المنتهية ستظهر هنا بعد اكتمالها</Text>
+            <Text style={styles.emptyTitle}>لا توجد حصص سابقة</Text>
+            <Text style={styles.emptySub}>حصصك المنتهية ستظهر هنا</Text>
           </View>
 
         ) : (

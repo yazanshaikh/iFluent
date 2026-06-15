@@ -48,6 +48,9 @@ return [
         'secret_login_code' => env('SECRET_LOGIN_CODE'),
     ],
 
+    // ── Public invoice/payment frontend base URL (the /pay/:uuid page) ─────────
+    'invoice_base_url' => env('INVOICE_BASE_URL'),
+
     // ── Firebase Cloud Messaging ──────────────────────────────────────────────
     'fcm' => [
         'server_key' => env('FCM_SERVER_KEY'),

@@ -4,12 +4,15 @@ namespace App\Http\Controllers\Api\V1\Crm;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\Crm\CheckoutRequest;
+use App\Models\AdminMessage;
 use App\Models\Lead;
 use App\Models\PaymentAccount;
 use App\Models\Student;
 use App\Models\Subscription;
 use App\Models\User;
+use App\Services\FcmService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -127,6 +130,68 @@ class CheckoutController extends Controller
         $subscription->update(['status' => Subscription::STATUS_CANCELLED]);
 
         return response()->json(['message' => 'تم إلغاء الفاتورة بنجاح.']);
+    }
+
+    /**
+     * POST /crm/invoices/{invoiceUuid}/send-to-app
+     * Push the invoice link to the EXACT student this invoice belongs to — as an
+     * in-app message (notifications) plus a best-effort push. The recipient is
+     * resolved from the invoice's own subscription, never from client input, so
+     * the link can never reach a different student.
+     */
+    public function sendInvoiceToApp(string $invoiceUuid, Request $request, FcmService $fcm): JsonResponse
+    {
+        $this->authorize('activate-subscription');
+
+        $subscription = Subscription::where('invoice_uuid', $invoiceUuid)->firstOrFail();
+
+        $actor = $request->user();
+        // CC/SS can only act on invoices they created.
+        if (($actor->isCC() || $actor->isSS()) && $subscription->activated_by !== $actor->id) {
+            return response()->json(['message' => 'Forbidden.'], 403);
+        }
+
+        // Resolve the one and only recipient from the invoice itself.
+        $studentUser = $subscription->student?->user;
+        if (! $studentUser) {
+            return response()->json([
+                'message' => 'لا يوجد حساب طالب مرتبط بهذه الفاتورة.',
+            ], 422);
+        }
+
+        $request->validate(['invoice_url' => ['nullable', 'string', 'max:500']]);
+
+        // Prefer the exact URL the CRM displays; fall back to config-built URL.
+        $base       = rtrim((string) config('services.invoice_base_url'), '/');
+        $invoiceUrl = $request->input('invoice_url')
+            ?: ($base
+                ? "{$base}/pay/{$subscription->invoice_uuid}"
+                : url("/pay/{$subscription->invoice_uuid}"));
+
+        $message = AdminMessage::create([
+            'title'   => 'فاتورة الاشتراك',
+            'body'    => 'تم إصدار فاتورة اشتراكك. اضغط الزر بالأسفل لإتمام الدفع.',
+            'link'    => $invoiceUrl,
+            'target'  => 'single',
+            'sent_by' => $actor->id,
+        ]);
+
+        // Attach ONLY this student — no one else ever receives it.
+        $message->recipients()->attach($studentUser->id, ['read_at' => null]);
+
+        // Best-effort push so the student is alerted immediately.
+        try {
+            $fcm->notifyUser(
+                $studentUser,
+                'فاتورة الاشتراك',
+                'لديك فاتورة جاهزة للدفع. اضغط لفتحها.',
+                ['type' => 'invoice', 'link' => $invoiceUrl],
+            );
+        } catch (\Throwable) {
+            // push is optional; the in-app message already landed
+        }
+
+        return response()->json(['message' => 'تم إرسال الفاتورة إلى تطبيق الطالب.']);
     }
 
     private function ensureStudentExists(Lead $lead): Student

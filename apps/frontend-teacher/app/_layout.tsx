@@ -5,6 +5,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useAuthStore } from '@/stores/authStore';
+import { MaintenanceGate } from '@/components/MaintenanceGate';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -26,7 +27,9 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <QueryClientProvider client={queryClient}>
           <StatusBar style="light" />
-          <Stack screenOptions={{ headerShown: false }} />
+          <MaintenanceGate>
+            <Stack screenOptions={{ headerShown: false }} />
+          </MaintenanceGate>
         </QueryClientProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>

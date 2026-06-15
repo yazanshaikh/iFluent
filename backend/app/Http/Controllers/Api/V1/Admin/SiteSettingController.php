@@ -118,6 +118,34 @@ class SiteSettingController extends Controller
         return response()->json(['message' => count($validated['settings']) . ' settings updated.']);
     }
 
+    // ─── Maintenance Mode (mobile apps) ───────────────────────────────────────
+
+    public function getMaintenance(): JsonResponse
+    {
+        return response()->json([
+            'maintenance' => (bool) SiteSetting::get('maintenance_mode', false),
+            'message'     => SiteSetting::get('maintenance_message'),
+        ]);
+    }
+
+    public function setMaintenance(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'enabled' => ['required', 'boolean'],
+            'message' => ['sometimes', 'nullable', 'string', 'max:500'],
+        ]);
+
+        SiteSetting::set('maintenance_mode', $data['enabled']);
+        if (!empty($data['message'])) {
+            SiteSetting::set('maintenance_message', $data['message']);
+        }
+
+        return response()->json([
+            'maintenance' => $data['enabled'],
+            'message'     => SiteSetting::get('maintenance_message'),
+        ]);
+    }
+
     // ─── Delete Setting ───────────────────────────────────────────────────────
 
     public function destroy(string $key): JsonResponse

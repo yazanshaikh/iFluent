@@ -5,7 +5,7 @@
 import { useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
-  StyleSheet, ActivityIndicator, Animated, Modal, RefreshControl,
+  StyleSheet, ActivityIndicator, Animated, Modal, RefreshControl, Linking, Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -109,6 +109,22 @@ function MessageModal({
           <View style={styles.modalDivider} />
 
           <Text style={styles.modalBody2}>{msg.body}</Text>
+
+          {/* Action link (e.g. pay the invoice) */}
+          {!!msg.link && (
+            <TouchableOpacity
+              style={styles.linkBtn}
+              activeOpacity={0.85}
+              onPress={() =>
+                Linking.openURL(msg.link!).catch(() =>
+                  Alert.alert('تعذّر الفتح', 'لم نتمكن من فتح الرابط. حاول لاحقاً.'),
+                )
+              }
+            >
+              <Ionicons name="card-outline" size={18} color="#fff" />
+              <Text style={styles.linkBtnTxt}>فتح الفاتورة والدفع</Text>
+            </TouchableOpacity>
+          )}
 
           {/* Read-only notice */}
           <View style={styles.readOnlyNote}>
@@ -334,6 +350,13 @@ const styles = StyleSheet.create({
     fontSize: 15, color: C.navy, textAlign: 'right',
     lineHeight: 26, fontWeight: '400',
   },
+  linkBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 8, marginTop: 20,
+    backgroundColor: C.navy, borderRadius: 14,
+    paddingVertical: 14, paddingHorizontal: 18,
+  },
+  linkBtnTxt: { color: '#fff', fontSize: 15, fontWeight: '800' },
   readOnlyNote: {
     flexDirection: 'row', alignItems: 'center',
     gap: 6, marginTop: 28,

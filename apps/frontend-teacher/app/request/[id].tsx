@@ -4,7 +4,7 @@
  */
 import {
   View, Text, ScrollView, TouchableOpacity, TextInput,
-  StyleSheet, ActivityIndicator, Alert, Linking, KeyboardAvoidingView, Platform,
+  StyleSheet, ActivityIndicator, Alert, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -64,16 +64,7 @@ export default function RequestProfileScreen() {
     );
   };
 
-  const openNearpod = () => {
-    const url = req?.lesson?.nearpod_url;
-    if (url) {
-      Linking.openURL(url).catch(() =>
-        Alert.alert('Error', 'Could not open the Nearpod link'),
-      );
-    } else {
-      Linking.openURL('https://nearpod.com').catch(() => {});
-    }
-  };
+  const browseLessons = () => router.push('/lessons');
 
   if (isLoading || !req) {
     return (
@@ -169,18 +160,18 @@ export default function RequestProfileScreen() {
             <Text style={styles.sectionTitle}>Nearpod</Text>
             <View style={styles.card}>
               <Text style={styles.nearpodHint}>
-                Open Nearpod to create the session and get the PIN, then enter it here to activate the session for the student.
+                Browse the lessons, open the one you're teaching in Nearpod, launch it to get the PIN, then enter it here to activate the session.
               </Text>
 
-              {/* Open Nearpod button */}
-              <TouchableOpacity style={styles.nearpodBtn} onPress={openNearpod} activeOpacity={0.85}>
+              {/* Browse lessons button */}
+              <TouchableOpacity style={styles.nearpodBtn} onPress={browseLessons} activeOpacity={0.85}>
                 <LinearGradient
                   colors={['#6366F1', '#4F46E5']}
                   start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
                   style={styles.nearpodBtnGrad}
                 >
-                  <Ionicons name="open-outline" size={18} color="#fff" />
-                  <Text style={styles.nearpodBtnTxt}>Create in Nearpod</Text>
+                  <Ionicons name="library-outline" size={18} color="#fff" />
+                  <Text style={styles.nearpodBtnTxt}>Browse Lessons</Text>
                 </LinearGradient>
               </TouchableOpacity>
 
