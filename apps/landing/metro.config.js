@@ -6,6 +6,11 @@ const monorepoRoot = path.resolve(projectRoot, '../..'); // repo root
 
 const config = getDefaultConfig(projectRoot);
 
+// ── 0. Bundle PDFs as assets (e.g. the platform policies file) ────────────────
+if (!config.resolver.assetExts.includes('pdf')) {
+  config.resolver.assetExts.push('pdf');
+}
+
 // ── 1. Watch the whole monorepo ───────────────────────────────────────────────
 config.watchFolders = [monorepoRoot];
 

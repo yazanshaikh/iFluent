@@ -10,6 +10,7 @@
     "prebuild": "expo prebuild --clean"
   },
   "dependencies": {
+    "@daily-co/daily-js": "^0.91.0",
     "@daily-co/react-native-daily-js": "^0.86.0",
     "@daily-co/react-native-webrtc": "^124.0.6-daily.2",
     "@expo/vector-icons": "^15.0.3",

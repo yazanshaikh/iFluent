@@ -130,23 +130,28 @@ export function HeroSection({ settings, onCtaPrimary, onCtaSecondary }: HeroSect
             />
           </Animated.View>
 
-          {/* Floating badge: "Learn English" */}
-          <View style={styles.floatBadge1}>
-            <Text style={styles.floatBadgeEmoji}>⭐</Text>
-            <View>
-              <Text style={styles.floatBadgeTitle}>98% رضا الطلاب</Text>
-              <Text style={styles.floatBadgeSub}>تقييمات ابطالنا</Text>
-            </View>
-          </View>
+          {/* Floating badges — desktop/tablet only. On mobile the image is
+              full-width and these negatively-offset cards get clipped by the
+              section's overflow and overlap other content, so we hide them. */}
+          {!isMobile && (
+            <>
+              <View style={styles.floatBadge1}>
+                <Text style={styles.floatBadgeEmoji}>⭐</Text>
+                <View>
+                  <Text style={styles.floatBadgeTitle}>98% رضا الطلاب</Text>
+                  <Text style={styles.floatBadgeSub}>تقييمات ابطالنا</Text>
+                </View>
+              </View>
 
-          {/* Floating badge 2 */}
-          <View style={styles.floatBadge2}>
-            <Text style={styles.floatBadgeEmoji}>🎓</Text>
-            <View>
-              <Text style={styles.floatBadgeTitle}>+500 طالب</Text>
-              <Text style={styles.floatBadgeSub}>ينضمون كل شهر</Text>
-            </View>
-          </View>
+              <View style={styles.floatBadge2}>
+                <Text style={styles.floatBadgeEmoji}>🎓</Text>
+                <View>
+                  <Text style={styles.floatBadgeTitle}>+500 طالب</Text>
+                  <Text style={styles.floatBadgeSub}>ينضمون كل شهر</Text>
+                </View>
+              </View>
+            </>
+          )}
         </View>
       </View>
 

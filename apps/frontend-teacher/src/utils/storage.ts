@@ -1,32 +1,23 @@
 /**
- * Cross-platform secure storage:
- * - Native (iOS/Android): expo-secure-store
- * - Web: localStorage (dev only)
+ * Secure storage — NATIVE implementation (iOS / Android).
+ *
+ * Metro resolves this file on native and `storage.web.ts` on web, so callers
+ * keep importing `@/utils/storage` unchanged. Native behaviour is identical to
+ * before (expo-secure-store); the previous in-file web branch now lives in the
+ * separate web implementation — no native code path changed.
  */
-import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 
 export const storage = {
-  async getItem(key: string): Promise<string | null> {
-    if (Platform.OS === 'web') {
-      return localStorage.getItem(key);
-    }
+  getItem(key: string): Promise<string | null> {
     return SecureStore.getItemAsync(key);
   },
 
   async setItem(key: string, value: string): Promise<void> {
-    if (Platform.OS === 'web') {
-      localStorage.setItem(key, value);
-      return;
-    }
     await SecureStore.setItemAsync(key, value);
   },
 
   async removeItem(key: string): Promise<void> {
-    if (Platform.OS === 'web') {
-      localStorage.removeItem(key);
-      return;
-    }
     await SecureStore.deleteItemAsync(key);
   },
 };

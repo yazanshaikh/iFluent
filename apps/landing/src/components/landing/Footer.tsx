@@ -4,6 +4,7 @@ import {
   Linking, Platform, Image, Pressable,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { Asset } from 'expo-asset';
 import FontAwesome5 from '@expo/vector-icons/FontAwesome5';
 import { Colors } from '@ifluent/shared';
 import { Spacing, MAX_WIDTH } from '@ifluent/shared';
@@ -18,6 +19,10 @@ const QUICK_LINKS = [
   { label: 'مميزات المنصة',    id: 'features' },
   { label: 'كيف يعمل',        id: 'how'      },
 ];
+
+// Platform policies PDF — bundled INTO the app (committed in assets), so it is
+// served same-origin and never depends on a backend URL / device IP.
+const POLICIES_PDF = require('../../../assets/legal/ifluent-policies.pdf');
 
 export function Footer({ settings }: FooterProps) {
   const { isMobile } = useResponsive();
@@ -42,6 +47,9 @@ export function Footer({ settings }: FooterProps) {
     if (Platform.OS === 'web') window.open(url, '_blank');
     else Linking.openURL(url).catch(() => {});
   };
+
+  // Open the bundled policies PDF (same-origin asset — no backend dependency).
+  const openPolicies = () => openUrl(Asset.fromModule(POLICIES_PDF).uri);
 
   const scrollTo = (id: string) => {
     if (Platform.OS === 'web') {
@@ -85,6 +93,11 @@ export function Footer({ settings }: FooterProps) {
           <Text style={styles.tagline}>
           منصة متكاملة لتعليم الإنجليزية{'\n'} مع أفضل المعلمين المحترفين اجانب وعرب
           </Text>
+
+          {/* Platform policies — opens the PDF directly */}
+          <TouchableOpacity onPress={openPolicies} activeOpacity={0.7}>
+            <Text style={styles.policyLink}>سياسات وشروط المنصة</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Quick links + phone (navy area) */}
@@ -250,7 +263,16 @@ const styles = StyleSheet.create({
     fontSize:     FontSize.sm,
     lineHeight:   22,
     textAlign:    'right',
-    marginBottom: Spacing.xl,
+    marginBottom: Spacing.sm,
+    writingDirection: 'rtl' as any,
+  },
+  policyLink: {
+    color:            Colors.yellow,
+    fontSize:         FontSize.sm,
+    fontWeight:       FontWeight.semibold,
+    textAlign:        'right',
+    marginBottom:     Spacing.xl,
+    textDecorationLine: 'underline',
     writingDirection: 'rtl' as any,
   },
   // Links
