@@ -71,7 +71,9 @@ export default function LandingPage() {
           <View nativeID="contact"  onLayout={registerSection('contact')}>
             <DemoSection settings={settings} onCtaPress={openBooking} />
           </View>
-          <Footer settings={settings} />
+          <View nativeID="download" onLayout={registerSection('download')}>
+            <Footer settings={settings} />
+          </View>
         </ScrollView>
 
         {/* Booking modal — rendered above everything at root level */}

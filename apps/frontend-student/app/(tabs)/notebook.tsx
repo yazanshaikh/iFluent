@@ -6,9 +6,10 @@
 import { useState, useMemo } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, TextInput,
-  StyleSheet, Alert, ActivityIndicator, Modal,
+  StyleSheet, ActivityIndicator, Modal,
   KeyboardAvoidingView, Platform, Animated,
 } from 'react-native';
+import { appAlert } from '@/lib/alert';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -327,20 +328,20 @@ export default function NotebookScreen() {
     mutationFn: ({ content, category }: { content: string; category: string }) =>
       client.post('/student/notebook', { content, category }).then((r) => r.data),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['notebook'] }); setModalVisible(false); },
-    onError:   () => Alert.alert('خطأ', 'تعذر حفظ الملاحظة'),
+    onError:   () => appAlert('خطأ', 'تعذر حفظ الملاحظة'),
   });
 
   const updateMutation = useMutation({
     mutationFn: ({ id, content, category }: { id: number; content: string; category: string }) =>
       client.patch(`/student/notebook/${id}`, { content, category }).then((r) => r.data),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['notebook'] }); setModalVisible(false); setEditingNote(null); },
-    onError:   () => Alert.alert('خطأ', 'تعذر تعديل الملاحظة'),
+    onError:   () => appAlert('خطأ', 'تعذر تعديل الملاحظة'),
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => client.delete(`/student/notebook/${id}`).then((r) => r.data),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['notebook'] }); setDeletingId(null); },
-    onError:   () => { Alert.alert('خطأ', 'تعذر حذف الملاحظة'); setDeletingId(null); },
+    onError:   () => { appAlert('خطأ', 'تعذر حذف الملاحظة'); setDeletingId(null); },
   });
 
   // ── Handlers ──────────────────────────────────────────────────────────────
@@ -356,7 +357,7 @@ export default function NotebookScreen() {
   };
 
   const handleDelete = (id: number) => {
-    Alert.alert('حذف الملاحظة', 'هل أنت متأكد من الحذف؟', [
+    appAlert('حذف الملاحظة', 'هل أنت متأكد من الحذف؟', [
       { text: 'إلغاء', style: 'cancel' },
       { text: 'حذف', style: 'destructive', onPress: () => { setDeletingId(id); deleteMutation.mutate(id); } },
     ]);

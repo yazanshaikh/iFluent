@@ -8,9 +8,13 @@
  * on an old binary surfaces "Cannot read property 'dispatch' of undefined".
  */
 import { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, LogBox } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Daily, { DailyMediaView } from '@daily-co/react-native-daily-js';
+
+// daily-js logs `console.error("Meeting ended in error: Meeting has ended")` when
+// the teacher ends the call — a normal end, not a crash. Stop the dev red box.
+LogBox.ignoreLogs(['Meeting ended in error', 'Meeting has ended']);
 
 interface Props {
   roomUrl: string;   // already includes the ?t=token from the backend
@@ -74,6 +78,9 @@ export function DailyCallPanel({ roomUrl }: Props) {
       .on('error', (ev: any) => {
         console.log('[Daily] error event', JSON.stringify(ev));
         const raw = ev?.errorMsg ?? ev?.error?.msg ?? ev?.error?.type ?? JSON.stringify(ev)?.slice(0, 140);
+        // Teacher ended the meeting / room destroyed → benign. The session screen
+        // already shows the "session ended" state, so don't surface a scary error.
+        if (/ended|has ended|left/i.test(String(raw))) return;
         setFatal(`ERR: ${raw}\n[${diag}]`);
       });
 

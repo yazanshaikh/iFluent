@@ -1,0 +1,38 @@
+{
+  "name": "@ifluent/frontend-teacher-desktop",
+  "version": "1.0.0",
+  "private": true,
+  "main": "main.js",
+  "scripts": {
+    "build:web": "cd ../frontend-teacher && npx expo export --platform web --output-dir ../frontend-teacher-desktop/web-build",
+    "start": "npm run build:web && electron .",
+    "dist": "npm run build:web && electron-builder"
+  },
+  "devDependencies": {
+    "electron": "^33.4.11",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "io.ifluent.teacher.desktop",
+    "productName": "iFluent Teacher",
+    "files": [
+      "main.js",
+      "web-build/**/*"
+    ],
+    "directories": {
+      "output": "release"
+    },
+    "mac": {
+      "icon": "assets/icon.png",
+      "target": "dmg"
+    },
+    "win": {
+      "icon": "assets/icon.png",
+      "target": "nsis"
+    },
+    "linux": {
+      "icon": "assets/icon.png",
+      "target": "AppImage"
+    }
+  }
+}

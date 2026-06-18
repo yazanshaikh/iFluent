@@ -50,6 +50,13 @@ export async function lockCurrent(): Promise<void> {
   } catch { /* unavailable */ }
 }
 
+/** Force landscape — used by the live session so the side-by-side split fits. */
+export async function lockLandscape(): Promise<void> {
+  try {
+    await SO?.lockAsync(SO.OrientationLock.LANDSCAPE);
+  } catch { /* unavailable */ }
+}
+
 /** Restore the app default (portrait) — call when leaving the session. */
 export async function lockPortrait(): Promise<void> {
   try {

@@ -47,33 +47,35 @@ export function SplitCallLayout({ call, content }: { call: ReactNode; content: R
     })
   ).current;
 
-  if (landscape) {
-    return (
-      <View style={[st.row, { direction: 'ltr' }]}>
-        <View style={{ flex: 1, minWidth: 0 }}>{content}</View>
-        <View style={st.vHandle} {...responder.panHandlers}>
-          <View style={st.vPill} />
-        </View>
-        <View style={{ width: size }}>{call}</View>
-      </View>
-    );
-  }
-
+  // ONE stable tree for both orientations — only flexDirection + sizes change,
+  // so {call}/{content} are never unmounted/remounted (which reloaded the
+  // Daily/Nearpod iframes and kicked the user out) when resizing crosses the
+  // landscape↔portrait threshold on web. row-reverse puts the call (1st child)
+  // on the visual right; direction:'ltr' keeps it consistent under RTL.
   return (
-    <View style={{ flex: 1 }}>
-      <View style={{ height: size }}>{call}</View>
-      <View style={st.hHandle} {...responder.panHandlers}>
-        <View style={st.hPill} />
-        <Text style={st.hint}>Drag to resize</Text>
-        <View style={st.hPill} />
+    <View style={[{ flex: 1, direction: 'ltr' }, landscape ? st.row : st.col]}>
+      <View style={landscape ? { width: size } : { height: size }}>{call}</View>
+
+      <View style={landscape ? st.vHandle : st.hHandle} {...responder.panHandlers}>
+        {landscape ? (
+          <View style={st.vPill} />
+        ) : (
+          <>
+            <View style={st.hPill} />
+            <Text style={st.hint}>Drag to resize</Text>
+            <View style={st.hPill} />
+          </>
+        )}
       </View>
-      <View style={{ flex: 1 }}>{content}</View>
+
+      <View style={{ flex: 1, minWidth: 0 }}>{content}</View>
     </View>
   );
 }
 
 const st = StyleSheet.create({
-  row: { flex: 1, flexDirection: 'row' },
+  row: { flex: 1, flexDirection: 'row-reverse' },
+  col: { flex: 1, flexDirection: 'column' },
   vHandle: {
     width: 16, alignSelf: 'stretch',
     backgroundColor: '#1e293b',

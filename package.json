@@ -12,6 +12,8 @@
     "dev:crm": "turbo run dev  --filter=@ifluent/frontend-crm",
     "dev:student": "turbo run dev  --filter=@ifluent/frontend-student",
     "dev:teacher": "turbo run dev  --filter=@ifluent/frontend-teacher",
+    "desktop:student": "npm run start --workspace=@ifluent/frontend-student-desktop",
+    "desktop:teacher": "npm run start --workspace=@ifluent/frontend-teacher-desktop",
     "build": "turbo run build",
     "lint": "turbo run lint",
     "type-check": "turbo run type-check"

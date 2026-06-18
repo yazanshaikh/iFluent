@@ -16,8 +16,9 @@ import {
   RefreshControl,
   Animated,
   Linking,
-  Alert,
+  
 } from 'react-native';
+import { appAlert } from '@/lib/alert';
 import { useRouter, type Router } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { Ionicons, Feather, MaterialCommunityIcons } from '@expo/vector-icons';
@@ -33,7 +34,7 @@ import { EvalBookingModal }        from '@/components/EvalBookingModal';
 import { SessionBookingModal }    from '@/components/SessionBookingModal';
 import { MascotGreeting }         from '@/components/MascotGreeting';
 
-const WHATSAPP = 'https://wa.me/962787621715';
+const WHATSAPP = 'https://wa.me/962780105274';
 
 // ─── Unit card ────────────────────────────────────────────────────────────────
 
@@ -280,7 +281,7 @@ function CreditsBody({
       {/* Book group session — coming soon */}
       <TouchableOpacity
         style={[styles.bookSessionBtn, styles.bookGroupBtn]}
-        onPress={() => Alert.alert('قريباً 🚧', 'هذه الميزة غير متاحة حالياً، ترقّب إطلاقها قريباً!')}
+        onPress={() => appAlert('قريباً 🚧', 'هذه الميزة غير متاحة حالياً، ترقّب إطلاقها قريباً!')}
         activeOpacity={0.85}
       >
         <View style={[styles.bookSessionIcon, styles.bookGroupIcon]}>

@@ -5,8 +5,9 @@
 import { useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, Animated,
-  StyleSheet, ActivityIndicator, Alert,
+  StyleSheet, ActivityIndicator, 
 } from 'react-native';
+import { appAlert } from '@/lib/alert';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
@@ -63,17 +64,17 @@ export default function QuizScreen() {
       qc.invalidateQueries({ queryKey: ['progress'] });
     },
     onError: (err: any) => {
-      Alert.alert('خطأ', err?.response?.data?.message ?? 'تعذر تسليم الاختبار');
+      appAlert('خطأ', err?.response?.data?.message ?? 'تعذر تسليم الاختبار');
     },
   });
 
   const handleSubmit = () => {
     const total = quiz?.questions.length ?? 0;
     if (Object.keys(answers).length < total) {
-      Alert.alert('تنبيه', 'الرجاء الإجابة على جميع الأسئلة');
+      appAlert('تنبيه', 'الرجاء الإجابة على جميع الأسئلة');
       return;
     }
-    Alert.alert('تسليم الاختبار', 'هل أنت مستعد للتسليم؟', [
+    appAlert('تسليم الاختبار', 'هل أنت مستعد للتسليم؟', [
       { text: 'مراجعة', style: 'cancel' },
       { text: 'تسليم ✅', onPress: () => submit() },
     ]);

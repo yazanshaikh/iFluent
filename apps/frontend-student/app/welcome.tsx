@@ -8,7 +8,7 @@
  *
  * Actions:
  *   "ابدأ الآن" → modal form (name + phone) → POST /public/leads → CRM
- *   WhatsApp    → wa.me/962787621715
+ *   WhatsApp    → wa.me/962780105274
  *   Login link  → /(auth)/phone
  */
 import {
@@ -41,7 +41,7 @@ const BASE_URL =
   process.env.EXPO_PUBLIC_API_URL ??
   'http://192.168.0.104:8000/api/v1';
 
-const WHATSAPP = 'https://wa.me/962787621715';
+const WHATSAPP = 'https://wa.me/962780105274';
 
 // ─── How-it-works steps ───────────────────────────────────────────────────────
 

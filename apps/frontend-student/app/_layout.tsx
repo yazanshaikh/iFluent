@@ -12,6 +12,7 @@ import { useAuthStore } from '@/stores/authStore';
 import Sidebar from '@/components/Sidebar';
 import { MaintenanceGate } from '@/components/MaintenanceGate';
 import { registerForPushNotifications } from '@/hooks/usePushNotifications';
+import { lockPortrait } from '@/lib/screenOrientation';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -27,6 +28,12 @@ export default function RootLayout() {
   const hydrate = useAuthStore((s) => s.hydrate);
   const hydrated = useAuthStore((s) => s.hydrated);
   const token    = useAuthStore((s) => s.token);
+
+  // Lock the whole app to portrait by default (app.json orientation is "default"
+  // so landscape is *available*). The live-session screen overrides this to
+  // landscape on entry and restores portrait on exit, so only the session is
+  // landscape while every other screen stays portrait. No-op on web.
+  useEffect(() => { lockPortrait().catch(() => {}); }, []);
 
   useEffect(() => {
     // CRITICAL: Ensure auth store is hydrated before any child components render

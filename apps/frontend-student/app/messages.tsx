@@ -5,8 +5,9 @@
 import { useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
-  StyleSheet, ActivityIndicator, Animated, Modal, RefreshControl, Linking, Alert,
+  StyleSheet, ActivityIndicator, Animated, Modal, RefreshControl, Linking, 
 } from 'react-native';
+import { appAlert } from '@/lib/alert';
 import { useRouter } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
@@ -117,7 +118,7 @@ function MessageModal({
               activeOpacity={0.85}
               onPress={() =>
                 Linking.openURL(msg.link!).catch(() =>
-                  Alert.alert('تعذّر الفتح', 'لم نتمكن من فتح الرابط. حاول لاحقاً.'),
+                  appAlert('تعذّر الفتح', 'لم نتمكن من فتح الرابط. حاول لاحقاً.'),
                 )
               }
             >

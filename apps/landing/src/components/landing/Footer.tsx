@@ -57,8 +57,10 @@ export function Footer({ settings }: FooterProps) {
     }
   };
 
-  const hasAppStore   = !!settings.app_store_url;
-  const hasGooglePlay = !!settings.google_play_url;
+  const hasAppStore      = !!settings.app_store_url;
+  const hasGooglePlay    = !!settings.google_play_url;
+  const hasDesktopMac     = !!settings.desktop_mac_url;
+  const hasDesktopWindows = !!settings.desktop_windows_url;
   const phone         = settings.contact_phone?.trim();
   const dialUrl       = phone ? `tel:${phone.replace(/[^\d+]/g, '')}` : null;
 
@@ -153,6 +155,37 @@ export function Footer({ settings }: FooterProps) {
             {!hasGooglePlay && <View style={styles.comingBadge}><Text style={styles.comingBadgeText}>قريباً</Text></View>}
           </TouchableOpacity>
 
+          {/* Desktop apps */}
+          <Text style={styles.socialHeading}>نسخة سطح المكتب</Text>
+
+          <TouchableOpacity
+            style={[styles.storeBtn, !hasDesktopMac && styles.storeBtnDisabled]}
+            onPress={() => openUrl(settings.desktop_mac_url)}
+            disabled={!hasDesktopMac}
+            activeOpacity={hasDesktopMac ? 0.8 : 1}
+          >
+            <FontAwesome5 name="apple" brand size={20} color={Colors.white} />
+            <View style={styles.storeBtnText}>
+              <Text style={styles.storeBtnSub}>Download for</Text>
+              <Text style={styles.storeBtnName}>macOS</Text>
+            </View>
+            {!hasDesktopMac && <View style={styles.comingBadge}><Text style={styles.comingBadgeText}>قريباً</Text></View>}
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.storeBtn, !hasDesktopWindows && styles.storeBtnDisabled]}
+            onPress={() => openUrl(settings.desktop_windows_url)}
+            disabled={!hasDesktopWindows}
+            activeOpacity={hasDesktopWindows ? 0.8 : 1}
+          >
+            <FontAwesome5 name="windows" brand size={20} color={Colors.white} />
+            <View style={styles.storeBtnText}>
+              <Text style={styles.storeBtnSub}>Download for</Text>
+              <Text style={styles.storeBtnName}>Windows</Text>
+            </View>
+            {!hasDesktopWindows && <View style={styles.comingBadge}><Text style={styles.comingBadgeText}>قريباً</Text></View>}
+          </TouchableOpacity>
+
           {/* Social */}
           <Text style={styles.socialHeading}>تابعنا</Text>
           <View style={styles.socialRow}>
@@ -238,7 +271,13 @@ const styles = StyleSheet.create({
     paddingBottom:     Spacing['2xl'],
   },
   innerMobile: { flexDirection: 'column' },
-  colMobile:   { width: '100%' },
+  // `flex: 2/1` on the columns below is for proportional WIDTHS in the desktop
+  // row-reverse layout. On mobile the layout becomes a column, so those same
+  // values get reinterpreted as proportional HEIGHTS — combined with RN Web's
+  // `min-height: 0` reset on flex items, columns get flex-shrunk below their
+  // real content height and overflow visibly into whatever comes next. Reset
+  // flex sizing to content-based on mobile.
+  colMobile:   { width: '100%', flexGrow: 0, flexShrink: 0, flexBasis: 'auto' },
 
   // Brand
   brandCol: { flex: 2, minWidth: 220, alignItems: 'flex-end' },

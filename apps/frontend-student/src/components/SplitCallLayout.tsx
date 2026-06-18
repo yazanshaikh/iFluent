@@ -1,102 +1,79 @@
 /**
- * Responsive split layout for the live session.
- *  - Landscape / wide screens: video call on the RIGHT, content (Nearpod) fills
- *    the left, with a draggable vertical divider.
- *  - Portrait / narrow phones: call on TOP, content below, draggable horizontal
- *    divider (side-by-side would be too cramped on a phone in portrait).
- * The divider is draggable in both orientations.
+ * Live-session split layout (always side-by-side, like the wireframe):
+ *   • RIGHT  → the video call (Daily) in a narrower column.
+ *   • LEFT   → the lesson content (Nearpod) fills the rest.
+ *
+ * The divider is PROPORTIONAL (a fraction of the screen width), so the split
+ * keeps its ratio and never breaks when the window/screen grows or shrinks — it
+ * just takes its proportional size. Dragging the divider is an optional way for
+ * the student to rebalance it; the layout works fine without touching it.
+ *
+ * The session screen forces landscape on phones, so this side-by-side layout
+ * always has room (a phone in portrait would be too cramped for two panes).
  */
-import { ReactNode, useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, PanResponder, useWindowDimensions } from 'react-native';
+import { ReactNode, useRef, useState } from 'react';
+import { View, StyleSheet, PanResponder, useWindowDimensions } from 'react-native';
 
-const MIN = 120;
-const PORTRAIT_DEFAULT = 220;
+// Call (right) column as a fraction of total width.
+const DEFAULT_FRACTION = 0.34;
+const MIN_FRACTION = 0.22;
+const MAX_FRACTION = 0.55;
 
 export function SplitCallLayout({ call, content }: { call: ReactNode; content: ReactNode }) {
-  const { width, height } = useWindowDimensions();
-  const landscape   = width > height;
-  const axis        = landscape ? width : height;
-  const maxSize     = Math.round(axis * 0.6);
-  const defaultSize = landscape ? Math.min(Math.round(width * 0.42), maxSize) : PORTRAIT_DEFAULT;
+  const { width } = useWindowDimensions();
 
-  const [size, setSize] = useState(defaultSize);
-  const sizeRef      = useRef(size);
-  const startRef     = useRef(0);
-  const landscapeRef = useRef(landscape);
-  const maxRef       = useRef(maxSize);
+  const [fraction, setFraction] = useState(DEFAULT_FRACTION);
+  const fractionRef = useRef(fraction);
+  const startRef    = useRef(fraction);
+  const widthRef    = useRef(width);
 
-  landscapeRef.current = landscape;
-  maxRef.current       = maxSize;
-
-  // Re-clamp (and re-default) when orientation / dimensions change
-  useEffect(() => {
-    const next = Math.max(MIN, Math.min(maxSize, defaultSize));
-    sizeRef.current = next;
-    setSize(next);
-  }, [landscape, maxSize, defaultSize]);
+  fractionRef.current = fraction;
+  widthRef.current    = width;
 
   const responder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder:  () => true,
-      onPanResponderGrant: () => { startRef.current = sizeRef.current; },
+      onPanResponderGrant: () => { startRef.current = fractionRef.current; },
       onPanResponderMove: (_, g) => {
-        // Landscape: call is on the right → dragging the divider left grows it.
-        const delta = landscapeRef.current ? -g.dx : g.dy;
-        const next  = Math.max(MIN, Math.min(maxRef.current, startRef.current + delta));
-        sizeRef.current = next;
-        setSize(next);
+        // Call sits on the RIGHT → dragging the divider left (negative dx) grows it.
+        const deltaF = -g.dx / Math.max(widthRef.current, 1);
+        const next   = Math.max(MIN_FRACTION, Math.min(MAX_FRACTION, startRef.current + deltaF));
+        setFraction(next);
       },
-    })
+    }),
   ).current;
 
-  if (landscape) {
-    return (
-      // direction:'ltr' forces the call onto the visual right regardless of RTL
-      <View style={[st.row, { direction: 'ltr' }]}>
-        <View style={{ flex: 1, minWidth: 0 }}>{content}</View>
-        <View style={st.vHandle} {...responder.panHandlers}>
-          <View style={st.vPill} />
-        </View>
-        <View style={{ width: size }}>{call}</View>
-      </View>
-    );
-  }
+  // Proportional width — recomputed every render, so resizing just rescales it.
+  const callWidth = Math.round(width * fraction);
 
+  // row-reverse + direction:'ltr' → the call (1st child) lands on the visual
+  // RIGHT regardless of the app's RTL direction; content fills the left.
   return (
-    <View style={{ flex: 1 }}>
-      <View style={{ height: size }}>{call}</View>
-      <View style={st.hHandle} {...responder.panHandlers}>
-        <View style={st.hPill} />
-        <Text style={st.hint}>اسحب لتغيير الحجم</Text>
-        <View style={st.hPill} />
+    <View style={styles.row}>
+      <View style={{ width: callWidth }}>{call}</View>
+
+      <View style={styles.handle} {...responder.panHandlers}>
+        <View style={styles.pill} />
       </View>
-      <View style={{ flex: 1 }}>{content}</View>
+
+      <View style={{ flex: 1, minWidth: 0 }}>{content}</View>
     </View>
   );
 }
 
-const st = StyleSheet.create({
-  row: { flex: 1, flexDirection: 'row' },
-
-  // Vertical divider (landscape)
-  vHandle: {
-    width: 16, alignSelf: 'stretch',
+const styles = StyleSheet.create({
+  row: { flex: 1, flexDirection: 'row-reverse', direction: 'ltr' },
+  handle: {
+    width: 16,
+    alignSelf: 'stretch',
     backgroundColor: '#1e293b',
-    justifyContent: 'center', alignItems: 'center',
-    borderLeftWidth: 1, borderRightWidth: 1, borderColor: '#334155',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderLeftWidth: 1,
+    borderRightWidth: 1,
+    borderColor: '#334155',
     zIndex: 20,
   },
-  vPill: { width: 4, height: 34, borderRadius: 2, backgroundColor: '#475569' },
-
-  // Horizontal divider (portrait)
-  hHandle: {
-    height: 26,
-    backgroundColor: '#1e293b',
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    borderTopWidth: 1, borderBottomWidth: 1, borderColor: '#334155',
-    zIndex: 20,
-  },
-  hPill: { width: 30, height: 4, borderRadius: 2, backgroundColor: '#475569' },
-  hint:  { fontSize: 10, color: '#64748b', fontWeight: '600', letterSpacing: 0.5 },
+  pill: { width: 4, height: 34, borderRadius: 2, backgroundColor: '#475569' },
 });

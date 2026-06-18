@@ -5,9 +5,10 @@
 import { useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, Animated,
-  StyleSheet, ActivityIndicator, Alert, Modal,
+  StyleSheet, ActivityIndicator, Modal,
   Platform, TextInput, KeyboardAvoidingView,
 } from 'react-native';
+import { appAlert } from '@/lib/alert';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
@@ -44,10 +45,10 @@ function BookSessionModal({ lessonId, visible, onClose }: BookModalProps) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['sessions'] });
       onClose();
-      Alert.alert('تم الحجز ✅', 'طلب حجز الحصة أُرسل إلى المعلم. ستُعلَم عند التأكيد.');
+      appAlert('تم الحجز ✅', 'طلب حجز الحصة أُرسل إلى المعلم. ستُعلَم عند التأكيد.');
     },
     onError: (err: any) => {
-      Alert.alert('خطأ', err?.response?.data?.message ?? 'تعذر الحجز. حاول مجدداً.');
+      appAlert('خطأ', err?.response?.data?.message ?? 'تعذر الحجز. حاول مجدداً.');
     },
   });
 

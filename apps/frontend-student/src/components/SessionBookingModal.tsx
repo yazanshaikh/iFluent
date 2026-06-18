@@ -19,8 +19,9 @@ import {
   StyleSheet,
   Platform,
   KeyboardAvoidingView,
-  Alert,
+  
 } from 'react-native';
+import { appAlert } from '@/lib/alert';
 import { Ionicons }          from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery }          from '@tanstack/react-query';
@@ -165,7 +166,7 @@ export function SessionBookingModal({ visible, credits, onClose, onBooked }: Pro
       setDone(true);
       onBooked();
     } catch (e: any) {
-      Alert.alert('خطأ', e?.response?.data?.message ?? 'حدث خطأ، يرجى المحاولة مرة أخرى');
+      appAlert('خطأ', e?.response?.data?.message ?? 'حدث خطأ، يرجى المحاولة مرة أخرى');
     } finally {
       setLoading(false);
     }

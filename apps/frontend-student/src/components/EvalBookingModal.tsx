@@ -19,8 +19,9 @@ import {
   Platform,
   KeyboardAvoidingView,
   TextInput,
-  Alert,
+  
 } from 'react-native';
+import { appAlert } from '@/lib/alert';
 import { Ionicons }              from '@expo/vector-icons';
 import { useSafeAreaInsets }     from 'react-native-safe-area-context';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -124,7 +125,7 @@ export function EvalBookingModal({ visible, onClose }: Props) {
       qc.invalidateQueries({ queryKey: ['bookings'] });
       setDone(true);
     },
-    onError: (e: any) => Alert.alert('خطأ', e?.response?.data?.message ?? 'حدث خطأ، يرجى المحاولة مرة أخرى'),
+    onError: (e: any) => appAlert('خطأ', e?.response?.data?.message ?? 'حدث خطأ، يرجى المحاولة مرة أخرى'),
   });
 
   // 7 calendar days starting from today

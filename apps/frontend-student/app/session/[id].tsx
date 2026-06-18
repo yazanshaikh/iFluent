@@ -12,15 +12,16 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ActivityIndicator,
-  TouchableOpacity, Alert, AppState,
+  TouchableOpacity, AppState,
   StatusBar, BackHandler,
 } from 'react-native';
+import { appAlert } from '@/lib/alert';
 import { useRouter, useLocalSearchParams, Stack } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { WebView } from 'react-native-webview';
+import { WebViewUniversal } from '@/components/WebViewUniversal';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { unlock as unlockOrientation, lockPortrait } from '@/lib/screenOrientation';
+import { lockLandscape, lockPortrait } from '@/lib/screenOrientation';
 import { DailyCallPanel } from '@/components/DailyCallPanel';
 import { SplitCallLayout } from '@/components/SplitCallLayout';
 import { sessionsApi, type JoinSessionResponse } from '@/api/sessions';
@@ -46,23 +47,10 @@ function NearpodPanel({ sessionId, url, pin }: { sessionId: number; url: string 
   return (
     <View style={{ flex: 1, backgroundColor: '#fff' }}>
       {url ? (
-        <WebView
+        <WebViewUniversal
           key={`nearpod-${sessionId}`}
-          source={{ uri: url }}
-          style={StyleSheet.absoluteFillObject}
-          javaScriptEnabled
-          domStorageEnabled
-          allowsInlineMediaPlayback
-          mediaPlaybackRequiresUserAction={false}
-          originWhitelist={['*']}
-          onShouldStartLoadWithRequest={() => true}
-          startInLoadingState
-          renderLoading={() => (
-            <View style={[S.webLoading, { backgroundColor: '#f5f3ff' }]}>
-              <ActivityIndicator size="large" color="#7c3aed" />
-              <Text style={{ color: '#7c3aed', marginTop: 12 }}>جاري تحميل الدرس…</Text>
-            </View>
-          )}
+          uri={url}
+          loadingColor="#7c3aed"
         />
       ) : (
         <View style={S.noNearpod}>
@@ -117,10 +105,10 @@ export default function SessionRoomScreen() {
     }
   }, [data, joined]);
 
-  // Allow free rotation while in the session (landscape for the split view),
-  // then restore portrait when the screen unmounts.
+  // Force landscape during the session so the side-by-side split (Daily right /
+  // Nearpod left) always has room; restore portrait when leaving.
   useEffect(() => {
-    unlockOrientation().catch(() => {});
+    lockLandscape().catch(() => {});
     return () => { lockPortrait().catch(() => {}); };
   }, []);
 
@@ -139,7 +127,7 @@ export default function SessionRoomScreen() {
 
   // ── Back guard ─────────────────────────────────────────────────────────────
   const handleLeave = useCallback(() => {
-    Alert.alert('مغادرة الحصة', 'هل تريد مغادرة الحصة؟ يمكنك العودة في أي وقت.', [
+    appAlert('مغادرة الحصة', 'هل تريد مغادرة الحصة؟ يمكنك العودة في أي وقت.', [
       { text: 'ابقَ', style: 'cancel' },
       { text: 'مغادرة', style: 'destructive', onPress: async () => {
         await lockPortrait().catch(() => {});

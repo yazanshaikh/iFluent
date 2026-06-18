@@ -46,6 +46,8 @@ export interface SiteSettings {
   social_tiktok?:    string | null;
   app_store_url?:    string | null;
   google_play_url?:  string | null;
+  desktop_mac_url?:     string | null;
+  desktop_windows_url?: string | null;
   footer_text?:      string;
   // General
   platform_name?:    string;

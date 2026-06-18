@@ -68,6 +68,8 @@ const SECTIONS: { title: string; emoji: string; fields: FieldDef[] }[] = [
     fields: [
       { key: 'app_store_url',    label: 'رابط App Store',   placeholder: 'https://apps.apple.com/...', keyboardType: 'url' },
       { key: 'google_play_url',  label: 'رابط Google Play', placeholder: 'https://play.google.com/...', keyboardType: 'url' },
+      { key: 'desktop_mac_url',     label: 'رابط تحميل نسخة Mac',     placeholder: 'https://.../iFluent.dmg', keyboardType: 'url' },
+      { key: 'desktop_windows_url', label: 'رابط تحميل نسخة Windows', placeholder: 'https://.../iFluent-Setup.exe', keyboardType: 'url' },
     ],
   },
   {

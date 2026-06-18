@@ -4,14 +4,15 @@
  */
 import {
   View, Text, StyleSheet, TouchableOpacity,
-  Alert, ActivityIndicator, ScrollView, Animated,
+  ActivityIndicator, ScrollView, Animated,
   Modal, Image, TextInput, KeyboardAvoidingView, Platform,
 } from 'react-native';
+import { appAlert } from '@/lib/alert';
 import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import * as SecureStore       from 'expo-secure-store';
+import { storage }            from '@/utils/storage';
 import { useAuthStore }    from '@/stores/authStore';
 import { useAvatarStore }  from '@/stores/avatarStore';
 import { authApi }         from '@/api/auth';
@@ -88,7 +89,7 @@ export default function ProfileScreen() {
 
   // Load locally-saved name on mount
   useEffect(() => {
-    SecureStore.getItemAsync(LOCAL_NAME_KEY).then((v) => {
+    storage.getItem(LOCAL_NAME_KEY).then((v) => {
       if (v) setLocalName(v);
     });
   }, []);
@@ -132,10 +133,10 @@ export default function ProfileScreen() {
   const saveLocalName = async () => {
     const trimmed = draftName.trim();
     if (!trimmed) {
-      Alert.alert('', 'الرجاء إدخال اسم صحيح');
+      appAlert('', 'الرجاء إدخال اسم صحيح');
       return;
     }
-    await SecureStore.setItemAsync(LOCAL_NAME_KEY, trimmed);
+    await storage.setItem(LOCAL_NAME_KEY, trimmed);
     setLocalName(trimmed);
     setNameSheetOpen(false);
   };
@@ -151,7 +152,7 @@ export default function ProfileScreen() {
   };
 
   const handleLogout = () => {
-    Alert.alert('تسجيل الخروج', 'هل تريد تسجيل الخروج؟', [
+    appAlert('تسجيل الخروج', 'هل تريد تسجيل الخروج؟', [
       { text: 'إلغاء', style: 'cancel' },
       {
         text: 'خروج',
@@ -418,7 +419,7 @@ export default function ProfileScreen() {
               <TouchableOpacity
                 style={styles.nameResetBtn}
                 onPress={async () => {
-                  await SecureStore.deleteItemAsync(LOCAL_NAME_KEY);
+                  await storage.removeItem(LOCAL_NAME_KEY);
                   setLocalName(null);
                   setNameSheetOpen(false);
                 }}

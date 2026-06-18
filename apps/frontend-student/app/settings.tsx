@@ -5,8 +5,9 @@
 import { useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
-  Alert, ActivityIndicator, ScrollView, Switch, Animated,
+  ActivityIndicator, ScrollView, Switch, Animated,
 } from 'react-native';
+import { appAlert } from '@/lib/alert';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -67,22 +68,21 @@ export default function SettingsScreen() {
   const { headerHeight, onHeaderLayout, onScroll, headerStyle } =
     useAnimatedHeader({ animateTabBar: false });
 
+  const doLogout = async () => {
+    setLoggingOut(true);
+    try { await authApi.logout(); } catch { /* ignore */ }
+    await clearAuth();
+    router.replace('/(auth)/phone');
+  };
+
   const handleLogout = () => {
-    Alert.alert(
+    // appAlert maps to Alert.alert on native and window.confirm on web.
+    appAlert(
       'تسجيل الخروج',
       'هل أنت متأكد أنك تريد تسجيل الخروج؟',
       [
         { text: 'إلغاء', style: 'cancel' },
-        {
-          text: 'خروج',
-          style: 'destructive',
-          onPress: async () => {
-            setLoggingOut(true);
-            try { await authApi.logout(); } catch { /* ignore */ }
-            await clearAuth();
-            router.replace('/(auth)/phone');
-          },
-        },
+        { text: 'خروج', style: 'destructive', onPress: doLogout },
       ],
     );
   };

@@ -12,7 +12,7 @@
  *  • Horizontal snap carousel
  */
 
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   Platform, Pressable, NativeSyntheticEvent, NativeScrollEvent,
@@ -181,6 +181,37 @@ export function LevelsSection() {
     setActiveIdx(idx);
   };
 
+  // Web: native horizontal ScrollView scrolls via wheel/touch but NOT mouse-drag,
+  // so a desktop user can't swipe the carousel. Add click-and-drag scrolling.
+  useEffect(() => {
+    if (Platform.OS !== 'web' || !isMobile) return;
+    const node: any =
+      (scrollRef.current as any)?.getScrollableNode?.() ?? scrollRef.current;
+    if (!node || !node.addEventListener) return;
+
+    let down = false, startX = 0, startScroll = 0;
+    const onDown = (e: MouseEvent) => {
+      down = true; startX = e.pageX; startScroll = node.scrollLeft;
+      node.style.cursor = 'grabbing'; node.style.userSelect = 'none';
+    };
+    const onMove = (e: MouseEvent) => {
+      if (!down) return;
+      e.preventDefault();
+      node.scrollLeft = startScroll - (e.pageX - startX);
+    };
+    const onUp = () => { down = false; node.style.cursor = 'grab'; node.style.userSelect = ''; };
+
+    node.style.cursor = 'grab';
+    node.addEventListener('mousedown', onDown);
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    return () => {
+      node.removeEventListener('mousedown', onDown);
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+  }, [isMobile]);
+
   return (
     <View style={styles.section} nativeID="levels">
 
@@ -209,6 +240,7 @@ export function LevelsSection() {
           <ScrollView
             ref={scrollRef}
             horizontal
+            style={styles.carouselScroll}
             showsHorizontalScrollIndicator={false}
             decelerationRate="fast"
             snapToInterval={CARD_W + CARD_GAP}
@@ -222,18 +254,36 @@ export function LevelsSection() {
             ))}
           </ScrollView>
 
-          {/* Dots */}
-          <View style={styles.dotsRow}>
-            {LEVELS.map((_, i) => (
-              <TouchableOpacity key={i} onPress={() => goTo(i)} activeOpacity={0.7}>
-                <View style={[
-                  styles.dot,
-                  i === activeIdx
-                    ? [styles.dotActive, { backgroundColor: LEVELS[i].accent }]
-                    : styles.dotInactive,
-                ]} />
-              </TouchableOpacity>
-            ))}
+          {/* Arrows + Dots */}
+          <View style={styles.mobileNavRow}>
+            {/* Left arrow (next level — RTL so left = higher number) */}
+            <ArrowBtn
+              dir="←"
+              color={LEVELS[activeIdx].accent}
+              onPress={() => goTo(Math.min(activeIdx + 1, LEVELS.length - 1))}
+              disabled={activeIdx === LEVELS.length - 1}
+            />
+
+            <View style={[styles.dotsRow, { marginTop: 0 }]}>
+              {LEVELS.map((_, i) => (
+                <TouchableOpacity key={i} onPress={() => goTo(i)} activeOpacity={0.7}>
+                  <View style={[
+                    styles.dot,
+                    i === activeIdx
+                      ? [styles.dotActive, { backgroundColor: LEVELS[i].accent }]
+                      : styles.dotInactive,
+                  ]} />
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Right arrow (previous level) */}
+            <ArrowBtn
+              dir="→"
+              color={LEVELS[activeIdx].accent}
+              onPress={() => goTo(Math.max(activeIdx - 1, 0))}
+              disabled={activeIdx === 0}
+            />
           </View>
         </>
       )}
@@ -555,7 +605,13 @@ const styles = StyleSheet.create({
     writingDirection: 'rtl' as any,
   },
 
-  // ── Mobile carousel content ──
+  // ── Mobile carousel ──
+  // Without an explicit width the ScrollView grows to fit all cards (no
+  // overflow at all), so neither swipe nor the arrow buttons can scroll it.
+  carouselScroll: {
+    width:     '100%',
+    alignSelf: 'stretch',
+  },
   carouselContent: {
     paddingVertical: Spacing.xl,
     gap:             CARD_GAP,
@@ -851,6 +907,14 @@ const styles = StyleSheet.create({
   dot:         { height: 6, borderRadius: 3 },
   dotActive:   { width: 28 },
   dotInactive: { width: 6, backgroundColor: Colors.border },
+  mobileNavRow: {
+    flexDirection:  'row',
+    alignItems:     'center',
+    justifyContent: 'center',
+    gap:            Spacing.lg,
+    marginTop:      Spacing.lg,
+    zIndex:         2,
+  },
 
   // ── Arrows ──
   arrowRow: {

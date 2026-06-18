@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
-  Platform, Image, Animated, Dimensions,
+  Platform, Image, Animated,
 } from 'react-native';
 import { Colors } from '@ifluent/shared';
 import { Spacing, NAVBAR_HEIGHT, MAX_WIDTH } from '@ifluent/shared';
@@ -17,19 +17,26 @@ interface HeroSectionProps {
 }
 
 export function HeroSection({ settings, onCtaPrimary, onCtaSecondary }: HeroSectionProps) {
-  const { isMobile, isTablet, rv } = useResponsive();
+  const { isMobile, isDesktop, width, rv } = useResponsive();
   const scrollCtx = useScrollTo();
 
-  // Floating animation for mascot
+  // Stack text + image vertically below desktop so narrow viewports never overlap.
+  const isStacked = !isDesktop;
+
+  // Floating animation for mascot (desktop side-by-side only — transform overlaps on stacked layouts)
   const floatAnim = useRef(new Animated.Value(0)).current;
   useEffect(() => {
+    if (isStacked) {
+      floatAnim.setValue(0);
+      return;
+    }
     Animated.loop(
       Animated.sequence([
         Animated.timing(floatAnim, { toValue: -12, duration: 1800, useNativeDriver: true }),
         Animated.timing(floatAnim, { toValue: 0,  duration: 1800, useNativeDriver: true }),
       ])
     ).start();
-  }, []);
+  }, [isStacked]);
 
   const scrollTo = (id: string) => scrollCtx(id);
 
@@ -43,13 +50,13 @@ export function HeroSection({ settings, onCtaPrimary, onCtaSecondary }: HeroSect
 
       <View style={[
         styles.inner,
-        { flexDirection: isMobile ? 'column' : 'row-reverse' },
+        isStacked ? styles.innerStacked : styles.innerRow,
         // On web, Navbar is fixed so we need paddingTop. On native it's in normal flow.
         { paddingTop: Platform.OS === 'web' ? NAVBAR_HEIGHT + (isMobile ? 32 : 56) : (isMobile ? 24 : 48) },
       ]}>
 
         {/* ── LEFT: Text content ── */}
-        <View style={[styles.textCol, isMobile && styles.textColMobile]}>
+        <View style={[styles.textCol, isStacked && styles.textColStacked]}>
 
           {/* Badge */}
           <View style={styles.badge}>
@@ -83,10 +90,10 @@ export function HeroSection({ settings, onCtaPrimary, onCtaSecondary }: HeroSect
           </View>
 
           {/* CTA Buttons */}
-          <View style={[styles.ctaRow, isMobile && styles.ctaRowMobile]}>
+          <View style={[styles.ctaRow, isStacked && styles.ctaRowStacked]}>
             {/* Primary — 3D Yellow */}
             <TouchableOpacity
-              style={styles.ctaPrimary}
+              style={[styles.ctaPrimary, isStacked && styles.ctaFullWidth]}
               onPress={onCtaPrimary ?? (() => scrollTo('contact'))}
               activeOpacity={0.8}
             >
@@ -97,7 +104,7 @@ export function HeroSection({ settings, onCtaPrimary, onCtaSecondary }: HeroSect
 
             {/* Secondary — outline */}
             <TouchableOpacity
-              style={styles.ctaSecondary}
+              style={[styles.ctaSecondary, isStacked && styles.ctaFullWidth]}
               onPress={onCtaSecondary ?? (() => scrollTo('how'))}
               activeOpacity={0.75}
             >
@@ -112,28 +119,25 @@ export function HeroSection({ settings, onCtaPrimary, onCtaSecondary }: HeroSect
         </View>
 
         {/* ── RIGHT: Mascot image ── */}
-        <View style={[styles.imageCol, isMobile && styles.imageColMobile]}>
+        <View style={[styles.imageCol, isStacked && styles.imageColStacked]}>
           {/* Shadow under image */}
-          <View style={styles.imageShadow} />
+          <View style={[styles.imageShadow, isStacked && styles.imageShadowStacked]} />
 
-          <Animated.View style={{ transform: [{ translateY: floatAnim }] }}>
+          <Animated.View style={isStacked ? undefined : { transform: [{ translateY: floatAnim }] }}>
             <Image
               source={require('../../../assets/images/mascot-hero.jpeg')}
               style={[
                 styles.mascotImage,
-                {
-                  width:  rv({ mobile: 320, tablet: 380, desktop: 480 }),
-                  height: rv({ mobile: 220, tablet: 260, desktop: 320 }),
-                },
+                isStacked
+                  ? { width: '100%', maxWidth: width - Spacing.xl * 2, height: rv({ mobile: 220, tablet: 260, desktop: 320 }) }
+                  : { width: rv({ mobile: 320, tablet: 380, desktop: 480 }), height: rv({ mobile: 220, tablet: 260, desktop: 320 }) },
               ]}
               resizeMode="cover"
             />
           </Animated.View>
 
-          {/* Floating badges — desktop/tablet only. On mobile the image is
-              full-width and these negatively-offset cards get clipped by the
-              section's overflow and overlap other content, so we hide them. */}
-          {!isMobile && (
+          {/* Floating badges — desktop only; negative offsets overlap on stacked layouts */}
+          {!isStacked && (
             <>
               <View style={styles.floatBadge1}>
                 <Text style={styles.floatBadgeEmoji}>⭐</Text>
@@ -203,8 +207,15 @@ const styles = StyleSheet.create({
     width:             '100%',
     paddingHorizontal: Spacing.xl,
     paddingBottom:     Spacing['2xl'],
-    alignItems:        'center',
     gap:               Spacing['2xl'],
+  },
+  innerRow: {
+    flexDirection: 'row-reverse' as const,
+    alignItems:    'flex-start',
+  },
+  innerStacked: {
+    flexDirection: 'column' as const,
+    alignItems:    'center',
   },
 
   // Text side
@@ -213,10 +224,13 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
     maxWidth:   560,
   },
-  textColMobile: {
+  textColStacked: {
+    flexGrow:   0,
+    flexShrink: 0,
     alignItems: 'center',
     maxWidth:   '100%',
     width:      '100%',
+    zIndex:     1,
   },
 
   badge: {
@@ -317,9 +331,10 @@ const styles = StyleSheet.create({
     marginBottom:  Spacing.lg,
     flexWrap:      'wrap' as any,
   },
-  ctaRowMobile: {
+  ctaRowStacked: {
     flexDirection: 'column',
     width:         '100%',
+    marginBottom:  Spacing.xl,
   },
 
   // Primary CTA — extra prominent (long label + strong depth)
@@ -365,6 +380,9 @@ const styles = StyleSheet.create({
     borderBottomWidth: 4,
     borderBottomColor: Colors.navyDark,
   },
+  ctaFullWidth: {
+    alignSelf: 'stretch',
+  },
   ctaSecondaryText: {
     color:      Colors.navy,
     fontSize:   FontSize.md,
@@ -381,14 +399,18 @@ const styles = StyleSheet.create({
 
   // Image side
   imageCol: {
-    flex:     1,
-    maxWidth: 520,
-    position: 'relative' as any,
+    flex:       1,
+    maxWidth:   520,
+    position:   'relative' as any,
     alignItems: 'center',
+    flexShrink: 0,
   },
-  imageColMobile: {
-    width: '100%',
-    maxWidth: '100%',
+  imageColStacked: {
+    flexGrow:   0,
+    flexShrink: 0,
+    width:      '100%',
+    maxWidth:   '100%',
+    marginTop:  Spacing.md,
   },
   imageShadow: {
     position:        'absolute' as any,
@@ -403,8 +425,12 @@ const styles = StyleSheet.create({
       web: { filter: 'blur(20px)' } as any,
     }),
   },
+  imageShadowStacked: {
+    bottom: -6,
+  },
   mascotImage: {
     borderRadius: 28,
+    alignSelf:    'center',
     ...Platform.select({
       web: { boxShadow: '0 12px 40px rgba(30,58,138,0.12)' } as any,
       default: {

@@ -4,13 +4,19 @@
  * Auth token is read from SecureStore and attached on every request.
  */
 import axios from 'axios';
-import * as SecureStore from 'expo-secure-store';
+import { Platform } from 'react-native';
 import Constants from 'expo-constants';
+import { storage } from '@/utils/storage';
 
+// Web/Desktop runs in a browser on the same machine as the backend → localhost
+// (immune to the dev machine's DHCP IP changing). Native (phone) keeps using the
+// configured LAN IP / tunnel it can actually reach.
 const BASE_URL =
-  (Constants.expoConfig?.extra?.apiUrl as string | undefined) ??
-  process.env.EXPO_PUBLIC_API_URL ??
-  'http://192.168.0.101:8000/api/v1';
+  Platform.OS === 'web'
+    ? (process.env.EXPO_PUBLIC_API_URL_WEB ?? 'http://localhost:8000/api/v1')
+    : ((Constants.expoConfig?.extra?.apiUrl as string | undefined) ??
+       process.env.EXPO_PUBLIC_API_URL ??
+       'http://192.168.0.101:8000/api/v1');
 
 const client = axios.create({
   baseURL: BASE_URL,
@@ -24,7 +30,7 @@ const client = axios.create({
 // ─── Auth Token Injection ─────────────────────────────────────────────────────
 
 client.interceptors.request.use(async (config) => {
-  const token = await SecureStore.getItemAsync('student_token');
+  const token = await storage.getItem('student_token');
   const path = config.url ? config.url.split('/').slice(-2).join('/') : 'unknown';
   console.log(`[API-CLIENT] ${config.method?.toUpperCase()} ${path} - hasToken: ${!!token}`);
   if (token) {
@@ -57,8 +63,8 @@ client.interceptors.response.use(
     }
     if (error.response?.status === 401) {
       // Token expired — clear local storage; app will redirect to auth
-      await SecureStore.deleteItemAsync('student_token');
-      await SecureStore.deleteItemAsync('student_user');
+      await storage.removeItem('student_token');
+      await storage.removeItem('student_user');
     }
     return Promise.reject(error);
   },

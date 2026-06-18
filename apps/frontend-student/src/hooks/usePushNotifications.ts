@@ -10,7 +10,7 @@
  */
 import { useEffect, useRef } from 'react';
 import * as Notifications from 'expo-notifications';
-import * as SecureStore    from 'expo-secure-store';
+import { storage }         from '@/utils/storage';
 import Constants           from 'expo-constants';
 import { Platform }        from 'react-native';
 import { profileApi }      from '@/api/profile';
@@ -67,11 +67,11 @@ export async function registerForPushNotifications(): Promise<void> {
     if (!token) return;
 
     // Avoid redundant API calls if the token hasn't changed
-    const stored = await SecureStore.getItemAsync(STORED_TOKEN_KEY).catch(() => null);
+    const stored = await storage.getItem(STORED_TOKEN_KEY).catch(() => null);
     if (stored === token) return;
 
     await profileApi.updateDeviceToken(token);
-    await SecureStore.setItemAsync(STORED_TOKEN_KEY, token).catch(() => {});
+    await storage.setItem(STORED_TOKEN_KEY, token).catch(() => {});
   } catch {
     // Silent — push is best-effort, never block the user
   }
@@ -83,7 +83,7 @@ export async function registerForPushNotifications(): Promise<void> {
 export async function unregisterPushNotifications(): Promise<void> {
   try {
     await profileApi.clearDeviceToken();
-    await SecureStore.deleteItemAsync(STORED_TOKEN_KEY).catch(() => {});
+    await storage.removeItem(STORED_TOKEN_KEY).catch(() => {});
   } catch { /* silent */ }
 }
 

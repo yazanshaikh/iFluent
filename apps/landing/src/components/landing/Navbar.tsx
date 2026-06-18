@@ -102,13 +102,22 @@ export function Navbar({ platformName = 'iFluent', onCtaPress }: NavbarProps) {
 
         {/* ── CTA (desktop) or Burger (mobile) ── */}
         {!isMobile ? (
-          <TouchableOpacity
-            style={styles.cta}
-            onPress={onCtaPress ?? (() => scrollTo('contact'))}
-            activeOpacity={0.85}
-          >
-            <Text style={styles.ctaText}>احجز حصتك مجاناً ✦</Text>
-          </TouchableOpacity>
+          <View style={styles.ctaRow}>
+            <TouchableOpacity
+              style={styles.downloadBtn}
+              onPress={() => scrollTo('download')}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.downloadBtnText}>حمل التطبيق الآن</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.cta}
+              onPress={onCtaPress ?? (() => scrollTo('contact'))}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.ctaText}>احجز حصتك مجاناً ✦</Text>
+            </TouchableOpacity>
+          </View>
         ) : (
           <TouchableOpacity
             onPress={() => setMenuOpen(!menuOpen)}
@@ -158,6 +167,13 @@ export function Navbar({ platformName = 'iFluent', onCtaPress }: NavbarProps) {
             </TouchableOpacity>
           ))}
           <View style={styles.mobileDivider} />
+          <TouchableOpacity
+            style={styles.mobileDownloadBtn}
+            onPress={() => scrollTo('download')}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.mobileDownloadBtnText}>حمل التطبيق الآن</Text>
+          </TouchableOpacity>
           <TouchableOpacity
             style={styles.mobileCta}
             onPress={() => {
@@ -252,6 +268,27 @@ const styles = StyleSheet.create({
   },
   linkTextHover:   { color: Colors.navy, fontWeight: FontWeight.semibold },
 
+  // ── CTA row (desktop) ──
+  ctaRow: {
+    flexDirection: 'row-reverse',
+    alignItems:    'center',
+    gap:           Spacing.sm,
+  },
+  downloadBtn: {
+    backgroundColor:   Colors.backgroundGray,
+    borderWidth:       1,
+    borderColor:       Colors.border,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical:   Spacing.md,
+    borderRadius:      50,
+  },
+  downloadBtnText: {
+    color:      Colors.textSecondary,
+    fontSize:   FontSize.base,
+    fontWeight: FontWeight.semibold,
+    writingDirection: 'rtl' as any,
+  },
+
   // ── CTA button (desktop) — prominent ──
   cta: {
     backgroundColor:   Colors.yellow,
@@ -318,6 +355,21 @@ const styles = StyleSheet.create({
   mobileDivider: {
     height:           8,
     backgroundColor:  Colors.backgroundGray,
+  },
+  mobileDownloadBtn: {
+    backgroundColor:   Colors.backgroundGray,
+    borderWidth:       1,
+    borderColor:       Colors.border,
+    marginHorizontal:  Spacing.xl,
+    paddingVertical:   Spacing.md + 2,
+    borderRadius:      50,
+    alignItems:        'center',
+  },
+  mobileDownloadBtnText: {
+    color:      Colors.textSecondary,
+    fontSize:   FontSize.base,
+    fontWeight: FontWeight.semibold,
+    writingDirection: 'rtl' as any,
   },
   mobileCta: {
     backgroundColor:   Colors.yellow,

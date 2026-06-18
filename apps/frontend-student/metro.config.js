@@ -43,4 +43,21 @@ config.resolver.alias = {
   '@': path.resolve(projectRoot, 'src'),
 };
 
+// 5. Keep native-only modules OUT of the web bundle (they crash it). Web code
+//    paths use *.web files (Daily Web SDK, etc.); this resolver is the hard
+//    guarantee even against transitive imports. Native resolution is untouched.
+const EMPTY_MODULE = path.resolve(projectRoot, 'src', 'empty-module.js');
+const WEB_EXCLUDED = new Set([
+  '@daily-co/react-native-daily-js',
+  '@daily-co/react-native-webrtc',
+  'react-native-background-timer',
+]);
+
+config.resolver.resolveRequest = (context, moduleName, platform) => {
+  if (platform === 'web' && WEB_EXCLUDED.has(moduleName)) {
+    return { type: 'sourceFile', filePath: EMPTY_MODULE };
+  }
+  return context.resolveRequest(context, moduleName, platform);
+};
+
 module.exports = config;

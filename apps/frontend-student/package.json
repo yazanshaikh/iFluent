@@ -12,6 +12,7 @@
     "prebuild": "expo prebuild --clean"
   },
   "dependencies": {
+    "@daily-co/daily-js": "^0.91.0",
     "@daily-co/react-native-daily-js": "^0.86.0",
     "@daily-co/react-native-webrtc": "^124.0.6-daily.2",
     "@expo/vector-icons": "^15.0.3",
@@ -35,6 +36,7 @@
     "expo-secure-store": "~15.0.8",
     "expo-splash-screen": "~31.0.13",
     "expo-status-bar": "~3.0.9",
+    "firebase": "^12.15.0",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "react-native": "0.81.5",

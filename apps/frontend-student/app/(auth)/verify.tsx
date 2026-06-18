@@ -12,11 +12,12 @@ import { useState, useRef, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity,
   StyleSheet, KeyboardAvoidingView, Platform,
-  ActivityIndicator, Alert, Image, ScrollView,
+  ActivityIndicator, Image, ScrollView,
 } from 'react-native';
+import { appAlert } from '@/lib/alert';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import auth from '@react-native-firebase/auth';
+import { confirmOtp, sendOtp } from '@/services/firebaseAuth';
 import { authApi } from '@/api/auth';
 import { toE164 } from '@/lib/phone';
 import { useAuthStore } from '@/stores/authStore';
@@ -91,27 +92,21 @@ export default function VerifyScreen() {
   // ── Verify ────────────────────────────────────────────────────────────
   const handleVerify = async () => {
     if (otp.length !== 6) {
-      Alert.alert('تنبيه', 'أكمل إدخال الرمز المكوّن من 6 أرقام');
+      appAlert('تنبيه', 'أكمل إدخال الرمز المكوّن من 6 أرقام');
       return;
     }
     if (!confirmationResult) {
-      Alert.alert('خطأ', 'انتهت جلسة التحقق. ارجع وأدخل رقمك مجدداً.');
+      appAlert('خطأ', 'انتهت جلسة التحقق. ارجع وأدخل رقمك مجدداً.');
       router.back();
       return;
     }
 
     setLoading(true);
     try {
-      // Step 1: confirm OTP with Firebase
-      const credential = await confirmationResult.confirm(otp);
-      const firebaseUser = credential?.user ?? auth().currentUser;
+      // Confirm the OTP and get the Firebase ID token (platform-agnostic).
+      const idToken = await confirmOtp(confirmationResult, otp);
 
-      if (!firebaseUser) throw new Error('No  user after confirmation.');
-
-      // Step 2: get IdToken
-      const idToken = await firebaseUser.getIdToken();
-
-      // Step 3: exchange with Laravel for Sanctum token
+      // Exchange with Laravel for a Sanctum token.
       const res = await authApi.firebaseVerify(idToken);
 
       clearConfirmationResult();
@@ -123,7 +118,7 @@ export default function VerifyScreen() {
         ?? (err?.code === 'auth/invalid-verification-code' ? 'رمز التحقق غير صحيح' : null)
         ?? err?.message
         ?? 'حدث خطأ. حاول مجدداً.';
-      Alert.alert('خطأ', msg);
+      appAlert('خطأ', msg);
       setDigits(Array(6).fill(''));
       boxRefs.current[0]?.focus();
     } finally {
@@ -143,7 +138,7 @@ export default function VerifyScreen() {
 
     const e164 = toE164(phone);
     if (!e164) {
-      Alert.alert('خطأ', 'رقم الهاتف غير صالح.');
+      appAlert('خطأ', 'رقم الهاتف غير صالح.');
       return;
     }
 
@@ -153,24 +148,24 @@ export default function VerifyScreen() {
       await authApi.requestOtp(phone);
 
       // ③ same verifier as the initial send
-      const newConfirmation = await auth().signInWithPhoneNumber(e164);
+      const newConfirmation = await sendOtp(e164);
       useAuthStore.getState().setConfirmationResult(newConfirmation);
 
       setResend(60);
       setDigits(Array(6).fill(''));
       setTimeout(() => boxRefs.current[0]?.focus(), 80);
-      Alert.alert('✅ تم', 'تم إعادة إرسال الرمز');
+      appAlert('✅ تم', 'تم إعادة إرسال الرمز');
     } catch (err: any) {
       const status = err?.response?.status;
       if (status === 429) {
-        Alert.alert(
+        appAlert(
           'محاولات كثيرة ⏳',
           err?.response?.data?.message ?? 'لقد طلبت الرمز عدة مرات. حاول لاحقاً.',
         );
         // Keep the button locked even past the 60s so they wait out the window.
         setResend(60);
       } else {
-        Alert.alert('خطأ', err?.response?.data?.message ?? err?.message ?? 'تعذر إعادة الإرسال.');
+        appAlert('خطأ', err?.response?.data?.message ?? err?.message ?? 'تعذر إعادة الإرسال.');
       }
     } finally {
       setResending(false);

@@ -5,8 +5,9 @@
 import React, { useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
-  ScrollView, ActivityIndicator, Linking, Platform, Alert,
+  ScrollView, ActivityIndicator, Linking, Platform, 
 } from 'react-native';
+import { appAlert } from '@/lib/alert';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
@@ -84,11 +85,11 @@ export default function BookingProfileScreen() {
       qc.invalidateQueries({ queryKey: ['bookings'] });
       router.back();
     },
-    onError: () => Alert.alert('خطأ', 'تعذّر إلغاء الحجز. يرجى المحاولة مرة أخرى.'),
+    onError: () => appAlert('خطأ', 'تعذّر إلغاء الحجز. يرجى المحاولة مرة أخرى.'),
   });
 
   const handleCancel = () => {
-    Alert.alert(
+    appAlert(
       'إلغاء الحجز',
       'هل أنت متأكد من إلغاء هذا الحجز؟',
       [

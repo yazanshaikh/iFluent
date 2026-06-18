@@ -14,11 +14,12 @@ import { useState, useRef } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity,
   StyleSheet, KeyboardAvoidingView, Platform,
-  ActivityIndicator, Alert, Image, ScrollView, Linking,
+  ActivityIndicator, Image, ScrollView, Linking,
 } from 'react-native';
+import { appAlert } from '@/lib/alert';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import auth from '@react-native-firebase/auth';
+import { sendOtp } from '@/services/firebaseAuth';
 import { authApi } from '@/api/auth';
 import { toE164 } from '@/lib/phone';
 import { useAuthStore } from '@/stores/authStore';
@@ -36,7 +37,7 @@ const POLICIES_URL =
 
 const openPolicies = () => {
   Linking.openURL(POLICIES_URL).catch(() =>
-    Alert.alert('تعذر الفتح', 'لم نتمكن من فتح ملف الشروط والأحكام. حاول لاحقاً.'),
+    appAlert('تعذر الفتح', 'لم نتمكن من فتح ملف الشروط والأحكام. حاول لاحقاً.'),
   );
 };
 
@@ -83,11 +84,11 @@ export default function PhoneScreen() {
   const handleSecretLogin = async () => {
     const cleaned = phone.trim().replace(/\s/g, '');
     if (cleaned.length < 9) {
-      Alert.alert('تنبيه', 'الرجاء إدخال رقم الهاتف أولاً');
+      appAlert('تنبيه', 'الرجاء إدخال رقم الهاتف أولاً');
       return;
     }
     if (secretCode.trim() !== SECRET_CODE) {
-      Alert.alert('خطأ', 'الرقم السري غير صحيح');
+      appAlert('خطأ', 'الرقم السري غير صحيح');
       return;
     }
 
@@ -105,7 +106,7 @@ export default function PhoneScreen() {
       router.replace('/(tabs)/levels');
     } catch (err: any) {
       const msg = err?.response?.data?.message ?? err?.message ?? 'تعذر تسجيل الدخول.';
-      Alert.alert('خطأ', msg);
+      appAlert('خطأ', msg);
     } finally {
       setLoading(false);
     }
@@ -118,7 +119,7 @@ export default function PhoneScreen() {
     // ① Validate format BEFORE any network/Firebase call (saves SMS budget)
     const e164 = toE164(cleaned);
     if (!e164) {
-      Alert.alert('تنبيه', 'الرجاء إدخال رقم هاتف صحيح بصيغة دولية، مثال: +9627XXXXXXXX');
+      appAlert('تنبيه', 'الرجاء إدخال رقم هاتف صحيح بصيغة دولية، مثال: +9627XXXXXXXX');
       return;
     }
 
@@ -137,7 +138,7 @@ export default function PhoneScreen() {
       // ③ Trigger Firebase Phone Auth. On native, Firebase runs Play Integrity
       //    (Android) / APNs-silent-push + reCAPTCHA fallback (iOS) automatically
       //    to verify a real human/device before sending the SMS.
-      const confirmation = await auth().signInWithPhoneNumber(e164);
+      const confirmation = await sendOtp(e164);
 
       setConfirmationResult(confirmation);
       router.push({ pathname: '/(auth)/verify', params: { phone: cleaned } });
@@ -145,13 +146,13 @@ export default function PhoneScreen() {
     } catch (err: any) {
       const status = err?.response?.status;
       if (status === 429) {
-        Alert.alert(
+        appAlert(
           'محاولات كثيرة ⏳',
           err?.response?.data?.message ?? 'لقد طلبت رمز التحقق عدة مرات. حاول لاحقاً.',
         );
       } else {
         const msg = err?.response?.data?.message ?? err?.message ?? 'تعذر الاتصال. حاول مجدداً.';
-        Alert.alert('خطأ', msg);
+        appAlert('خطأ', msg);
       }
     } finally {
       setLoading(false);
@@ -162,29 +163,29 @@ export default function PhoneScreen() {
   const handleRegister = async () => {
     const cleaned = phone.trim().replace(/\s/g, '');
     if (!name.trim()) {
-      Alert.alert('تنبيه', 'الرجاء إدخال اسمك الكامل');
+      appAlert('تنبيه', 'الرجاء إدخال اسمك الكامل');
       return;
     }
     if (cleaned.length < 9) {
-      Alert.alert('تنبيه', 'الرجاء إدخال رقم هاتف صحيح');
+      appAlert('تنبيه', 'الرجاء إدخال رقم هاتف صحيح');
       return;
     }
     if (!agreed) {
-      Alert.alert('الشروط والأحكام', 'يرجى الموافقة على الشروط والأحكام قبل إنشاء الحساب.');
+      appAlert('الشروط والأحكام', 'يرجى الموافقة على الشروط والأحكام قبل إنشاء الحساب.');
       return;
     }
 
     setLoading(true);
     try {
       await authApi.register(name.trim(), cleaned);
-      Alert.alert(
+      appAlert(
         '✅ تم التسجيل',
         'تم إنشاء حسابك بنجاح. يمكنك الآن تسجيل الدخول.',
         [{ text: 'حسناً', onPress: () => { switchMode('login'); setPhone(cleaned); } }],
       );
     } catch (err: any) {
       const msg = err?.response?.data?.message ?? 'تعذر التسجيل. ربما الرقم مسجل بالفعل.';
-      Alert.alert('خطأ', msg);
+      appAlert('خطأ', msg);
     } finally {
       setLoading(false);
     }

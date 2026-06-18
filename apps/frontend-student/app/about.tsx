@@ -257,13 +257,13 @@ export default function AboutScreen() {
 
         <TouchableOpacity
           style={styles.contactRow}
-          onPress={() => Linking.openURL('https://wa.me/962787621715')}
+          onPress={() => Linking.openURL('https://wa.me/962780105274')}
           activeOpacity={0.75}
         >
           <View style={[styles.contactIcon, { backgroundColor: '#F0FDF4' }]}>
             <Ionicons name="logo-whatsapp" size={17} color="#25D366" />
           </View>
-          <Text style={styles.contactLabel}>+962 78 762 1715</Text>
+          <Text style={styles.contactLabel}>0780105274</Text>
           <Ionicons name="open-outline" size={13} color={C.gray} />
         </TouchableOpacity>
 

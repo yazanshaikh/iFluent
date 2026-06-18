@@ -15,8 +15,9 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
   ScrollView, ActivityIndicator, Linking, Platform,
-  Modal, TextInput, Alert,
+  Modal, TextInput, 
 } from 'react-native';
+import { appAlert } from '@/lib/alert';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -170,7 +171,7 @@ function RatingModal({
       setNotes('');
     },
     onError: (e: any) => {
-      Alert.alert('خطأ', e?.response?.data?.message ?? 'تعذر إرسال التقييم');
+      appAlert('خطأ', e?.response?.data?.message ?? 'تعذر إرسال التقييم');
     },
   });
 

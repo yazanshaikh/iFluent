@@ -22,9 +22,9 @@ class SiteSettingSeeder extends Seeder
             ['key' => 'about_image',       'value' => null,                                 'type' => 'image', 'label' => 'About Image',   'group' => 'about'],
 
             // ── Contact ────────────────────────────────────────────────────────
-            ['key' => 'contact_phone',     'value' => '+962 7 0000 0000',                  'type' => 'text',  'label' => 'Phone',          'group' => 'contact'],
+            ['key' => 'contact_phone',     'value' => '0780105274',                        'type' => 'text',  'label' => 'Phone',          'group' => 'contact'],
             ['key' => 'contact_email',     'value' => 'info@ifluent.io',                   'type' => 'text',  'label' => 'Email',          'group' => 'contact'],
-            ['key' => 'contact_whatsapp',  'value' => '+962 7 0000 0000',                  'type' => 'text',  'label' => 'WhatsApp',       'group' => 'contact'],
+            ['key' => 'contact_whatsapp',  'value' => '0780105274',                        'type' => 'text',  'label' => 'WhatsApp',       'group' => 'contact'],
 
             // ── Social Links ───────────────────────────────────────────────────
             ['key' => 'social_instagram',   'value' => null, 'type' => 'text',  'label' => 'Instagram URL',      'group' => 'footer'],
