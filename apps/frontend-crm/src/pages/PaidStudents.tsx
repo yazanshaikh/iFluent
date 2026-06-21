@@ -30,7 +30,7 @@ const SUB_STATUS_VARIANT: Record<string, 'success' | 'secondary' | 'warning' | '
 
 function fmt(iso: string | null) {
   if (!iso) return '—';
-  return new Date(iso).toLocaleDateString('ar-SA', {
+  return new Date(iso).toLocaleDateString('ar-JO', {
     day: 'numeric', month: 'short', year: 'numeric',
   });
 }

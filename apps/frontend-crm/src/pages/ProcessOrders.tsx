@@ -284,7 +284,7 @@ function OrderCard({
           )}
           <div className="col-span-2 text-xs text-muted-foreground">
             بواسطة: {order.submitted_by?.name ?? '—'} ·{' '}
-            {new Date(order.created_at).toLocaleDateString('ar-SA')}
+            {new Date(order.created_at).toLocaleDateString('ar-JO')}
           </div>
         </div>
 

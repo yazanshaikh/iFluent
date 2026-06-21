@@ -8,6 +8,7 @@ use App\Http\Requests\Api\V1\Admin\CreateTeacherRequest;
 use App\Http\Requests\Api\V1\Admin\UpdateStaffRequest;
 use App\Http\Resources\Api\V1\StaffResource;
 use App\Models\Lead;
+use App\Models\LeadRemark;
 use App\Models\SessionRequest;
 use App\Models\Teacher;
 use App\Models\User;
@@ -156,6 +157,29 @@ class StaffController extends Controller
             'message'   => "Staff member {$status}.",
             'is_active' => !$user->trashed(),
         ]);
+    }
+
+    // ─── Permanently Delete Staff (hard delete — no DB trace) ─────────────────
+    public function destroy(int $id): JsonResponse
+    {
+        $user = User::withTrashed()->findOrFail($id);
+
+        if (!in_array($user->role, ['cc', 'ss', 'teacher'])) {
+            return response()->json(['message' => 'Not a staff member.'], 404);
+        }
+
+        DB::transaction(function () use ($user) {
+            // lead_remarks.staff_id is restrictOnDelete — it would block the
+            // forceDelete below. Remove this staff's remarks first so the hard
+            // delete leaves no orphaned/blocking rows. All other FKs referencing
+            // users either cascade or set-null automatically.
+            LeadRemark::where('staff_id', $user->id)->delete();
+
+            // forceDelete bypasses SoftDeletes → real SQL DELETE (no deleted_at row).
+            $user->forceDelete();
+        });
+
+        return response()->json(['message' => 'Staff member permanently deleted.']);
     }
 
     // ─── Reset Sessions Count ─────────────────────────────────────────────────

@@ -7,6 +7,13 @@
       "runtimeArgs": ["--prefix", "apps/landing", "run", "dev", "--", "--port", "8090"],
       "port": 8090,
       "autoPort": false
+    },
+    {
+      "name": "crm",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "apps/frontend-crm", "run", "dev", "--", "--port", "3177"],
+      "port": 3177,
+      "autoPort": false
     }
   ]
 }

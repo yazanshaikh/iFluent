@@ -14,7 +14,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from '@/components/ui/dialog';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, Plus, UserPlus, Briefcase } from 'lucide-react';
+import { Loader2, Plus, UserPlus, Briefcase, Trash2 } from 'lucide-react';
 
 /* ── Role labels ── */
 const ROLE_LABELS: Record<StaffRole, string> = {
@@ -201,11 +201,60 @@ function AddStaffDialog({ open, onClose }: { open: boolean; onClose: () => void 
   );
 }
 
+/* ── Delete Staff Confirmation Dialog ── */
+function DeleteStaffDialog({
+  member, onClose,
+}: {
+  member: { id: number; name: string } | null;
+  onClose: () => void;
+}) {
+  const qc = useQueryClient();
+  const mutation = useMutation({
+    mutationFn: () => staffApi.delete(member!.id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['staff'] });
+      onClose();
+    },
+  });
+
+  return (
+    <Dialog open={!!member} onOpenChange={(o) => { if (!o && !mutation.isPending) onClose(); }}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>حذف الموظف نهائياً</DialogTitle>
+          <DialogDescription>
+            سيتم حذف <span className="font-semibold text-foreground">{member?.name}</span> نهائياً
+            من قاعدة البيانات بدون أي أثر. لا يمكن التراجع عن هذا الإجراء.
+          </DialogDescription>
+        </DialogHeader>
+        {mutation.isError && (
+          <p className="text-sm text-destructive">تعذّر حذف الموظف. حاول مرة أخرى.</p>
+        )}
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={mutation.isPending}>
+            إلغاء
+          </Button>
+          <Button
+            variant="destructive"
+            className="gap-2"
+            onClick={() => mutation.mutate()}
+            disabled={mutation.isPending}
+          >
+            {mutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+            حذف نهائي
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 /* ── Main Page ── */
 export default function EmployeesPage() {
   const user              = useAuthStore((s) => s.user);
   const navigate          = useNavigate();
   const [addOpen, setAddOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: number; name: string } | null>(null);
 
   // جميع الـ hooks يجب أن تُستدعى قبل أي return مشروط (React Rules of Hooks)
   const { data: rawStaff, isLoading, isError } = useQuery({
@@ -226,6 +275,7 @@ export default function EmployeesPage() {
   return (
     <>
       <AddStaffDialog open={addOpen} onClose={() => setAddOpen(false)} />
+      <DeleteStaffDialog member={deleteTarget} onClose={() => setDeleteTarget(null)} />
 
       <div className="p-6 space-y-4">
         {/* Header */}
@@ -292,6 +342,7 @@ export default function EmployeesPage() {
                       <th className="text-right pb-3 font-medium">الدور</th>
                       <th className="text-right pb-3 font-medium">Leads</th>
                       <th className="text-right pb-3 font-medium">تاريخ الإضافة</th>
+                      <th className="pb-3 font-medium w-10"></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -316,7 +367,21 @@ export default function EmployeesPage() {
                           {member.leads_count ?? '—'}
                         </td>
                         <td className="py-3 text-muted-foreground">
-                          {new Date(member.created_at).toLocaleDateString('ar-SA')}
+                          {new Date(member.created_at).toLocaleDateString('ar-JO')}
+                        </td>
+                        <td className="py-3">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                            title="حذف الموظف نهائياً"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setDeleteTarget({ id: member.id, name: member.name });
+                            }}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
                         </td>
                       </tr>
                     ))}

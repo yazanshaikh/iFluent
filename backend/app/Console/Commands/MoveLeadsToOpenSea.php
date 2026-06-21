@@ -12,15 +12,13 @@ class MoveLeadsToOpenSea extends Command
 
     public function handle(): int
     {
-        // PRD 5.2: Lead with no conversion after 5 days → Open Sea
-        // Exception: is_small_treasure = true → stays with staff
-        // is_small_treasure = true  → محمية، ما تنتقل أبداً (PRD 5.3)
-        // is_small_treasure = false → تنتقل بعد 5 أيام
-        // is_small_treasure = NULL  → نعاملها كـ false (أمان إضافي)
-        // الحالات التي تندرج في Lead Pool (يعمل عليها الموظف).
-        // 'new' مُضمَّنة: تعيين الليدة يُبقي حالتها 'new' حتى يصنّفها الموظف،
-        // فالليدة المُعيَّنة التي بقيت 'new' دون عمل 5 أيام = مهملة → للبحر المفتوح.
-        // (الليدات الجديدة غير المعيَّنة محميّة بشرط assigned_to NOT NULL أدناه.)
+        // PRD 5.2: أي ليد راكدة 5 أيام بدون تحويل → البحر المفتوح (Open Sea).
+        // القاعدة (مُتّفق عليها): الليد اللي مش بالـ Small Treasury، وراكدة +5 أيام،
+        // وحالتها مش "مشترك" → تنتقل للبحر المفتوح — سواء كانت مُسندة أو لأ.
+        // الاستثناء الوحيد: is_small_treasure = true → محمية، ما تنتقل أبداً (PRD 5.3).
+        // is_small_treasure = NULL نعاملها كـ false (أمان إضافي).
+        // ملاحظة: شرط "غير مُسندة محميّة" أُزيل عمداً — الليدات الراكدة غير المُسندة
+        // (بما فيها الجديدة غير المُوزَّعة) كانت تعلق للأبد دون أن تصل البحر المفتوح.
         $poolStatuses = [
             Lead::STATUS_NEW,
             Lead::STATUS_IN_PROGRESS,
@@ -34,7 +32,6 @@ class MoveLeadsToOpenSea extends Command
             ->where('status', '!=', Lead::STATUS_SUBSCRIBER) // المشترك لا يذهب للبحر أبداً
             ->where(fn($q) => $q->where('is_small_treasure', false)
                                 ->orWhereNull('is_small_treasure'))
-            ->whereNotNull('assigned_to')   // لا تنقل الليدات غير المعيّنة
             ->where('updated_at', '<=', now()->subDays(5))
             ->update([
                 'status'               => Lead::STATUS_OPEN_SEA,

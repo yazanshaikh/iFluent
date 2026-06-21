@@ -45,7 +45,7 @@ function LastRemarkCell({ lead }: { lead: OpenSeaLead }) {
     <div className="space-y-0.5 max-w-[220px]">
       <p className="text-sm leading-snug">{preview}</p>
       <p className="text-xs text-muted-foreground">
-        {new Date(remark.created_at).toLocaleDateString('ar-SA', {
+        {new Date(remark.created_at).toLocaleDateString('ar-JO', {
           day: 'numeric', month: 'short', year: 'numeric',
         })}
         {remark.staff?.name ? ` · ${remark.staff.name}` : ''}
@@ -229,7 +229,7 @@ function useOpenSeaColumns(
       header: ({ column }) => <SortableHeader column={column} label="دخل البحر" />,
       cell: ({ row }) => (
         <span className="text-muted-foreground text-xs">
-          {new Date(row.original.moved_to_open_sea_at).toLocaleDateString('ar-SA', {
+          {new Date(row.original.moved_to_open_sea_at).toLocaleDateString('ar-JO', {
             day: 'numeric', month: 'short', year: 'numeric',
           })}
         </span>

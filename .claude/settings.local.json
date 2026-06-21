@@ -296,7 +296,9 @@
       "Bash(curl -s -X POST http://192.168.0.110:8000/api/v1/crm/auth/login -H \"Content-Type: application/json\" -d '{\"email\":\"admin@ifluent.jo\",\"password\":\"iFluent#Admin2026!\"}')",
       "Bash(curl -s -X POST http://192.168.0.110:8000/api/v1/crm/auth/login -H \"Content-Type: application/json\" -d '{\"email\":\"admin@ifluent.jo\",\"password\":\"IfluentAdmin2026\"}')",
       "mcp__Claude_Preview__preview_start",
-      "Bash(curl -s \"http://localhost:8090/node_modules/expo/AppEntry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=app&unstable_transformProfile=hermes-stable\")"
+      "Bash(curl -s \"http://localhost:8090/node_modules/expo/AppEntry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=app&unstable_transformProfile=hermes-stable\")",
+      "Bash(xargs sed -i '' \"s/'ar-SA'/'ar-JO'/g\")",
+      "Bash(curl -s -X POST http://localhost:8000/api/v1/crm/auth/login -H \"Content-Type: application/json\" -d '{\"email\":\"admin@ifluent.jo\",\"password\":\"IfluentAdmin2026\"}')"
     ]
   }
 }

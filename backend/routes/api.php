@@ -149,6 +149,7 @@ Route::middleware(['auth:sanctum', 'role:super_admin'])
         Route::post('staff/crm',                   [StaffController::class, 'createCrmStaff']);
         Route::post('staff/teachers',              [StaffController::class, 'createTeacher']);
         Route::put ('staff/{id}',                  [StaffController::class, 'update']);
+        Route::delete('staff/{id}',                [StaffController::class, 'destroy']);
         Route::post('staff/{id}/toggle-status',    [StaffController::class, 'toggleStatus']);
         Route::post('staff/{id}/reset-sessions',   [StaffController::class, 'resetSessionsCount']);
         Route::post('staff/{id}/reset-balance',    [StaffController::class, 'resetBalance']);

@@ -63,7 +63,7 @@ function RecallRow({ lead, onRecall, pending }: RecallRowProps) {
           <span>·</span>
           <CalendarDays className="h-3 w-3 shrink-0" />
           <span>
-            {new Date(lead.created_at).toLocaleDateString('ar-SA', {
+            {new Date(lead.created_at).toLocaleDateString('ar-JO', {
               day: 'numeric', month: 'short', year: 'numeric',
             })}
           </span>
@@ -262,7 +262,7 @@ export default function StaffProfilePage() {
         <div className="text-sm text-center">
           <p className="text-sm font-medium">
             {staff?.created_at
-              ? new Date(staff.created_at).toLocaleDateString('ar-SA', {
+              ? new Date(staff.created_at).toLocaleDateString('ar-JO', {
                   day: 'numeric', month: 'long', year: 'numeric',
                 })
               : '—'}
@@ -326,7 +326,7 @@ export default function StaffProfilePage() {
                     {tp?.sessions_count_reset_at && (
                       <p className="text-xs text-muted-foreground mt-0.5">
                         آخر تصفير:{' '}
-                        {new Date(tp.sessions_count_reset_at).toLocaleDateString('ar-SA', {
+                        {new Date(tp.sessions_count_reset_at).toLocaleDateString('ar-JO', {
                           day: 'numeric', month: 'short', year: 'numeric',
                         })}
                       </p>
@@ -418,7 +418,7 @@ export default function StaffProfilePage() {
                 </p>
                 {tp?.balance_reset_at && (
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    آخر تصفير: {new Date(tp.balance_reset_at).toLocaleDateString('ar-SA', { day: 'numeric', month: 'short', year: 'numeric' })}
+                    آخر تصفير: {new Date(tp.balance_reset_at).toLocaleDateString('ar-JO', { day: 'numeric', month: 'short', year: 'numeric' })}
                   </p>
                 )}
               </div>
@@ -511,12 +511,12 @@ export default function StaffProfilePage() {
                       {/* Date + time */}
                       <div className="text-right shrink-0">
                         <p className="text-xs font-medium">
-                          {d.toLocaleDateString('ar-SA', {
+                          {d.toLocaleDateString('ar-JO', {
                             weekday: 'short', day: 'numeric', month: 'short',
                           })}
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          {d.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' })}
+                          {d.toLocaleTimeString('ar-JO', { hour: '2-digit', minute: '2-digit' })}
                         </p>
                       </div>
 
@@ -621,7 +621,7 @@ export default function StaffProfilePage() {
             <div className="text-center">
               <p className="text-sm font-medium">
                 {staff?.created_at
-                  ? new Date(staff.created_at).toLocaleDateString('ar-SA', {
+                  ? new Date(staff.created_at).toLocaleDateString('ar-JO', {
                       day: 'numeric', month: 'long', year: 'numeric',
                     })
                   : '—'}

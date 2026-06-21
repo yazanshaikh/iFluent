@@ -88,10 +88,10 @@ function useColumns(isAdmin: boolean): ColumnDef<DemoBooking, unknown>[] {
         return (
           <div className="text-sm">
             <p className="font-medium">
-              {d.toLocaleDateString('ar-SA', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
+              {d.toLocaleDateString('ar-JO', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
             </p>
             <p className="text-xs text-muted-foreground">
-              {d.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' })}
+              {d.toLocaleTimeString('ar-JO', { hour: '2-digit', minute: '2-digit' })}
             </p>
           </div>
         );
@@ -114,7 +114,7 @@ function useColumns(isAdmin: boolean): ColumnDef<DemoBooking, unknown>[] {
       header: ({ column }) => <SortableHeader column={column} label="تاريخ الحجز" />,
       cell: ({ row }) => (
         <span className="text-xs text-muted-foreground">
-          {new Date(row.original.created_at).toLocaleDateString('ar-SA')}
+          {new Date(row.original.created_at).toLocaleDateString('ar-JO')}
         </span>
       ),
     },

@@ -593,7 +593,7 @@ export default function LeadProfilePage() {
   const bookToday    = new Date();
   const bookTomorrow = new Date(bookToday); bookTomorrow.setDate(bookToday.getDate() + 1);
   const fmtDate      = (d: Date) =>
-    d.toLocaleDateString('ar-SA', { weekday: 'short', day: 'numeric', month: 'short' });
+    d.toLocaleDateString('ar-JO', { weekday: 'short', day: 'numeric', month: 'short' });
 
   return (
     <>
@@ -682,7 +682,7 @@ export default function LeadProfilePage() {
             )}
 
             <p className="text-sm text-muted-foreground mt-0.5">
-              أُضيف {new Date(lead.created_at).toLocaleDateString('ar-SA')}
+              أُضيف {new Date(lead.created_at).toLocaleDateString('ar-JO')}
             </p>
           </div>
         </div>
@@ -851,7 +851,7 @@ export default function LeadProfilePage() {
           <div className="flex items-center gap-3">
             <Calendar className="h-4 w-4 text-muted-foreground shrink-0" />
             <span className="text-sm text-muted-foreground">
-              آخر تحديث: {new Date(lead.updated_at).toLocaleDateString('ar-SA')}
+              آخر تحديث: {new Date(lead.updated_at).toLocaleDateString('ar-JO')}
             </span>
           </div>
         </CardContent>
@@ -888,11 +888,11 @@ export default function LeadProfilePage() {
                 <span>
                   يوجد حجز نشط بتاريخ{' '}
                   <span className="font-semibold">
-                    {new Date(activeBooking.scheduled_at).toLocaleDateString('ar-SA', {
+                    {new Date(activeBooking.scheduled_at).toLocaleDateString('ar-JO', {
                       weekday: 'short', day: 'numeric', month: 'short',
                     })}
                     {' — '}
-                    {new Date(activeBooking.scheduled_at).toLocaleTimeString('ar-SA', {
+                    {new Date(activeBooking.scheduled_at).toLocaleTimeString('ar-JO', {
                       hour: '2-digit', minute: '2-digit',
                     })}
                   </span>
@@ -921,11 +921,11 @@ export default function LeadProfilePage() {
                     <div className="flex items-start justify-between gap-2">
                       <div className="space-y-0.5">
                         <p className="text-sm font-medium leading-snug">
-                          {d.toLocaleDateString('ar-SA', {
+                          {d.toLocaleDateString('ar-JO', {
                             weekday: 'short', day: 'numeric', month: 'short', year: 'numeric',
                           })}
                           <span className="text-muted-foreground font-normal mx-1">—</span>
-                          {d.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' })}
+                          {d.toLocaleTimeString('ar-JO', { hour: '2-digit', minute: '2-digit' })}
                         </p>
                         {req.teacher?.name && (
                           <p className="text-xs text-muted-foreground">
