@@ -1,0 +1,67 @@
+# ─── iFluent Laravel — PRODUCTION PHP-FPM image ──────────────────────────────
+# Same runtime as dev (PostgreSQL driver, redis, gd…) plus production tuning:
+# opcache with timestamp validation OFF and generous upload limits for
+# payment receipts / student contracts / lesson PDFs.
+#
+# NOTE: code is bind-mounted at runtime (monorepo on the VPS), so this image is
+# a pure runtime. Because opcache.validate_timestamps=0, you MUST restart the
+# app/queue/reverb containers after deploying new code (see DEPLOYMENT.md).
+FROM php:8.3-fpm
+
+# System dependencies
+RUN apt-get update && apt-get install -y \
+    git \
+    curl \
+    libpng-dev \
+    libonig-dev \
+    libxml2-dev \
+    libpq-dev \
+    zip \
+    unzip \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# PHP extensions (PostgreSQL driver — pdo_pgsql/pgsql)
+RUN docker-php-ext-install \
+    pdo \
+    pdo_pgsql \
+    pgsql \
+    mbstring \
+    exif \
+    pcntl \
+    bcmath \
+    gd \
+    opcache
+
+# Redis extension
+RUN pecl install redis && docker-php-ext-enable redis
+
+# Production opcache — scripts compiled once, cached in shared memory
+RUN { \
+      echo 'opcache.enable=1'; \
+      echo 'opcache.enable_cli=0'; \
+      echo 'opcache.memory_consumption=192'; \
+      echo 'opcache.interned_strings_buffer=16'; \
+      echo 'opcache.max_accelerated_files=20000'; \
+      echo 'opcache.validate_timestamps=0'; \
+      echo 'opcache.revalidate_freq=0'; \
+    } > /usr/local/etc/php/conf.d/opcache-prod.ini
+
+# Upload limits + hardening (receipts, contracts, lesson PDFs)
+RUN { \
+      echo 'upload_max_filesize=50M'; \
+      echo 'post_max_size=55M'; \
+      echo 'memory_limit=256M'; \
+      echo 'expose_php=0'; \
+    } > /usr/local/etc/php/conf.d/prod-tuning.ini
+
+# Composer (used for `composer install --no-dev` during deploy)
+COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
+
+WORKDIR /var/www/backend
+
+# Non-root runtime user (matches host uid 1000 for writable storage/)
+RUN groupadd -g 1000 www && useradd -u 1000 -ms /bin/bash -g www www
+USER www
+
+EXPOSE 9000

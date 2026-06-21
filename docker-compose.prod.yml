@@ -1,0 +1,132 @@
+# ─────────────────────────────────────────────────────────────────────────────
+#  iFluent — PRODUCTION stack (VPS / Ubuntu + Docker)
+#
+#  Run:  docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
+#
+#  Routing (handled by the nginx service):
+#    ifluent.com       → Landing  (static expo export  → apps/landing/dist)
+#    crm.ifluent.com   → CRM       (static vite build   → apps/frontend-crm/dist)
+#    api.ifluent.com   → Laravel API (php-fpm) + Reverb websocket (/app)
+#
+#  db + redis have NO published ports — reachable ONLY on the internal docker
+#  network, invisible to the outside world. Laravel reaches the DB via DB_HOST=db.
+# ─────────────────────────────────────────────────────────────────────────────
+services:
+
+  # ─── Laravel API (PHP-FPM) ────────────────────────────────────────────────
+  app:
+    build:
+      context: ./docker/php
+      dockerfile: Dockerfile.prod
+    image: ifluent/app:prod          # built once here, reused by reverb/queue/scheduler
+    container_name: ifluent_app_prod
+    restart: unless-stopped
+    working_dir: /var/www/backend
+    env_file:
+      - ./backend/.env               # Laravel reads its own config from here
+    volumes:
+      - ./backend:/var/www/backend   # code + storage (uploads/logs persist on host)
+    networks: [ifluent_network]
+    depends_on:
+      db:    { condition: service_healthy }
+      redis: { condition: service_started }
+
+  # ─── Nginx reverse proxy (the only service exposed to the internet) ───────
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: ifluent_nginx_prod
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"                     # ready for Certbot SSL later
+    volumes:
+      - ./backend:/var/www/backend:ro                 # serve Laravel public/ + /storage
+      - ./apps/landing/dist:/var/www/landing:ro       # built landing
+      - ./apps/frontend-crm/dist:/var/www/crm:ro      # built CRM
+      - ./docker/nginx/prod:/etc/nginx/conf.d:ro      # the 3 server blocks
+      - ./docker/certbot/www:/var/www/certbot:ro      # ACME http-01 challenge
+      - ./docker/certbot/conf:/etc/letsencrypt:ro     # issued certificates
+    networks: [ifluent_network]
+    depends_on: [app]
+
+  # ─── PostgreSQL 16 (internal only, persistent volume) ─────────────────────
+  db:
+    image: postgres:16-alpine
+    container_name: ifluent_db_prod
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB:       ${DB_DATABASE}
+      POSTGRES_USER:     ${DB_USERNAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data   # data lives OUTSIDE the container
+    networks: [ifluent_network]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${DB_USERNAME} -d $${DB_DATABASE}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    # NO ports: — not reachable from outside the docker network
+
+  # ─── Redis (queues, cache, sessions — internal only) ──────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: ifluent_redis_prod
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redisdata:/data
+    networks: [ifluent_network]
+    # NO ports: — internal only
+
+  # ─── Reverb (WebSocket / realtime) ────────────────────────────────────────
+  reverb:
+    image: ifluent/app:prod
+    container_name: ifluent_reverb_prod
+    restart: unless-stopped
+    working_dir: /var/www/backend
+    command: php artisan reverb:start --host=0.0.0.0 --port=8080
+    env_file:
+      - ./backend/.env
+    volumes:
+      - ./backend:/var/www/backend
+    networks: [ifluent_network]
+    depends_on: [app, redis]
+
+  # ─── Queue worker (lead distribution, jobs) ───────────────────────────────
+  queue:
+    image: ifluent/app:prod
+    container_name: ifluent_queue_prod
+    restart: unless-stopped
+    working_dir: /var/www/backend
+    command: php artisan queue:work redis --sleep=3 --tries=3 --max-time=3600
+    env_file:
+      - ./backend/.env
+    volumes:
+      - ./backend:/var/www/backend
+    networks: [ifluent_network]
+    depends_on: [app, redis]
+
+  # ─── Scheduler (cron: Open Sea sweep, reminders, expiries) ────────────────
+  scheduler:
+    image: ifluent/app:prod
+    container_name: ifluent_scheduler_prod
+    restart: unless-stopped
+    working_dir: /var/www/backend
+    command: sh -c "while true; do php artisan schedule:run --no-interaction & sleep 60; done"
+    env_file:
+      - ./backend/.env
+    volumes:
+      - ./backend:/var/www/backend
+    networks: [ifluent_network]
+    depends_on: [app, db]
+
+# ─── Persistent volumes (survive container rebuilds) ──────────────────────────
+volumes:
+  pgdata:   { driver: local }
+  redisdata: { driver: local }
+
+# ─── Internal network ─────────────────────────────────────────────────────────
+networks:
+  ifluent_network:
+    driver: bridge
