@@ -30,16 +30,11 @@ import { useRef, useEffect, useState } from 'react';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import axios from 'axios';
-import Constants from 'expo-constants';
+import client from '@/api/client';
 import { C, shadow } from '@/theme';
 
 // ─── Config ───────────────────────────────────────────────────────────────────
-
-const BASE_URL =
-  (Constants.expoConfig?.extra?.apiUrl as string | undefined) ??
-  process.env.EXPO_PUBLIC_API_URL ??
-  'http://192.168.0.104:8000/api/v1';
+// API base URL comes from the shared axios client (env-driven, single source).
 
 const WHATSAPP = 'https://wa.me/962780105274';
 
@@ -116,7 +111,7 @@ function LeadModal({
 
     setLoading(true);
     try {
-      await axios.post(`${BASE_URL}/public/leads`, {
+      await client.post('/public/leads', {
         name:  name.trim(),
         phone: phone.trim(),
       });
