@@ -17,6 +17,24 @@ const config = getDefaultConfig(projectRoot);
 // 1. Watch the full monorepo (root node_modules + other workspaces)
 config.watchFolders = [monorepoRoot];
 
+// 1b. Stop Metro from crawling heavy, JS-irrelevant trees under the monorepo
+//     root. Without this, watching monorepoRoot drags the haste-map crawler
+//     through the Laravel backend (vendor/), the Electron apps' web-build/
+//     exports, .git, and sibling apps' native/build dirs — which makes the EAS
+//     "Starting Metro Bundler" step hang until the build is killed.
+//     Targeted patterns only: packages/ and node_modules stay fully crawlable.
+config.resolver.blockList = new RegExp(
+  [
+    /.*\/backend\/.*/,                       // Laravel backend (PHP, vendor/)
+    /.*\/\.git\/.*/,                         // git internals
+    /.*\/apps\/[^/]+\/web-build\/.*/,        // Electron / web exports
+    /.*\/apps\/[^/]+\/dist\/.*/,             // sibling app web builds
+    /.*\/apps\/[^/]+\/\.expo\/.*/,           // expo caches
+    /.*\/ios\/(Pods|build)\/.*/,             // iOS native build artifacts
+    /.*\/android\/(\.gradle|build)\/.*/,     // Android native build artifacts
+  ].map((r) => r.source).join('|'),
+);
+
 // 2. Module resolution order:
 //    First: app-level node_modules (workspace-specific packages)
 //    Then:  monorepo root node_modules (shared / hoisted packages)

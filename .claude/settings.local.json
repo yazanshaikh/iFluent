@@ -302,7 +302,10 @@
       "Bash(grep -iA3 \"SQLSTATE\\\\|exception\\\\|error\\\\|invalid\")",
       "Bash(cd /Users/yazan/Documents/crm_iFluent/apps/frontend-student *)",
       "Bash(grep -rn \"session/\\\\${\\\\|/session/\\\\|push.*session\\\\|replace.*session\\\\|router.push\\(\\\\`/session\" app src --include=\"*.tsx\" --include=\"*.ts\")",
-      "Bash(python3 -c \"import json; d=json.load\\(open\\('app.json'\\)\\); print\\('✓ JSON صالح'\\); print\\('iOS build props:', json.dumps\\([p for p in d['expo']['plugins'] if isinstance\\(p,list\\) and p[0]=='expo-build-properties'][0][1].get\\('ios'\\), ensure_ascii=False\\)\\)\")"
+      "Bash(python3 -c \"import json; d=json.load\\(open\\('app.json'\\)\\); print\\('✓ JSON صالح'\\); print\\('iOS build props:', json.dumps\\([p for p in d['expo']['plugins'] if isinstance\\(p,list\\) and p[0]=='expo-build-properties'][0][1].get\\('ios'\\), ensure_ascii=False\\)\\)\")",
+      "Bash(awk '{print $NF}')",
+      "Bash(grep -v \"^\\\\.$\\\\|^\\\\.\\\\.$\")",
+      "Bash(grep -vE \"^\\\\s*$\")"
     ]
   }
 }
