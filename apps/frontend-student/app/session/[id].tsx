@@ -132,7 +132,10 @@ export default function SessionRoomScreen() {
       { text: 'مغادرة', style: 'destructive', onPress: async () => {
         await lockPortrait().catch(() => {});
         qc.invalidateQueries({ queryKey: ['sessions'] });
-        router.back();
+        // Definitive exit → sessions list. router.back() landed on the
+        // session-profile (which still shows "join class") so it felt like the
+        // lesson was never left.
+        router.replace('/(tabs)/sessions');
       }},
     ]);
     return true;
@@ -164,8 +167,9 @@ export default function SessionRoomScreen() {
 
       {/* ── Top bar ──────────────────────────────────────────────────────── */}
       <View style={[S.topBar, { paddingTop: insets.top + 2 }]}>
-        <TouchableOpacity onPress={handleLeave} style={S.topBtn}>
-          <Ionicons name="chevron-down" size={20} color="#fff" />
+        <TouchableOpacity onPress={handleLeave} style={S.leaveBtn}>
+          <Ionicons name="exit-outline" size={16} color="#fff" />
+          <Text style={S.leaveBtnText}>الخروج من الدرس</Text>
         </TouchableOpacity>
 
         <View style={{ flex: 1, alignItems: 'center' }}>
@@ -258,6 +262,13 @@ const S = StyleSheet.create({
   pinChipTxt: {
     color: '#1A2980', fontSize: 14, fontWeight: '900', letterSpacing: 1.5,
   },
+  leaveBtn: {
+    flexDirection: 'row-reverse', alignItems: 'center', gap: 5,
+    height: 34, paddingHorizontal: 12, borderRadius: 17,
+    backgroundColor: 'rgba(239,68,68,0.15)',
+    borderWidth: 1, borderColor: 'rgba(239,68,68,0.45)',
+  },
+  leaveBtnText: { color: '#fff', fontSize: 12, fontWeight: '700' },
   topBtnHandOn: {
     backgroundColor: 'rgba(251,146,60,0.3)',
     borderWidth: 1.5, borderColor: 'rgba(251,146,60,0.7)',
