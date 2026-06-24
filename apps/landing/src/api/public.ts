@@ -28,7 +28,7 @@ export const DEFAULT_SETTINGS: SiteSettings = {
   about_title:      'من نحن',
   about_text:       'iFluent منصة متكاملة لتعليم اللغة الإنجليزية عبر جلسات حية مع معلمين متخصصين.',
   contact_phone:    '0780105274',
-  contact_email:    'info@ifluent.io',
+  contact_email:    'ifluent0@gmail.com',
   contact_whatsapp: '0780105274',
   social_instagram: null,
   social_facebook:  null,

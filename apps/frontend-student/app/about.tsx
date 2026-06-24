@@ -245,13 +245,13 @@ export default function AboutScreen() {
 
         <TouchableOpacity
           style={styles.contactRow}
-          onPress={() => Linking.openURL('https://ifluent.io')}
+          onPress={() => Linking.openURL('https://ifluent.app')}
           activeOpacity={0.75}
         >
           <View style={[styles.contactIcon, { backgroundColor: '#EFF6FF' }]}>
             <Ionicons name="globe" size={17} color={C.info} />
           </View>
-          <Text style={styles.contactLabel}>www.ifluent.io</Text>
+          <Text style={styles.contactLabel}>www.ifluent.app</Text>
           <Ionicons name="open-outline" size={13} color={C.gray} />
         </TouchableOpacity>
 

@@ -305,7 +305,20 @@
       "Bash(python3 -c \"import json; d=json.load\\(open\\('app.json'\\)\\); print\\('✓ JSON صالح'\\); print\\('iOS build props:', json.dumps\\([p for p in d['expo']['plugins'] if isinstance\\(p,list\\) and p[0]=='expo-build-properties'][0][1].get\\('ios'\\), ensure_ascii=False\\)\\)\")",
       "Bash(awk '{print $NF}')",
       "Bash(grep -v \"^\\\\.$\\\\|^\\\\.\\\\.$\")",
-      "Bash(grep -vE \"^\\\\s*$\")"
+      "Bash(grep -vE \"^\\\\s*$\")",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\('cli:', json.dumps\\(d.get\\('cli',{}\\)\\)\\); print\\('build profiles:', list\\(d.get\\('build',{}\\).keys\\(\\)\\)\\)\")",
+      "Bash(node -e \"const p=require\\('./node_modules/@expo/metro-config/package.json'\\); console.log\\('@expo/metro-config:', p.version\\)\")",
+      "Bash(node -e \"const p=require\\('./node_modules/expo/package.json'\\); console.log\\('expo:', p.version\\)\")",
+      "Bash(python3 -c \"import json; d=json.load\\(open\\('package.json'\\)\\); print\\('✓ JSON صالح'\\); print\\('packageManager:', d.get\\('packageManager'\\)\\); print\\('resolutions == overrides؟', d.get\\('resolutions'\\)==d.get\\('overrides'\\)\\)\")",
+      "Bash(curl -s -X POST http://localhost:8000/api/v1/crm/auth/login -H \"Content-Type: application/json\" -d '{\"email\":\"admin@ifluent.app\",\"password\":\"IfluentAdmin2026\"}')",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\('✓ دخول ناجح:', d['user']['email'], '| role:', d['user']['role']\\) if 'token' in d else print\\('✗', d\\)\")",
+      "Bash(yarn --version)",
+      "Bash(npx --yes yarn@1.22.22 --version)",
+      "Bash(node -e \"console.log\\(require\\('./package.json'\\).packageManager || '\\(مش موجود\\)'\\)\")",
+      "Bash(npx --yes yarn@1.22.22 install --network-timeout 600000)",
+      "Bash(node -e \"console.log\\('reanimated:', require\\('./node_modules/react-native-reanimated/package.json'\\).version\\)\")",
+      "Bash(node -e \"console.log\\('worklets: ', require\\('./node_modules/react-native-worklets/package.json'\\).version\\)\")",
+      "Bash(node -e \"console.log\\('react-native:', require\\('./node_modules/react-native/package.json'\\).version\\)\")"
     ]
   }
 }
