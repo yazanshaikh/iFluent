@@ -62,6 +62,7 @@
       "expo-notifications",
       "@react-native-firebase/app",
       "./plugins/withFirebasePhoneAuth",
+      "./plugins/withModularHeadersFix",
       [
         "@react-native-firebase/auth",
         {
