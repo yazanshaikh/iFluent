@@ -15,6 +15,15 @@ export interface OtpConfirmation {
 
 /** Send the SMS code (runs Play Integrity / reCAPTCHA via the native SDK). */
 export async function sendOtp(e164Phone: string): Promise<OtpConfirmation> {
+  // DEV only: skip APNs/reCAPTCHA app-verification so Firebase "test phone
+  // numbers" work on a real device BEFORE the APNs key is uploaded to Firebase.
+  // Without this, signInWithPhoneNumber attempts APNs verification even for test
+  // numbers and hard-crashes the app. Has NO effect in production (__DEV__=false),
+  // and only succeeds for numbers registered under Firebase Auth → "Phone numbers
+  // for testing". Real numbers still require a real APNs key + Apple approval.
+  if (__DEV__) {
+    auth().settings.appVerificationDisabledForTesting = true;
+  }
   return auth().signInWithPhoneNumber(e164Phone);
 }
 
