@@ -20,7 +20,8 @@
       "infoPlist": {
         "NSCameraUsageDescription": "Used for video sessions with your teacher.",
         "NSMicrophoneUsageDescription": "Used for audio during live sessions.",
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "UIBackgroundModes": ["remote-notification"]
       },
       "bitcode": false
     },
