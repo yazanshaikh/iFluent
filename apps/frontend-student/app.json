@@ -21,7 +21,8 @@
         "NSCameraUsageDescription": "Used for video sessions with your teacher.",
         "NSMicrophoneUsageDescription": "Used for audio during live sessions.",
         "ITSAppUsesNonExemptEncryption": false,
-        "UIBackgroundModes": ["remote-notification"]
+        "UIBackgroundModes": ["remote-notification"],
+        "FirebaseAppDelegateProxyEnabled": false
       },
       "bitcode": false
     },
