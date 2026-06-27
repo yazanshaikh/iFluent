@@ -318,7 +318,28 @@
       "Bash(npx --yes yarn@1.22.22 install --network-timeout 600000)",
       "Bash(node -e \"console.log\\('reanimated:', require\\('./node_modules/react-native-reanimated/package.json'\\).version\\)\")",
       "Bash(node -e \"console.log\\('worklets: ', require\\('./node_modules/react-native-worklets/package.json'\\).version\\)\")",
-      "Bash(node -e \"console.log\\('react-native:', require\\('./node_modules/react-native/package.json'\\).version\\)\")"
+      "Bash(node -e \"console.log\\('react-native:', require\\('./node_modules/react-native/package.json'\\).version\\)\")",
+      "Bash(awk '/post_install do/,/react_native_post_install/' ios/Podfile)",
+      "Bash(python3 -c \"import json; d=json.load\\(open\\('package.json'\\)\\); print\\('overrides:', json.dumps\\(d['overrides']\\)\\); print\\('resolutions:', json.dumps\\(d['resolutions']\\)\\)\")",
+      "Bash(node -e \"console.log\\('worklets:  ', require\\('./node_modules/react-native-worklets/package.json'\\).version\\)\")",
+      "Bash(node -e \"try{require.resolve\\('react-native-reanimated/plugin'\\);console.log\\('react-native-reanimated/plugin: موجود ✓'\\)}catch\\(e\\){console.log\\('react-native-reanimated/plugin: مفقود ✗'\\)}\")",
+      "Bash(node -e \"try{require.resolve\\('react-native-worklets/plugin'\\);console.log\\('react-native-worklets/plugin: موجود ✓'\\)}catch\\(e\\){console.log\\('react-native-worklets/plugin: مفقود ✗'\\)}\")",
+      "Bash(cat .env)",
+      "Bash(curl -s -o /dev/null -w \"GET .108:8000/api/v1/maintenance → %{http_code}\\\\n\" http://192.168.0.108:8000/api/v1/maintenance --max-time 5)",
+      "Bash(curl -s -o /dev/null -w \"GET .110:8000 → %{http_code}\\\\n\" http://192.168.0.110:8000/api/v1/maintenance --max-time 4)",
+      "Bash(echo \"prebuild exit: $?\")",
+      "Bash(plutil -extract CFBundleURLTypes xml1 -o - ios/*/Info.plist)",
+      "Bash(python3 -c \"import json; d=json.load\\(open\\('app.json'\\)\\); bp=[p for p in d['expo']['plugins'] if isinstance\\(p,list\\) and p[0]=='expo-build-properties'][0][1]; print\\('✓ app.json صالح'\\); print\\('ios:', json.dumps\\(bp['ios']\\)\\)\")",
+      "Bash(python3 -c \"import json; d=json.load\\(open\\('eas.json'\\)\\); print\\('✓ eas.json صالح | base.env:', json.dumps\\(d['build']['base']['env']\\)\\)\")",
+      "Bash(python3 -c \"import json; d=json.load\\(open\\('app.json'\\)\\); bp=[p for p in d['expo']['plugins'] if isinstance\\(p,list\\) and p[0]=='expo-build-properties'][0][1]; print\\('✓ app.json صالح | ios:', json.dumps\\(bp['ios']\\)\\)\")",
+      "Bash(python3 -c \"import json; d=json.load\\(open\\('app.json'\\)\\)['expo']; print\\(json.dumps\\(d['ios'], indent=2, ensure_ascii=False\\)\\)\")",
+      "Bash(python3 -c \"import json; d=json.load\\(open\\('app.json'\\)\\)['expo']; print\\(json.dumps\\(d['plugins'], indent=1, ensure_ascii=False\\)\\)\")",
+      "Bash(python3 -c \"import json; ios=json.load\\(open\\('app.json'\\)\\)['expo']['ios']; print\\('entitlements:', json.dumps\\(ios.get\\('entitlements','\\(غير موجود — EAS بيضيفه تلقائياً\\)'\\)\\)\\)\")",
+      "Bash(python3 -c \"import json; ip=json.load\\(open\\('app.json'\\)\\)['expo']['ios'].get\\('infoPlist',{}\\); print\\('UIBackgroundModes:', ip.get\\('UIBackgroundModes','\\(غير موجود ✗\\)'\\)\\)\")",
+      "Bash(node -e \"console.log\\('app:', require\\('./node_modules/@react-native-firebase/app/package.json'\\).version\\); console.log\\('auth:', require\\('./node_modules/@react-native-firebase/auth/package.json'\\).version\\); console.log\\('Firebase iOS SDK:', require\\('./node_modules/@react-native-firebase/app/package.json'\\).sdkVersions.ios.firebase\\)\")",
+      "Bash(read p *)",
+      "Bash(node -e 'console.log\\(require\\('\\\\''./__TRACKED_VAR__'\\\\''\\).version + '\\\\'' | Firebase iOS: '\\\\'' + require\\('\\\\''./__TRACKED_VAR__'\\\\''\\).sdkVersions.ios.firebase\\)')",
+      "Bash(node -e 'console.log\\(require\\('\\\\''./__TRACKED_VAR__'\\\\''\\).version\\)')"
     ]
   }
 }

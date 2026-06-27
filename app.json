@@ -8,6 +8,12 @@
     "owner": "yazanshaikh",
     "android": {
       "package": "io.ifluent.student"
+    },
+    "ios": {
+      "bundleIdentifier": "io.ifluent.student",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     }
   }
 }
