@@ -102,45 +102,6 @@ const withAppDelegatePatch = (config) =>
         console.log('[withFirebasePhoneAuth] Added Auth.auth().canHandle(url) to openURL');
       }
 
-      // ── Forward APNs token + silent push to Firebase Auth ─────────────────
-      // ROOT CAUSE of the iOS phone-auth crash: Firebase's AppDelegate proxy
-      // swizzles the APNs delegate methods, which conflicts with Expo's
-      // subscriber-based delegate system (expo-notifications). We disable the
-      // proxy (FirebaseAppDelegateProxyEnabled=NO in Info.plist) and forward the
-      // APNs token + silent verification push to Firebase Auth MANUALLY, calling
-      // `super` so expo-notifications still receives everything. This is the
-      // supported way to run Firebase Phone Auth alongside another push handler.
-      if (!src.includes('Auth.auth().setAPNSToken')) {
-        const apnsMethods = `
-  // Firebase Auth — forward APNs token (proxy disabled; super keeps expo-notifications working)
-  public override func application(
-    _ application: UIApplication,
-    didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data
-  ) {
-    Auth.auth().setAPNSToken(deviceToken, type: .unknown)
-    super.application(application, didRegisterForRemoteNotificationsWithDeviceToken: deviceToken)
-  }
-
-  // Firebase Auth — intercept the silent phone-verification push
-  public override func application(
-    _ application: UIApplication,
-    didReceiveRemoteNotification userInfo: [AnyHashable: Any],
-    fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void
-  ) {
-    if Auth.auth().canHandleNotification(userInfo) {
-      completionHandler(.noData)
-      return
-    }
-    super.application(application, didReceiveRemoteNotification: userInfo, fetchCompletionHandler: completionHandler)
-  }
-`;
-        src = src.replace(
-          /\n}\n\nclass ReactNativeDelegate/,
-          `\n${apnsMethods}}\n\nclass ReactNativeDelegate`,
-        );
-        console.log('[withFirebasePhoneAuth] Added APNs token forwarding for Firebase Auth');
-      }
-
       fs.writeFileSync(delegatePath, src);
       return cfg;
     },
