@@ -339,7 +339,14 @@
       "Bash(node -e \"console.log\\('app:', require\\('./node_modules/@react-native-firebase/app/package.json'\\).version\\); console.log\\('auth:', require\\('./node_modules/@react-native-firebase/auth/package.json'\\).version\\); console.log\\('Firebase iOS SDK:', require\\('./node_modules/@react-native-firebase/app/package.json'\\).sdkVersions.ios.firebase\\)\")",
       "Bash(read p *)",
       "Bash(node -e 'console.log\\(require\\('\\\\''./__TRACKED_VAR__'\\\\''\\).version + '\\\\'' | Firebase iOS: '\\\\'' + require\\('\\\\''./__TRACKED_VAR__'\\\\''\\).sdkVersions.ios.firebase\\)')",
-      "Bash(node -e 'console.log\\(require\\('\\\\''./__TRACKED_VAR__'\\\\''\\).version\\)')"
+      "Bash(node -e 'console.log\\(require\\('\\\\''./__TRACKED_VAR__'\\\\''\\).version\\)')",
+      "Bash(node -e \"console.log\\(require\\('../../node_modules/babel-preset-expo/package.json'\\).version\\)\")",
+      "Bash(node -e \"console.log\\(require\\('./node_modules/babel-preset-expo/package.json'\\).version\\)\")",
+      "Bash(node --check babel.config.js)",
+      "Bash(grep -rni \"Hash::make\\\\|password.*=>.*['\\\\\"].\\\\{4,\\\\}['\\\\\"]\\\\|@ifluent\\\\|bcrypt\\(\" routes/)",
+      "Bash(grep -c \"\\\\bUser::\\\\|User \\\\$\\\\|\\(User \" routes/api.php)",
+      "Bash(grep -rniE \"\\(password|passwd|secret|api_key|apikey|token\\)\\\\s*=>?\\\\s*['\\\\\"][^'\\\\\"]{6,}['\\\\\"]\" app/ routes/)",
+      "Bash(grep -viE \"env\\\\\\(|config\\\\\\(|->|validation|required|confirmed|nullable|string|->input|request\\\\\\(|message|=> '\\\\\\\\\\\\$\")"
     ]
   }
 }
