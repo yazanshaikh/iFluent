@@ -3,9 +3,9 @@
 Target: Ubuntu VPS, single monorepo checkout, all services in one Docker network.
 
 ```
-ifluent.com      → Landing  (static)           ─┐
-crm.ifluent.com  → CRM dashboard (static SPA)    ├─ nginx
-api.ifluent.com  → Laravel API + Reverb (/app)  ─┘
+ifluent.app      → Landing  (static)           ─┐
+crm.ifluent.app  → CRM dashboard (static SPA)    ├─ nginx
+api.ifluent.app  → Laravel API + Reverb (/app)  ─┘
 db (postgres) + redis → internal network only, no public ports
 ```
 
@@ -18,10 +18,10 @@ code changes).
 ## 1. DNS
 Point all records at the VPS public IP:
 ```
-A   ifluent.com        → <VPS_IP>
-A   www.ifluent.com    → <VPS_IP>
-A   crm.ifluent.com    → <VPS_IP>
-A   api.ifluent.com    → <VPS_IP>
+A   ifluent.app        → <VPS_IP>
+A   www.ifluent.app    → <VPS_IP>
+A   crm.ifluent.app    → <VPS_IP>
+A   api.ifluent.app    → <VPS_IP>
 ```
 
 ## 2. Server prep
@@ -48,7 +48,7 @@ npm install
 npm run build --workspace=@ifluent/landing        # → apps/landing/dist
 npm run build --workspace=@ifluent/frontend-crm    # → apps/frontend-crm/dist
 ```
-Set each app's API base URL to `https://api.ifluent.com/api/v1` before building
+Set each app's API base URL to `https://api.ifluent.app/api/v1` before building
 (`apps/frontend-crm/.env` → `VITE_API_URL`, `apps/landing/.env` → `EXPO_PUBLIC_API_URL`).
 
 ## 5. Bring the stack up
@@ -72,7 +72,7 @@ docker run --rm \
   -v $(pwd)/docker/certbot/conf:/etc/letsencrypt \
   -v $(pwd)/docker/certbot/www:/var/www/certbot \
   certbot/certbot certonly --webroot -w /var/www/certbot \
-  -d ifluent.com -d www.ifluent.com -d crm.ifluent.com -d api.ifluent.com
+  -d ifluent.app -d www.ifluent.app -d crm.ifluent.app -d api.ifluent.app
 ```
 Then uncomment the `listen 443 ssl` blocks in `docker/nginx/prod/*.conf`, add an
 HTTP→HTTPS `return 301 https://$host$request_uri;` to each port-80 server (keeping
@@ -82,7 +82,7 @@ docker exec ifluent_nginx_prod nginx -t && docker exec ifluent_nginx_prod nginx 
 ```
 
 ## 8. Lock down the CRM (optional but recommended)
-Edit `docker/nginx/prod/crm.ifluent.com.conf` → uncomment the `allow/deny` IP
+Edit `docker/nginx/prod/crm.ifluent.app.conf` → uncomment the `allow/deny` IP
 allowlist (and/or the Basic Auth block), then reload nginx. The CRM already sends
 `X-Robots-Tag: noindex` and a disallow-all `robots.txt`.
 

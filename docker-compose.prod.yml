@@ -4,9 +4,9 @@
 #  Run:  docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
 #
 #  Routing (handled by the nginx service):
-#    ifluent.com       → Landing  (static expo export  → apps/landing/dist)
-#    crm.ifluent.com   → CRM       (static vite build   → apps/frontend-crm/dist)
-#    api.ifluent.com   → Laravel API (php-fpm) + Reverb websocket (/app)
+#    ifluent.app       → Landing  (static expo export  → apps/landing/dist)
+#    crm.ifluent.app   → CRM       (static vite build   → apps/frontend-crm/dist)
+#    api.ifluent.app   → Laravel API (php-fpm) + Reverb websocket (/app)
 #
 #  db + redis have NO published ports — reachable ONLY on the internal docker
 #  network, invisible to the outside world. Laravel reaches the DB via DB_HOST=db.
