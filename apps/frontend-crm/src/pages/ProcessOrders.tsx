@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { useRef, useState, useEffect, useMemo } from 'react';
+import { useRef, useState, useEffect,  } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { checkoutApi, lessonsApi, type PendingOrder, type LessonOption } from '@/api/checkout';
 import { useAuthStore } from '@/stores/authStore';

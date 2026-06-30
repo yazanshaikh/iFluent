@@ -346,7 +346,8 @@
       "Bash(grep -rni \"Hash::make\\\\|password.*=>.*['\\\\\"].\\\\{4,\\\\}['\\\\\"]\\\\|@ifluent\\\\|bcrypt\\(\" routes/)",
       "Bash(grep -c \"\\\\bUser::\\\\|User \\\\$\\\\|\\(User \" routes/api.php)",
       "Bash(grep -rniE \"\\(password|passwd|secret|api_key|apikey|token\\)\\\\s*=>?\\\\s*['\\\\\"][^'\\\\\"]{6,}['\\\\\"]\" app/ routes/)",
-      "Bash(grep -viE \"env\\\\\\(|config\\\\\\(|->|validation|required|confirmed|nullable|string|->input|request\\\\\\(|message|=> '\\\\\\\\\\\\$\")"
+      "Bash(grep -viE \"env\\\\\\(|config\\\\\\(|->|validation|required|confirmed|nullable|string|->input|request\\\\\\(|message|=> '\\\\\\\\\\\\$\")",
+      "Bash(git fetch *)"
     ]
   }
 }
