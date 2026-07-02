@@ -363,7 +363,16 @@
       "Bash(command -v magick convert)",
       "Bash(command -v iconutil)",
       "Bash(python3 -c \"import PIL; print\\('PIL', PIL.__version__\\)\")",
-      "Bash(sips -s format png dist/favicon.ico --out /tmp/old-generated-favicon.png)"
+      "Bash(sips -s format png dist/favicon.ico --out /tmp/old-generated-favicon.png)",
+      "Bash(git check-ignore *)",
+      "Read(//Users/yazan/Documents/frontend-teacher-desktop/web-build/**)",
+      "Bash(EXPO_PUBLIC_API_URL_WEB=https://api.ifluent.app/api/v1 node -e \"console.log\\('process.env sees:', process.env.EXPO_PUBLIC_API_URL_WEB\\)\")",
+      "Bash(rm -rf /tmp/tw)",
+      "Bash(EXPO_PUBLIC_API_URL_WEB=https://api.ifluent.app/api/v1 npx expo export --platform web --output-dir /tmp/tw --clear)",
+      "Bash(npx electron-builder *)",
+      "Bash(awk '{print $NF, \"\\(\"$5\"\\)\"}')",
+      "Bash(python3 -c \"import json;d=json.load\\(open\\('package.json'\\)\\);print\\('workspaces:',d.get\\('workspaces'\\)\\);print\\('packageManager:',d.get\\('packageManager'\\)\\);print\\('engines:',d.get\\('engines'\\)\\);print\\('scripts:',list\\(d.get\\('scripts',{}\\).keys\\(\\)\\)\\)\")",
+      "Bash(python3 -c \"import json;d=json.load\\(open\\('package.json'\\)\\)['scripts'];print\\('desktop:student =>', d.get\\('desktop:student'\\)\\);print\\('desktop:teacher =>', d.get\\('desktop:teacher'\\)\\);print\\('postinstall =>', d.get\\('postinstall'\\)\\)\")"
     ]
   }
 }
