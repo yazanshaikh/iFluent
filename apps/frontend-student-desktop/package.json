@@ -4,7 +4,7 @@
   "private": true,
   "main": "main.js",
   "scripts": {
-    "build:web": "cd ../frontend-student && npx expo export --platform web --output-dir ../frontend-student-desktop/web-build",
+    "build:web": "cd ../frontend-student && EXPO_PUBLIC_API_URL_WEB=https://api.ifluent.app/api/v1 EXPO_PUBLIC_API_URL=https://api.ifluent.app/api/v1 EXPO_PUBLIC_REVERB_HOST=api.ifluent.app EXPO_PUBLIC_REVERB_PORT=443 EXPO_PUBLIC_REVERB_SCHEME=wss npx expo export --platform web --output-dir ../frontend-student-desktop/web-build --clear",
     "start": "npm run build:web && electron .",
     "dist": "npm run build:web && electron-builder"
   },
@@ -15,6 +15,7 @@
   "build": {
     "appId": "io.ifluent.student.desktop",
     "productName": "iFluent",
+    "electronVersion": "33.4.11",
     "files": [
       "main.js",
       "web-build/**/*"

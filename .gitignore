@@ -34,3 +34,6 @@ backend/storage/logs/*.log
 **/.DS_Store
 .idea/
 *.log
+
+# Local production env files for desktop/EAS builds (contain secrets)
+apps/*/.env.production

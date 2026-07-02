@@ -4,10 +4,18 @@
  * Works in Expo Go without any native build
  */
 
-const REVERB_HOST = process.env.EXPO_PUBLIC_REVERB_HOST    ?? '192.168.0.101';
-const REVERB_PORT = process.env.EXPO_PUBLIC_REVERB_PORT    ?? '8080';
-const REVERB_KEY  = process.env.EXPO_PUBLIC_REVERB_APP_KEY ?? 'cxar16zcqn1j6y4fbprx';
-const API_BASE    = process.env.EXPO_PUBLIC_API_URL        ?? 'http://192.168.0.101:8000/api/v1';
+const REVERB_HOST   = process.env.EXPO_PUBLIC_REVERB_HOST    ?? '192.168.0.101';
+const REVERB_PORT   = process.env.EXPO_PUBLIC_REVERB_PORT    ?? '8080';
+const REVERB_KEY    = process.env.EXPO_PUBLIC_REVERB_APP_KEY ?? 'cxar16zcqn1j6y4fbprx';
+const API_BASE      = process.env.EXPO_PUBLIC_API_URL        ?? 'http://192.168.0.101:8000/api/v1';
+// ws for local dev, wss behind TLS (Cloudflare/nginx on 443). Defaults to ws
+// but auto-upgrades to wss when the API is served over https and no explicit
+// scheme was set, so production builds don't hit mixed-content / plaintext-WS.
+const REVERB_SCHEME = process.env.EXPO_PUBLIC_REVERB_SCHEME
+  ?? (API_BASE.startsWith('https://') ? 'wss' : 'ws');
+// Standard ports (80/443) are implicit in the URL — only append a custom port.
+const REVERB_PORT_PART =
+  REVERB_PORT && REVERB_PORT !== '80' && REVERB_PORT !== '443' ? `:${REVERB_PORT}` : '';
 
 type Listener = (data: any) => void;
 
@@ -20,7 +28,7 @@ const listeners = new Map<string, Map<string, Set<Listener>>>();
 function connect(authToken: string) {
   if (ws && ws.readyState === WebSocket.OPEN) return;
 
-  const url = `ws://${REVERB_HOST}:${REVERB_PORT}/app/${REVERB_KEY}?protocol=7&client=js&version=8.0&flash=false`;
+  const url = `${REVERB_SCHEME}://${REVERB_HOST}${REVERB_PORT_PART}/app/${REVERB_KEY}?protocol=7&client=js&version=8.0&flash=false`;
   ws    = new WebSocket(url);
   token = authToken;
 

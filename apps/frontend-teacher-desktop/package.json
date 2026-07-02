@@ -4,7 +4,7 @@
   "private": true,
   "main": "main.js",
   "scripts": {
-    "build:web": "cd ../frontend-teacher && npx expo export --platform web --output-dir ../frontend-teacher-desktop/web-build",
+    "build:web": "cd ../frontend-teacher && EXPO_PUBLIC_API_URL_WEB=https://api.ifluent.app/api/v1 npx expo export --platform web --output-dir ../frontend-teacher-desktop/web-build --clear",
     "start": "npm run build:web && electron .",
     "dist": "npm run build:web && electron-builder"
   },
@@ -15,6 +15,7 @@
   "build": {
     "appId": "io.ifluent.teacher.desktop",
     "productName": "iFluent Teacher",
+    "electronVersion": "33.4.11",
     "files": [
       "main.js",
       "web-build/**/*"
