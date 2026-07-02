@@ -7,6 +7,7 @@
     "start": "expo start",
     "android": "expo run:android",
     "ios": "expo run:ios",
+    "build:desktop-web": "expo export --platform web --output-dir ../frontend-teacher-desktop/web-build --clear",
     "prebuild": "expo prebuild --clean"
   },
   "dependencies": {

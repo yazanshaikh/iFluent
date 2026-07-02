@@ -8,6 +8,7 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
+    "build:desktop-web": "expo export --platform web --output-dir ../frontend-student-desktop/web-build --clear",
     "lint": "expo lint",
     "prebuild": "expo prebuild --clean"
   },

@@ -4,11 +4,12 @@
   "private": true,
   "main": "main.js",
   "scripts": {
-    "build:web": "cd ../frontend-student && EXPO_PUBLIC_API_URL_WEB=https://api.ifluent.app/api/v1 EXPO_PUBLIC_API_URL=https://api.ifluent.app/api/v1 EXPO_PUBLIC_REVERB_HOST=api.ifluent.app EXPO_PUBLIC_REVERB_PORT=443 EXPO_PUBLIC_REVERB_SCHEME=wss npx expo export --platform web --output-dir ../frontend-student-desktop/web-build --clear",
+    "build:web": "cross-env EXPO_PUBLIC_API_URL_WEB=https://api.ifluent.app/api/v1 EXPO_PUBLIC_API_URL=https://api.ifluent.app/api/v1 EXPO_PUBLIC_REVERB_HOST=api.ifluent.app EXPO_PUBLIC_REVERB_PORT=443 EXPO_PUBLIC_REVERB_SCHEME=wss npm run build:desktop-web --workspace=@ifluent/frontend-student",
     "start": "npm run build:web && electron .",
     "dist": "npm run build:web && electron-builder"
   },
   "devDependencies": {
+    "cross-env": "^7.0.3",
     "electron": "^33.4.11",
     "electron-builder": "^25.1.8"
   },
@@ -25,7 +26,9 @@
     },
     "mac": {
       "icon": "assets/icon.png",
-      "target": "dmg"
+      "target": [
+        { "target": "dmg", "arch": "universal" }
+      ]
     },
     "win": {
       "icon": "assets/icon.png",

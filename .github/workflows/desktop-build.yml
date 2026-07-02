@@ -1,0 +1,65 @@
+name: Desktop Build (student + teacher)
+
+# Builds the Electron desktop apps for macOS (.dmg), Windows (.exe) and
+# Linux (.AppImage) on native runners. Trigger manually from the Actions tab,
+# or push a tag like `desktop-v1.0.0`.
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'desktop-v*'
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+
+    # EXPO_PUBLIC_* values that locally come from apps/frontend-student/.env
+    # (which is gitignored, so absent on CI). These are all embedded in the
+    # public client bundle anyway — Firebase web config + the Pusher/Reverb app
+    # key are public by design. The login-code is the one real secret, so it is
+    # read from a repo secret (Settings → Secrets and variables → Actions).
+    env:
+      EXPO_PUBLIC_FIREBASE_API_KEY: AIzaSyCiL96QEPKkQ1d3I77fMDhnS7u1dSSaMd8
+      EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN: ifluent-58302.firebaseapp.com
+      EXPO_PUBLIC_FIREBASE_PROJECT_ID: ifluent-58302
+      EXPO_PUBLIC_FIREBASE_SENDER_ID: '856056302811'
+      EXPO_PUBLIC_FIREBASE_APP_ID: '1:856056302811:web:f9c55116fe6359f8e310fe'
+      EXPO_PUBLIC_REVERB_APP_KEY: cxar16zcqn1j6y4fbprx
+      EXPO_PUBLIC_SECRET_LOGIN_CODE: ${{ secrets.EXPO_PUBLIC_SECRET_LOGIN_CODE }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build student desktop
+        run: npm run dist --workspace=@ifluent/frontend-student-desktop
+
+      - name: Build teacher desktop
+        run: npm run dist --workspace=@ifluent/frontend-teacher-desktop
+
+      - name: Upload installers
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-${{ matrix.os }}
+          if-no-files-found: ignore
+          retention-days: 14
+          path: |
+            apps/frontend-student-desktop/release/*.dmg
+            apps/frontend-student-desktop/release/*.exe
+            apps/frontend-student-desktop/release/*.AppImage
+            apps/frontend-teacher-desktop/release/*.dmg
+            apps/frontend-teacher-desktop/release/*.exe
+            apps/frontend-teacher-desktop/release/*.AppImage

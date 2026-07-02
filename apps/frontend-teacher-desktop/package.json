@@ -4,11 +4,12 @@
   "private": true,
   "main": "main.js",
   "scripts": {
-    "build:web": "cd ../frontend-teacher && EXPO_PUBLIC_API_URL_WEB=https://api.ifluent.app/api/v1 npx expo export --platform web --output-dir ../frontend-teacher-desktop/web-build --clear",
+    "build:web": "cross-env EXPO_PUBLIC_API_URL_WEB=https://api.ifluent.app/api/v1 npm run build:desktop-web --workspace=@ifluent/frontend-teacher",
     "start": "npm run build:web && electron .",
     "dist": "npm run build:web && electron-builder"
   },
   "devDependencies": {
+    "cross-env": "^7.0.3",
     "electron": "^33.4.11",
     "electron-builder": "^25.1.8"
   },
@@ -25,7 +26,9 @@
     },
     "mac": {
       "icon": "assets/icon.png",
-      "target": "dmg"
+      "target": [
+        { "target": "dmg", "arch": "universal" }
+      ]
     },
     "win": {
       "icon": "assets/icon.png",
