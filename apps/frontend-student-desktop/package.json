@@ -17,6 +17,7 @@
     "appId": "io.ifluent.student.desktop",
     "productName": "iFluent",
     "electronVersion": "33.4.11",
+    "npmRebuild": false,
     "files": [
       "main.js",
       "web-build/**/*"
