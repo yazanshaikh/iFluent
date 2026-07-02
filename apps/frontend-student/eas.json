@@ -23,6 +23,13 @@
     "preview": {
       "extends": "base",
       "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://api.ifluent.app/api/v1",
+        "EXPO_PUBLIC_REVERB_HOST": "api.ifluent.app",
+        "EXPO_PUBLIC_REVERB_PORT": "443",
+        "EXPO_PUBLIC_REVERB_SCHEME": "wss",
+        "EXPO_PUBLIC_REVERB_APP_KEY": "cxar16zcqn1j6y4fbprx"
+      },
       "android": {
         "buildType": "apk"
       }
@@ -30,8 +37,15 @@
     "production": {
       "extends": "base",
       "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://api.ifluent.app/api/v1",
+        "EXPO_PUBLIC_REVERB_HOST": "api.ifluent.app",
+        "EXPO_PUBLIC_REVERB_PORT": "443",
+        "EXPO_PUBLIC_REVERB_SCHEME": "wss",
+        "EXPO_PUBLIC_REVERB_APP_KEY": "cxar16zcqn1j6y4fbprx"
+      },
       "android": {
-        "buildType": "apk"
+        "buildType": "app-bundle"
       }
     }
   },
