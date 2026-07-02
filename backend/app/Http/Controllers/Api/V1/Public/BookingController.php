@@ -27,7 +27,9 @@ class BookingController extends Controller
             'phone'          => ['required', 'string', 'max:30'],
             'preferred_date' => ['required', 'in:today,tomorrow'],
             'preferred_hour' => ['required', 'integer', 'min:0', 'max:23'],
-            'level'          => ['required', 'in:beginner,elementary,intermediate,advanced'],
+            // level is a soft hint for the CC — never reject a public lead over it.
+            // Optional + free string (the shared BookingPayload type marks it `level?`).
+            'level'          => ['nullable', 'string', 'max:50'],
             'message'        => ['nullable', 'string', 'max:500'],
         ]);
 
@@ -106,10 +108,13 @@ class BookingController extends Controller
             'advanced'     => 'متقدم (C1–C2)',
         ];
 
+        $levelInput = $validated['level'] ?? null;
+        $levelLabel = $levelInput ? ($levelNames[$levelInput] ?? $levelInput) : 'غير محدد';
+
         $parts = [
             '📋 طلب حجز من الصفحة الرئيسية',
             "📅 الوقت المفضل: {$dateAr} — {$h}:00 {$period}",
-            '📊 المستوى: ' . ($levelNames[$validated['level']] ?? $validated['level']),
+            '📊 المستوى: ' . $levelLabel,
         ];
 
         if (!empty($validated['message'])) {
