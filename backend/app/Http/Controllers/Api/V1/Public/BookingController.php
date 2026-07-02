@@ -74,9 +74,14 @@ class BookingController extends Controller
         }
 
         // ── 3. Build scheduled datetime from preferred_date + preferred_hour ──
-        $scheduledAt = Carbon::now()
-            ->when($validated['preferred_date'] === 'tomorrow', fn ($c) => $c->addDay())
-            ->setHour((int) $validated['preferred_hour'])
+        // NOTE: don't use Carbon's ->when() here — it only exists on newer Carbon
+        // versions (Conditionable trait) and throws UnknownMethodException on older
+        // ones. Plain if is version-independent.
+        $scheduledAt = Carbon::now();
+        if ($validated['preferred_date'] === 'tomorrow') {
+            $scheduledAt->addDay();
+        }
+        $scheduledAt->setHour((int) $validated['preferred_hour'])
             ->setMinute(0)
             ->setSecond(0);
 
