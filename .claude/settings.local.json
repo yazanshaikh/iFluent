@@ -347,7 +347,23 @@
       "Bash(grep -c \"\\\\bUser::\\\\|User \\\\$\\\\|\\(User \" routes/api.php)",
       "Bash(grep -rniE \"\\(password|passwd|secret|api_key|apikey|token\\)\\\\s*=>?\\\\s*['\\\\\"][^'\\\\\"]{6,}['\\\\\"]\" app/ routes/)",
       "Bash(grep -viE \"env\\\\\\(|config\\\\\\(|->|validation|required|confirmed|nullable|string|->input|request\\\\\\(|message|=> '\\\\\\\\\\\\$\")",
-      "Bash(git fetch *)"
+      "Bash(git fetch *)",
+      "Bash(php -l app/Http/Controllers/Api/V1/Public/BookingController.php)",
+      "Bash(cat config/cors.php)",
+      "Bash(grep -iE \"CORS|ALLOWED_ORIGIN|FRONTEND_URL\" .env.example)",
+      "Bash(php -l config/cors.php)",
+      "Bash(python3 -c \"import json; d=json.load\\(open\\('app.json'\\)\\)['expo']; print\\('name:', d.get\\('name'\\)\\); print\\('web:', json.dumps\\(d.get\\('web',{}\\), ensure_ascii=False\\)\\); print\\('icon:', d.get\\('icon'\\)\\)\")",
+      "Bash(cp favicon.png favicon.old.png)",
+      "Bash(sips -z 128 128 icon.png --out favicon.png)",
+      "Bash(awk '{print $5\" bytes\"}')",
+      "Bash(curl -s \"https://ifluent.app/?cb=$\\(date +%s\\)\" -H \"Cache-Control: no-cache\")",
+      "Bash(curl -s \"https://ifluent.app/favicon.ico?cb=$\\(date +%s\\)\" -o /tmp/prod-favicon.ico -w \"HTTP %{http_code} | %{size_download} bytes | type: %{content_type}\\\\n\")",
+      "Bash(curl -sI \"https://ifluent.app/favicon.ico\")",
+      "Bash(curl -s -H \"Host: ifluent.app\" \"http://178.104.213.155/favicon.ico\" -o /tmp/origin-favicon.ico -w \"HTTP %{http_code} | %{size_download} bytes\\\\n\" --max-time 10)",
+      "Bash(command -v magick convert)",
+      "Bash(command -v iconutil)",
+      "Bash(python3 -c \"import PIL; print\\('PIL', PIL.__version__\\)\")",
+      "Bash(sips -s format png dist/favicon.ico --out /tmp/old-generated-favicon.png)"
     ]
   }
 }

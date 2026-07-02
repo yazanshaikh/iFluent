@@ -277,7 +277,6 @@ export default function NewLeadsPage() {
           type="button"
           className="font-medium hover:underline hover:text-primary transition-colors text-right"
           onClick={(e) => { e.stopPropagation(); navigate(`/leads/${row.original.id}`); }}
-          className="flex items-center gap-1.5 font-medium hover:underline hover:text-primary transition-colors text-right"
         >
           {row.original.name}
           {row.original.is_small_treasure && (
