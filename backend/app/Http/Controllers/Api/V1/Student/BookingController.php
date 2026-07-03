@@ -320,7 +320,22 @@ class BookingController extends Controller
     {
         $student = $request->user();
 
-        $requests = SessionRequest::where('student_id', $student->id)
+        // A student's bookings = their own requests + any demo/trial booked for
+        // their lead (from the landing page or the CRM). Those carry lead_id but
+        // student_id = null, so filtering on student_id alone hides them. The lead
+        // phone is stored raw while the user's is E.164 — match on the last 9
+        // digits so format differences (+962 / 0…) don't break the link.
+        $phoneDigits = preg_replace('/\D/', '', (string) $student->phone);
+        $last9       = strlen($phoneDigits) >= 8 ? substr($phoneDigits, -9) : null;
+
+        $requests = SessionRequest::where(function ($base) use ($student, $last9) {
+                $base->where('student_id', $student->id);
+                if ($last9) {
+                    $base->orWhereHas('lead', function ($lq) use ($last9) {
+                        $lq->whereRaw("RIGHT(REGEXP_REPLACE(phone, '[^0-9]', '', 'g'), 9) = ?", [$last9]);
+                    });
+                }
+            })
             ->with(['lesson:id,title', 'assignedTeacher:id,name'])
             ->when(
                 $request->filled('status'),

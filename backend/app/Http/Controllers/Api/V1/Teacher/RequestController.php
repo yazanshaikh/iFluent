@@ -33,7 +33,7 @@ class RequestController extends Controller
     public function pool(Request $request): JsonResponse
     {
         $requests = SessionRequest::pool()
-            ->with(['student:id,name', 'lesson:id,title,unit_id,is_assessment', 'lead:id,name'])
+            ->with(['student:id,name', 'lesson:id,title,unit_id,is_assessment', 'lead:id,name,phone'])
             ->orderBy('requested_at_utc')
             ->paginate(20);
 
@@ -63,7 +63,7 @@ class RequestController extends Controller
 
         $requests = SessionRequest::forTeacher($teacher->id)
             ->where('status', SessionRequest::STATUS_PENDING)
-            ->with(['student:id,name', 'lesson:id,title,order,is_assessment,nearpod_url,level_id,unit_id', 'lesson.level:id,code,name', 'lesson.unit.level:id,code,name', 'lead:id,name'])
+            ->with(['student:id,name', 'lesson:id,title,order,is_assessment,nearpod_url,level_id,unit_id', 'lesson.level:id,code,name', 'lesson.unit.level:id,code,name', 'lead:id,name,phone'])
             ->when(
                 $request->filled('type'),
                 fn($q) => $q->where('type', $request->type)
@@ -260,6 +260,14 @@ class RequestController extends Controller
                 'id'   => $r->student->id,
                 'name' => $r->student->name,
                 'age'  => $age,
+            ] : null,
+            // Landing/CRM trial bookings belong to a lead (no student account yet),
+            // so `student` is null — expose the lead so the teacher still sees who
+            // the assessment is for. Null-safe: real student requests have no lead.
+            'lead'         => $r->lead ? [
+                'id'    => $r->lead->id,
+                'name'  => $r->lead->name,
+                'phone' => $r->lead->phone,
             ] : null,
             'lesson'       => $r->lesson ? [
                 'id'           => $r->lesson->id,
