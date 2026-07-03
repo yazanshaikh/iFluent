@@ -10,7 +10,10 @@ use Illuminate\Support\Facades\Log;
 
 class DailyCoService
 {
-    private string $apiKey;
+    // Nullable so a missing DAILY_API_KEY doesn't blow up on construction — only
+    // the room/token calls actually need it. Controllers that merely inject this
+    // service (e.g. the teacher Requests list) then keep working.
+    private ?string $apiKey;
     private string $baseUrl;
 
     /**
@@ -22,7 +25,15 @@ class DailyCoService
     public function __construct()
     {
         $this->apiKey  = config('services.daily.api_key');
-        $this->baseUrl = config('services.daily.base_url');
+        $this->baseUrl = config('services.daily.base_url') ?: 'https://api.daily.co/v1';
+    }
+
+    /** Fail loudly (but only when a room/token is actually needed). */
+    private function assertConfigured(): void
+    {
+        if (empty($this->apiKey)) {
+            throw new \RuntimeException('Daily.co is not configured — set DAILY_API_KEY in the environment.');
+        }
     }
 
     // ─── Create Room ──────────────────────────────────────────────────────────
@@ -37,6 +48,8 @@ class DailyCoService
      */
     public function createRoom(Session $session): array
     {
+        $this->assertConfigured();
+
         $roomName = $this->buildRoomName($session->id);
 
         $response = Http::withToken($this->apiKey)
@@ -116,6 +129,8 @@ class DailyCoService
      */
     public function createMeetingToken(string $roomName, bool $isOwner = false): string
     {
+        $this->assertConfigured();
+
         $response = Http::withToken($this->apiKey)
             ->timeout(10)
             ->post("{$this->baseUrl}/meeting-tokens", [
@@ -169,6 +184,8 @@ class DailyCoService
      */
     public function createGroupRoom(GroupClass $groupClass): array
     {
+        $this->assertConfigured();
+
         $roomName = 'ifluent-group-' . $groupClass->id;
 
         $response = Http::withToken($this->apiKey)
