@@ -386,7 +386,7 @@ class BookingController extends Controller
     {
         $student = $request->user();
 
-        if ($sessionRequest->student_id !== $student->id) {
+        if (! $this->ownsRequest($sessionRequest, $student)) {
             return response()->json(['message' => 'Forbidden.'], 403);
         }
 
@@ -457,7 +457,7 @@ class BookingController extends Controller
     {
         $student = $request->user();
 
-        if ($sessionRequest->student_id !== $student->id) {
+        if (! $this->ownsRequest($sessionRequest, $student)) {
             return response()->json(['message' => 'Forbidden.'], 403);
         }
 
@@ -493,5 +493,31 @@ class BookingController extends Controller
         }
 
         return response()->json(['message' => 'Booking request cancelled.']);
+    }
+
+    // ─── Ownership helpers ────────────────────────────────────────────────────
+
+    /** Last 9 digits of a phone (format-agnostic), or null if too short. */
+    private function phoneLast9(?string $phone): ?string
+    {
+        $digits = preg_replace('/\D/', '', (string) $phone);
+        return strlen($digits) >= 8 ? substr($digits, -9) : null;
+    }
+
+    /**
+     * A booking belongs to the current user if they are its student, or it's a
+     * trial/assessment booked for their lead (student_id null, matched by phone).
+     */
+    private function ownsRequest(SessionRequest $req, $user): bool
+    {
+        if ($req->student_id !== null && (int) $req->student_id === (int) $user->id) {
+            return true;
+        }
+        $last9 = $this->phoneLast9($user->phone);
+        if ($last9 && $req->lead) {
+            $leadDigits = preg_replace('/\D/', '', (string) $req->lead->phone);
+            return strlen($leadDigits) >= 8 && substr($leadDigits, -9) === $last9;
+        }
+        return false;
     }
 }
