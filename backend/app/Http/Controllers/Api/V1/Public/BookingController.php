@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1\Public;
 
 use App\Http\Controllers\Controller;
 use App\Models\Lead;
+use App\Models\Lesson;
 use App\Models\SessionRequest;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
@@ -88,9 +89,19 @@ class BookingController extends Controller
             ->setSecond(0);
 
         // ── 4. Create demo booking (Trial Booking in CRM) ──────────────────────
+        // Attach a default assessment lesson (like the CRM demo flow) so the
+        // teacher has an assessment to run and the session passes the student
+        // app's "assessment lessons only" visibility filter. Null-safe: stays
+        // null if no assessment lesson is seeded yet.
+        $assessmentLessonId = Lesson::assessment()
+            ->where('is_active', true)
+            ->orderBy('order')
+            ->value('id');
+
         SessionRequest::create([
             'type'             => SessionRequest::TYPE_DEMO,
             'lead_id'          => $lead->id,
+            'lesson_id'        => $assessmentLessonId,
             'requested_at_utc' => $scheduledAt,
             'status'           => SessionRequest::STATUS_PENDING,
         ]);

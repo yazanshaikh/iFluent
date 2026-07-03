@@ -16,7 +16,20 @@ class SessionController extends Controller
 
     public function index(Request $request): AnonymousResourceCollection
     {
-        $sessions = Session::forStudent($request->user()->id)
+        $user  = $request->user();
+        $last9 = $this->phoneLast9($user->phone);
+
+        // The student's own sessions + any trial/assessment session booked for
+        // their lead (student_id null, linked by lead_id). Lead phone is raw,
+        // user phone is E.164 → match on the last 9 digits.
+        $sessions = Session::where(function ($base) use ($user, $last9) {
+                $base->where('student_id', $user->id);
+                if ($last9) {
+                    $base->orWhereHas('lead', function ($lq) use ($last9) {
+                        $lq->whereRaw("RIGHT(REGEXP_REPLACE(phone, '[^0-9]', '', 'g'), 9) = ?", [$last9]);
+                    });
+                }
+            })
             ->with(['lesson.unit.level', 'teacher'])
             ->when(
                 $request->filled('status'),
@@ -63,7 +76,7 @@ class SessionController extends Controller
      */
     public function profile(Session $session, Request $request): JsonResponse
     {
-        if ($session->student_id !== $request->user()->id) {
+        if (! $this->ownsSession($session, $request->user())) {
             return response()->json(['message' => 'Forbidden.'], 403);
         }
 
@@ -158,7 +171,7 @@ class SessionController extends Controller
     public function join(Session $session, Request $request): JsonResponse
     {
         // Verify ownership
-        if ($session->student_id !== $request->user()->id) {
+        if (! $this->ownsSession($session, $request->user())) {
             return response()->json(['message' => 'Forbidden.'], 403);
         }
 
@@ -239,7 +252,7 @@ class SessionController extends Controller
 
     public function raiseHand(Session $session, Request $request): \Illuminate\Http\JsonResponse
     {
-        if ($session->student_id !== $request->user()->id) {
+        if (! $this->ownsSession($session, $request->user())) {
             return response()->json(['message' => 'Forbidden.'], 403);
         }
 
@@ -265,5 +278,33 @@ class SessionController extends Controller
         } catch (\Throwable) {}
 
         return response()->json(['message' => 'Hand raised.', 'data' => $data]);
+    }
+
+    // ─── Ownership helpers ────────────────────────────────────────────────────
+
+    /** Last 9 digits of a phone (format-agnostic), or null if too short. */
+    private function phoneLast9(?string $phone): ?string
+    {
+        $digits = preg_replace('/\D/', '', (string) $phone);
+        return strlen($digits) >= 8 ? substr($digits, -9) : null;
+    }
+
+    /**
+     * A session belongs to the current user if they are its student, or it is a
+     * trial/assessment booked for their lead (student_id null, matched by phone).
+     */
+    private function ownsSession(Session $session, $user): bool
+    {
+        if ($session->student_id !== null && (int) $session->student_id === (int) $user->id) {
+            return true;
+        }
+
+        $last9 = $this->phoneLast9($user->phone);
+        if ($last9 && $session->lead) {
+            $leadDigits = preg_replace('/\D/', '', (string) $session->lead->phone);
+            return strlen($leadDigits) >= 8 && substr($leadDigits, -9) === $last9;
+        }
+
+        return false;
     }
 }

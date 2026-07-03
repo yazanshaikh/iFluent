@@ -157,7 +157,8 @@ class RequestController extends Controller
             $session = Session::create([
                 'lesson_id'    => $locked->lesson_id,
                 'teacher_id'   => $teacher->id,
-                'student_id'   => $locked->student_id,
+                'student_id'   => $locked->student_id,   // null for a lead-only trial
+                'lead_id'      => $locked->lead_id,       // keep the lead link so they can join
                 'status'       => Session::STATUS_WAITING,
                 'scheduled_at' => $locked->requested_at_utc,
                 'nearpod_pin'  => $validated['nearpod_pin'] ?? null,

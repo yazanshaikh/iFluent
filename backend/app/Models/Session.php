@@ -26,6 +26,7 @@ class Session extends Model
         'lesson_id',
         'teacher_id',
         'student_id',
+        'lead_id',
         'status',
         'attendance_status',
         'daily_room_name',
@@ -77,6 +78,12 @@ class Session extends Model
     public function student(): BelongsTo
     {
         return $this->belongsTo(User::class, 'student_id');
+    }
+
+    // Set for trial/assessment sessions booked for a lead with no student account.
+    public function lead(): BelongsTo
+    {
+        return $this->belongsTo(Lead::class);
     }
 
     // ─── Helpers ──────────────────────────────────────────────────────────────
