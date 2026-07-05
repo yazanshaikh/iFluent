@@ -428,7 +428,10 @@
       "Bash(sips -g pixelWidth -g pixelHeight -g hasAlpha /tmp/stu-adaptive.png)",
       "Bash(sips -z 700 700 icon.png --out /tmp/stu-content2.png)",
       "Bash(sips --padToHeightWidth 1024 1024 --padColor FFFFFF /tmp/stu-content2.png --out /tmp/stu-adaptive2.png)",
-      "Bash(sips -g pixelWidth -g pixelHeight /tmp/stu-adaptive2.png)"
+      "Bash(sips -g pixelWidth -g pixelHeight /tmp/stu-adaptive2.png)",
+      "Bash(sips -c 875 875 icon.png --out /tmp/tch-crop.png)",
+      "Bash(sips -z 1024 1024 /tmp/tch-crop.png --out /tmp/tch-icon.png)",
+      "Bash(sips -g pixelWidth -g pixelHeight /tmp/tch-icon.png)"
     ]
   }
 }
