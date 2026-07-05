@@ -77,7 +77,11 @@ async function createWindow() {
     },
   });
 
-  win.loadURL(`http://127.0.0.1:${port}/`);
+  // Load via "localhost" (not 127.0.0.1): Firebase phone-auth reCAPTCHA checks
+  // the page hostname against the project's Authorized domains, and localhost is
+  // authorized by default while 127.0.0.1 is not → "auth/captcha-check-failed".
+  // The server still listens on 127.0.0.1, which localhost resolves to.
+  win.loadURL(`http://localhost:${port}/`);
 
   // Keep external links (support, payment, etc.) out of the app window.
   win.webContents.setWindowOpenHandler(({ url }) => {
