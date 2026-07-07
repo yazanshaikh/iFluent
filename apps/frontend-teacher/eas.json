@@ -7,7 +7,8 @@
     "base": {
       "node": "22.15.0",
       "env": {
-        "EXPO_ROOT_DIR": "../../"
+        "EXPO_ROOT_DIR": "../../",
+        "RCT_USE_PREBUILT_RNCORE": "0"
       }
     },
     "development": {
