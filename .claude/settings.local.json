@@ -431,7 +431,9 @@
       "Bash(sips -g pixelWidth -g pixelHeight /tmp/stu-adaptive2.png)",
       "Bash(sips -c 875 875 icon.png --out /tmp/tch-crop.png)",
       "Bash(sips -z 1024 1024 /tmp/tch-crop.png --out /tmp/tch-icon.png)",
-      "Bash(sips -g pixelWidth -g pixelHeight /tmp/tch-icon.png)"
+      "Bash(sips -g pixelWidth -g pixelHeight /tmp/tch-icon.png)",
+      "Bash(python3 -c \"import json;json.load\\(open\\('apps/frontend-teacher/eas.json'\\)\\);print\\('eas.json صحيح'\\)\")",
+      "Bash(node -e \"require\\('/Users/yazan/Documents/crm_iFluent/apps/frontend-teacher/babel.config.js'\\); console.log\\('babel.config.js صحيح'\\)\")"
     ]
   }
 }
