@@ -433,7 +433,14 @@
       "Bash(sips -z 1024 1024 /tmp/tch-crop.png --out /tmp/tch-icon.png)",
       "Bash(sips -g pixelWidth -g pixelHeight /tmp/tch-icon.png)",
       "Bash(python3 -c \"import json;json.load\\(open\\('apps/frontend-teacher/eas.json'\\)\\);print\\('eas.json صحيح'\\)\")",
-      "Bash(node -e \"require\\('/Users/yazan/Documents/crm_iFluent/apps/frontend-teacher/babel.config.js'\\); console.log\\('babel.config.js صحيح'\\)\")"
+      "Bash(node -e \"require\\('/Users/yazan/Documents/crm_iFluent/apps/frontend-teacher/babel.config.js'\\); console.log\\('babel.config.js صحيح'\\)\")",
+      "Bash(grep -vE \"^\\\\s*#|^\\\\s*$\" apps/frontend-teacher/.env)",
+      "Bash(python3 -c \"import json;print\\(json.load\\(open\\('package.json'\\)\\).get\\('packageManager','❌ غير موجود'\\)\\)\")",
+      "Bash(git log *)",
+      "Bash(python3 -c \"import json;json.load\\(open\\('package.json'\\)\\);print\\('package.json صحيح'\\)\")",
+      "Bash(node -e \"require\\('./apps/frontend-teacher/metro.config.js'\\); console.log\\('teacher metro صحيح'\\)\")",
+      "Bash(node -e \"require\\('./apps/frontend-student/metro.config.js'\\); console.log\\('student metro صحيح'\\)\")",
+      "Bash(python3 -c \"import json;print\\(json.load\\(open\\('apps/frontend-student/eas.json'\\)\\)['build']['base']['env']\\)\")"
     ]
   }
 }
