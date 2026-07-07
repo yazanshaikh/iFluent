@@ -8,6 +8,23 @@ const config = getDefaultConfig(projectRoot);
 
 config.watchFolders = [monorepoRoot];
 
+// Stop Metro from crawling heavy, JS-irrelevant trees under the monorepo root
+// (Laravel backend/vendor, .git, Electron web exports, sibling apps' native
+// build dirs). Without this the EAS "Starting Metro Bundler" step hangs until
+// the build is killed — same fix as the student app's metro.config.js.
+config.resolver.blockList = new RegExp(
+  [
+    /.*\/backend\/.*/,
+    /.*\/\.git\/.*/,
+    /.*\/apps\/[^/]+\/web-build\/.*/,
+    /.*\/apps\/[^/]+\/dist\/.*/,
+    /.*\/apps\/[^/]+\/release\/.*/,
+    /.*\/apps\/[^/]+\/\.expo\/.*/,
+    /.*\/ios\/(Pods|build)\/.*/,
+    /.*\/android\/(\.gradle|build)\/.*/,
+  ].map((r) => r.source).join('|'),
+);
+
 config.resolver.nodeModulesPaths = [
   path.resolve(projectRoot, 'node_modules'),
   path.resolve(monorepoRoot, 'node_modules'),

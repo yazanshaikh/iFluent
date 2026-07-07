@@ -29,6 +29,7 @@ config.resolver.blockList = new RegExp(
     /.*\/\.git\/.*/,                         // git internals
     /.*\/apps\/[^/]+\/web-build\/.*/,        // Electron / web exports
     /.*\/apps\/[^/]+\/dist\/.*/,             // sibling app web builds
+    /.*\/apps\/[^/]+\/release\/.*/,          // electron-builder output (.dmg/.app)
     /.*\/apps\/[^/]+\/\.expo\/.*/,           // expo caches
     /.*\/ios\/(Pods|build)\/.*/,             // iOS native build artifacts
     /.*\/android\/(\.gradle|build)\/.*/,     // Android native build artifacts
