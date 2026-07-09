@@ -98,7 +98,7 @@ export function Footer({ settings }: FooterProps) {
 
           {/* Platform policies — opens the PDF directly */}
           <TouchableOpacity onPress={openPolicies} activeOpacity={0.7}>
-            <Text style={styles.policyLink}>سياسات وشروط المنصة</Text>
+            <Text style={styles.policyLink}>سياسة المنصة وحماية البيانات</Text>
           </TouchableOpacity>
         </View>
 
