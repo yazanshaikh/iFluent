@@ -440,7 +440,20 @@
       "Bash(python3 -c \"import json;json.load\\(open\\('package.json'\\)\\);print\\('package.json صحيح'\\)\")",
       "Bash(node -e \"require\\('./apps/frontend-teacher/metro.config.js'\\); console.log\\('teacher metro صحيح'\\)\")",
       "Bash(node -e \"require\\('./apps/frontend-student/metro.config.js'\\); console.log\\('student metro صحيح'\\)\")",
-      "Bash(python3 -c \"import json;print\\(json.load\\(open\\('apps/frontend-student/eas.json'\\)\\)['build']['base']['env']\\)\")"
+      "Bash(python3 -c \"import json;print\\(json.load\\(open\\('apps/frontend-student/eas.json'\\)\\)['build']['base']['env']\\)\")",
+      "Bash(eas build:list --platform ios --limit 3 --non-interactive --json)",
+      "Bash(eas build *)",
+      "Bash(eas build:list --platform ios --limit 1 --non-interactive --json)",
+      "Bash(eas build:view e8bca958-21cc-4330-a5dc-3bfd3e27ba10 --json)",
+      "Bash(mv eas-build-log.txt eas-build-log.gz)",
+      "Bash(gunzip -f eas-build-log.gz)",
+      "Bash(mv eas-build-log *)",
+      "Bash(eas build:inspect --platform ios --profile preview --stage archive --output /tmp/eas-inspect --non-interactive)",
+      "Bash(eas build:inspect --platform ios --profile preview --stage archive --output /tmp/eas-inspect)",
+      "Bash(env)",
+      "Bash(python3 -c \"import json;print\\(json.load\\(open\\('apps/landing/package.json'\\)\\)['scripts']\\)\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" \"http://localhost:8090/\")",
+      "Bash(curl -s \"http://localhost:8090/assets/?unstable_path=.%2Fassets%2Flegal/ifluent-policies.pdf\" -o /tmp/served-policy.pdf -w \"HTTP %{http_code} | %{size_download} bytes\\\\n\")"
     ]
   }
 }
