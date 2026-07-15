@@ -35,7 +35,10 @@ class BookingController extends Controller
         ]);
 
         // ── 1. Find or create lead ─────────────────────────────────────────────
-        $lead = Lead::withTrashed()->where('phone', $validated['phone'])->first();
+        // Flexible phone match (exact first, then last-9-digits) so a lead who
+        // registered via /register with a differently formatted number gets the
+        // booking attached to THEIR lead instead of spawning a duplicate.
+        $lead = Lead::findByPhoneFlexible($validated['phone']);
 
         if ($lead) {
             if ($lead->trashed()) {

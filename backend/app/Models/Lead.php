@@ -98,4 +98,30 @@ class Lead extends Model
     {
         return $this->status === self::STATUS_SUBSCRIBER;
     }
+
+    /**
+     * Find a lead by phone, tolerant of format differences (+962 / leading 0 /
+     * spaces). Tries an exact string match first — preserving the original
+     * behaviour — then falls back to comparing the last 9 digits, so the same
+     * human registering via /register and later booking with a differently
+     * formatted number always resolves to ONE lead instead of a duplicate.
+     * Includes soft-deleted leads (callers restore as needed).
+     */
+    public static function findByPhoneFlexible(string $phone): ?self
+    {
+        $exact = static::withTrashed()->where('phone', $phone)->first();
+        if ($exact) {
+            return $exact;
+        }
+
+        $digits = preg_replace('/\D/', '', $phone);
+        if (strlen($digits) < 8) {
+            return null;
+        }
+
+        return static::withTrashed()
+            ->whereRaw("RIGHT(REGEXP_REPLACE(phone, '[^0-9]', '', 'g'), 9) = ?", [substr($digits, -9)])
+            ->orderByDesc('id')
+            ->first();
+    }
 }

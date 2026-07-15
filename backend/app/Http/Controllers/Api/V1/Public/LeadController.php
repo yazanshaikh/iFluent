@@ -38,8 +38,10 @@ class LeadController extends Controller
             ? 'landing_register'
             : (($validated['scheduled_at'] ?? null) ? 'app_eval' : 'app');
 
-        // Find existing lead (including soft-deleted) to avoid unique-phone clash
-        $lead = Lead::withTrashed()->where('phone', $validated['phone'])->first();
+        // Find existing lead (including soft-deleted) to avoid unique-phone clash.
+        // Flexible match (exact first, then last-9-digits) so format differences
+        // (+962 / leading 0 / spaces) never create a duplicate lead.
+        $lead = Lead::findByPhoneFlexible($validated['phone']);
 
         if ($lead) {
             if ($lead->trashed()) {
