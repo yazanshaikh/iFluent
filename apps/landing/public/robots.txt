@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+# Internal admin pages — keep out of search results
+Disallow: /login
+Disallow: /dashboard
+
+Sitemap: https://ifluent.app/sitemap.xml
