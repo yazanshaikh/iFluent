@@ -4,6 +4,7 @@ import {
   Pressable, Platform, Animated, Image,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import { Colors } from '@ifluent/shared';
 import { useScrollTo } from '@ifluent/shared';
 import { Spacing, NAVBAR_HEIGHT, MAX_WIDTH } from '@ifluent/shared';
@@ -23,10 +24,16 @@ interface NavbarProps {
 
 export function Navbar({ platformName = 'iFluent', onCtaPress }: NavbarProps) {
   const { isMobile } = useResponsive();
+  const router = useRouter();
   const [menuOpen, setMenuOpen]   = useState(false);
   const [scrolled, setScrolled]   = useState(false);
   const menuAnim  = useRef(new Animated.Value(0)).current;
   const scrollCtx = useScrollTo();
+
+  const goRegister = () => {
+    setMenuOpen(false);
+    router.push('/register');
+  };
 
   // ── Safe area: pushes Navbar below status bar / notch on native ──
   const insets   = useSafeAreaInsets();
@@ -97,6 +104,17 @@ export function Navbar({ platformName = 'iFluent', onCtaPress }: NavbarProps) {
                 )}
               </Pressable>
             ))}
+            {/* صفحة التسجيل — رابط مستقل (وليس تمريراً لقسم) */}
+            <Pressable
+              onPress={goRegister}
+              style={({ hovered }: any) => [styles.linkBtn, hovered && styles.linkBtnHover]}
+            >
+              {({ hovered }: any) => (
+                <Text style={[styles.linkText, styles.registerLink, hovered && styles.linkTextHover]}>
+                  سجّل الآن
+                </Text>
+              )}
+            </Pressable>
           </View>
         )}
 
@@ -166,6 +184,12 @@ export function Navbar({ platformName = 'iFluent', onCtaPress }: NavbarProps) {
               <Text style={styles.mobileLinkText}>{l.label}</Text>
             </TouchableOpacity>
           ))}
+          {/* صفحة التسجيل — رابط مستقل */}
+          <TouchableOpacity onPress={goRegister} style={styles.mobileLink} activeOpacity={0.7}>
+            <Text style={[styles.mobileLinkText, styles.registerLink]}>
+              سجّل الآن وتواصل مع مستشارك التعليمي
+            </Text>
+          </TouchableOpacity>
           <View style={styles.mobileDivider} />
           <TouchableOpacity
             style={styles.mobileDownloadBtn}
@@ -267,6 +291,8 @@ const styles = StyleSheet.create({
     writingDirection: 'rtl' as any,
   },
   linkTextHover:   { color: Colors.navy, fontWeight: FontWeight.semibold },
+  // "سجّل الآن" — مميّز عن بقية الروابط
+  registerLink:    { color: Colors.yellowDark, fontWeight: FontWeight.bold },
 
   // ── CTA row (desktop) ──
   ctaRow: {
