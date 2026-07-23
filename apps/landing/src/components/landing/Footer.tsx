@@ -23,6 +23,15 @@ const QUICK_LINKS = [
 const SUPPORT_EMAIL = 'ifluent0@gmail.com';
 const SUPPORT_PHONE = '0780105274';
 
+function toWhatsAppUrl(phone: string): string {
+  let digits = phone.replace(/[^\d+]/g, '');
+  if (digits.startsWith('+')) digits = digits.slice(1);
+  else if (digits.startsWith('00')) digits = digits.slice(2);
+  else if (digits.startsWith('0')) digits = `962${digits.slice(1)}`;
+  else if (!digits.startsWith('962')) digits = `962${digits}`;
+  return `https://wa.me/${digits}`;
+}
+
 // Platform policies PDF — bundled INTO the app (committed in assets), so it is
 // served same-origin and never depends on a backend URL / device IP.
 const POLICIES_PDF = require('../../../assets/legal/ifluent-policies.pdf');
@@ -65,14 +74,18 @@ export function Footer({ settings }: FooterProps) {
   const hasDesktopMac     = !!settings.desktop_mac_url;
   const hasDesktopWindows = !!settings.desktop_windows_url;
   const phone         = settings.contact_phone?.trim() || SUPPORT_PHONE;
+  const whatsapp      = settings.contact_whatsapp?.trim() || phone;
   const email         = settings.contact_email?.trim() || SUPPORT_EMAIL;
   const dialUrl       = `tel:${phone.replace(/[^\d+]/g, '')}`;
   const mailUrl       = `mailto:${email}`;
+  const whatsappUrl   = toWhatsAppUrl(whatsapp);
 
   const callPhone = () => {
     if (Platform.OS === 'web') window.location.href = dialUrl;
     else Linking.openURL(dialUrl).catch(() => {});
   };
+
+  const openWhatsApp = () => openUrl(whatsappUrl);
 
   const openEmail = () => {
     if (Platform.OS === 'web') window.location.href = mailUrl;
@@ -214,9 +227,9 @@ export function Footer({ settings }: FooterProps) {
               <Text style={styles.supportIcon}>✉️</Text>
               <Text style={styles.supportValue}>{email}</Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={callPhone} activeOpacity={0.75} style={styles.supportItem}>
-              <Text style={styles.supportIcon}>📞</Text>
-              <Text style={styles.supportValue}>{phone}</Text>
+            <TouchableOpacity onPress={openWhatsApp} activeOpacity={0.75} style={styles.supportItem}>
+              <FontAwesome5 name="whatsapp" brand size={18} color="#25D366" />
+              <Text style={styles.supportValue}>{whatsapp}</Text>
             </TouchableOpacity>
           </View>
         </View>
