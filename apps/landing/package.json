@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "expo start --web",
     "start": "expo start --web",
-    "build": "expo export --platform web",
+    "build": "expo export --platform web && chmod -R a+rX dist 2>/dev/null || true",
     "lint": "expo lint",
     "type-check": "tsc --noEmit"
   },

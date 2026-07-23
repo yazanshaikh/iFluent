@@ -89,8 +89,26 @@ allowlist (and/or the Basic Auth block), then reload nginx. The CRM already send
 ---
 
 ## Redeploying new code
-Because production opcache has `validate_timestamps=0`, restart the PHP services
-after pulling code so they pick up changes:
+
+**Landing / CRM (static frontends)** — nginx serves built files from `apps/*/dist`.
+`docker restart` alone is **not** enough; rebuild after every frontend change:
+```bash
+git pull
+npm run build --workspace=@ifluent/landing        # → apps/landing/dist
+# npm run build --workspace=@ifluent/frontend-crm  # if CRM changed
+chmod -R a+rX apps/landing/dist                     # nginx (uid 101) must read files
+docker compose -f docker-compose.prod.yml up -d --force-recreate nginx
+```
+If you still get **403 Forbidden**, check what nginx actually sees:
+```bash
+docker exec ifluent_nginx_prod ls -la /var/www/landing/
+docker exec ifluent_nginx_prod tail -20 /var/log/nginx/landing.error.log
+```
+Run all commands from the **same** repo directory used when the stack was first
+created (e.g. `/opt/iFluent` — Linux paths are case-sensitive).
+
+**Laravel API** — because production opcache has `validate_timestamps=0`, restart
+PHP services after pulling backend changes:
 ```bash
 git pull
 docker exec ifluent_app_prod composer install --no-dev --optimize-autoloader

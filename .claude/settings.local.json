@@ -453,7 +453,18 @@
       "Bash(env)",
       "Bash(python3 -c \"import json;print\\(json.load\\(open\\('apps/landing/package.json'\\)\\)['scripts']\\)\")",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" \"http://localhost:8090/\")",
-      "Bash(curl -s \"http://localhost:8090/assets/?unstable_path=.%2Fassets%2Flegal/ifluent-policies.pdf\" -o /tmp/served-policy.pdf -w \"HTTP %{http_code} | %{size_download} bytes\\\\n\")"
+      "Bash(curl -s \"http://localhost:8090/assets/?unstable_path=.%2Fassets%2Flegal/ifluent-policies.pdf\" -o /tmp/served-policy.pdf -w \"HTTP %{http_code} | %{size_download} bytes\\\\n\")",
+      "Bash(head -1)",
+      "Bash(echo \"\")",
+      "Bash(echo \"=== ٤\\) الموقع الحي: أي عنوان بالباندل المنشور؟ ===\")",
+      "Bash(date +%s)",
+      "Bash(curl -s \"https://ifluent.app/?cb=$\\(date +%s\\)\")",
+      "Bash(grep -nB2 -A12 \"NAV_LINKS\" apps/landing/src/components/landing/Navbar.tsx)",
+      "Bash(grep -nB3 -A10 \"public/bookings\\\\|public/leads\\\\|apiUrl\\\\|API_URL\" apps/landing/src/components/landing/BookingModal.tsx)",
+      "Bash(php -l backend/app/Http/Controllers/Api/V1/Public/LeadController.php)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" \"http://localhost:8090/register\")",
+      "Bash(echo \"tsc exit: $?\")",
+      "Bash(grep -nA8 \"public function index\" backend/app/Http/Controllers/Api/V1/Crm/LeadController.php)"
     ]
   }
 }
