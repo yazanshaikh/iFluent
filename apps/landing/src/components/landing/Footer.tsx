@@ -20,6 +20,9 @@ const QUICK_LINKS = [
   { label: 'كيف يعمل',        id: 'how'      },
 ];
 
+const SUPPORT_EMAIL = 'ifluent0@gmail.com';
+const SUPPORT_PHONE = '0780105274';
+
 // Platform policies PDF — bundled INTO the app (committed in assets), so it is
 // served same-origin and never depends on a backend URL / device IP.
 const POLICIES_PDF = require('../../../assets/legal/ifluent-policies.pdf');
@@ -61,13 +64,19 @@ export function Footer({ settings }: FooterProps) {
   const hasGooglePlay    = !!settings.google_play_url;
   const hasDesktopMac     = !!settings.desktop_mac_url;
   const hasDesktopWindows = !!settings.desktop_windows_url;
-  const phone         = settings.contact_phone?.trim();
-  const dialUrl       = phone ? `tel:${phone.replace(/[^\d+]/g, '')}` : null;
+  const phone         = settings.contact_phone?.trim() || SUPPORT_PHONE;
+  const email         = settings.contact_email?.trim() || SUPPORT_EMAIL;
+  const dialUrl       = `tel:${phone.replace(/[^\d+]/g, '')}`;
+  const mailUrl       = `mailto:${email}`;
 
   const callPhone = () => {
-    if (!dialUrl) return;
     if (Platform.OS === 'web') window.location.href = dialUrl;
     else Linking.openURL(dialUrl).catch(() => {});
+  };
+
+  const openEmail = () => {
+    if (Platform.OS === 'web') window.location.href = mailUrl;
+    else Linking.openURL(mailUrl).catch(() => {});
   };
 
   return (
@@ -192,6 +201,23 @@ export function Footer({ settings }: FooterProps) {
             <SocialIcon brand="snapchat"  url={settings.social_snapchat ?? null} onPress={openUrl} />
             <SocialIcon brand="instagram" url={settings.social_instagram ?? null} onPress={openUrl} />
             <SocialIcon brand="facebook"  url={settings.social_facebook  ?? null} onPress={openUrl} />
+          </View>
+        </View>
+      </View>
+
+      {/* ── Support / account deletion contact ── */}
+      <View style={styles.supportStrip}>
+        <View style={[styles.supportInner, isMobile && styles.supportInnerMobile]}>
+          <Text style={styles.supportTitle}>تواصل مع الدعم الفني أو لحذف الحساب</Text>
+          <View style={[styles.supportRow, isMobile && styles.supportRowMobile]}>
+            <TouchableOpacity onPress={openEmail} activeOpacity={0.75} style={styles.supportItem}>
+              <Text style={styles.supportIcon}>✉️</Text>
+              <Text style={styles.supportValue}>{email}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={callPhone} activeOpacity={0.75} style={styles.supportItem}>
+              <Text style={styles.supportIcon}>📞</Text>
+              <Text style={styles.supportValue}>{phone}</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </View>
@@ -452,6 +478,61 @@ const styles = StyleSheet.create({
     fontSize:   7,
     color:      Colors.yellow,
     fontWeight: FontWeight.bold,
+  },
+
+  // Support strip
+  supportStrip: {
+    borderTopWidth:    1,
+    borderTopColor:    'rgba(255,255,255,0.10)',
+    paddingVertical:   Spacing.xl,
+    paddingHorizontal: Spacing.xl,
+  },
+  supportInner: {
+    maxWidth:   MAX_WIDTH,
+    alignSelf:  'center',
+    width:      '100%',
+    alignItems: 'center',
+    gap:        Spacing.md,
+  },
+  supportInnerMobile: {
+    alignItems: 'stretch',
+  },
+  supportTitle: {
+    color:            Colors.yellow,
+    fontSize:         FontSize.base,
+    fontWeight:       FontWeight.bold,
+    textAlign:        'center',
+    writingDirection: 'rtl' as any,
+  },
+  supportRow: {
+    flexDirection:  'row-reverse',
+    flexWrap:       'wrap' as any,
+    justifyContent: 'center',
+    gap:            Spacing.lg,
+  },
+  supportRowMobile: {
+    flexDirection: 'column',
+    alignItems:    'stretch',
+  },
+  supportItem: {
+    flexDirection:     'row-reverse',
+    alignItems:        'center',
+    gap:               Spacing.sm,
+    backgroundColor:   'rgba(255,255,255,0.07)',
+    borderWidth:       1,
+    borderColor:       'rgba(255,193,7,0.25)',
+    borderRadius:      14,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical:   Spacing.sm + 2,
+  },
+  supportIcon: {
+    fontSize: FontSize.base,
+  },
+  supportValue: {
+    color:            Colors.white,
+    fontSize:         FontSize.sm,
+    fontWeight:       FontWeight.semibold,
+    writingDirection: 'ltr' as any,
   },
 
   // Bottom
