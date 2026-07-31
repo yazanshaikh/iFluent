@@ -228,7 +228,9 @@ const styles = StyleSheet.create({
     backgroundColor:   Colors.backgroundGray,
     ...Platform.select({ web: { outlineStyle: 'none', ...FONT } as any }),
   },
-  phoneInput: { ...Platform.select({ web: { direction: 'ltr' } as any }) },
+  // RN(-Web) uses writingDirection; a raw `direction` style property is invalid
+  // and logs "Invalid style property of direction" on every render.
+  phoneInput: { writingDirection: 'ltr' as any },
   inputError: { borderColor: '#EF4444' },
   errTxt: { color: '#EF4444', fontSize: FontSize.xs, textAlign: 'right', marginTop: 4, ...FONT, ...RTL },
 

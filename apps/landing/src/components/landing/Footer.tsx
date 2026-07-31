@@ -4,7 +4,6 @@ import {
   Linking, Platform, Image, Pressable,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Asset } from 'expo-asset';
 import FontAwesome5 from '@expo/vector-icons/FontAwesome5';
 import { Colors } from '@ifluent/shared';
 import { Spacing, MAX_WIDTH } from '@ifluent/shared';
@@ -32,9 +31,8 @@ function toWhatsAppUrl(phone: string): string {
   return `https://wa.me/${digits}`;
 }
 
-// Platform policies PDF — bundled INTO the app (committed in assets), so it is
-// served same-origin and never depends on a backend URL / device IP.
-const POLICIES_PDF = require('../../../assets/legal/ifluent-policies.pdf');
+// Platform policies live on their own in-app page (/policies) — readable inline
+// and linkable, instead of downloading a PDF.
 
 export function Footer({ settings }: FooterProps) {
   const { isMobile } = useResponsive();
@@ -60,8 +58,7 @@ export function Footer({ settings }: FooterProps) {
     else Linking.openURL(url).catch(() => {});
   };
 
-  // Open the bundled policies PDF (same-origin asset — no backend dependency).
-  const openPolicies = () => openUrl(Asset.fromModule(POLICIES_PDF).uri);
+  const openPolicies = () => router.push('/policies');
 
   const scrollTo = (id: string) => {
     if (Platform.OS === 'web') {
