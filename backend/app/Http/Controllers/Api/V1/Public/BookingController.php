@@ -80,16 +80,24 @@ class BookingController extends Controller
         }
 
         // ── 3. Build scheduled datetime from preferred_date + preferred_hour ──
+        // preferred_hour is the JORDAN local hour the visitor picked (the landing
+        // slots are 9…23 Amman time), so build the moment in Asia/Amman and only
+        // then convert to UTC for storage in requested_at_utc. Building it with
+        // the app timezone (UTC) stored 7 PM as 19:00 UTC, which the CRM then
+        // rendered as 10 PM Amman (+3). Using Amman "today/tomorrow" also keeps
+        // the date correct late at night, when the UTC date is still yesterday.
+        //
         // NOTE: don't use Carbon's ->when() here — it only exists on newer Carbon
         // versions (Conditionable trait) and throws UnknownMethodException on older
         // ones. Plain if is version-independent.
-        $scheduledAt = Carbon::now();
+        $scheduledAt = Carbon::now('Asia/Amman');
         if ($validated['preferred_date'] === 'tomorrow') {
             $scheduledAt->addDay();
         }
         $scheduledAt->setHour((int) $validated['preferred_hour'])
             ->setMinute(0)
-            ->setSecond(0);
+            ->setSecond(0)
+            ->setTimezone('UTC');
 
         // ── 4. Create demo booking (Trial Booking in CRM) ──────────────────────
         // Attach a default assessment lesson (like the CRM demo flow) so the
