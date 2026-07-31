@@ -5,7 +5,7 @@
 import { useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
-  ActivityIndicator, ScrollView, Switch, Animated,
+  ActivityIndicator, ScrollView, Switch, Animated, Linking,
 } from 'react-native';
 import { appAlert } from '@/lib/alert';
 import { useRouter } from 'expo-router';
@@ -16,6 +16,20 @@ import { authApi }      from '@/api/auth';
 import { registerForPushNotifications, unregisterPushNotifications } from '@/hooks/usePushNotifications';
 import { C, shadow }          from '@/theme';
 import { useAnimatedHeader }  from '@/hooks/useAnimatedHeader';
+
+// Support contacts — same details shown on the landing page footer.
+const SUPPORT_EMAIL = 'ifluent0@gmail.com';
+const SUPPORT_PHONE = '0780105274';
+
+/** 0780105274 → https://wa.me/962780105274 */
+function toWhatsAppUrl(phone: string): string {
+  let digits = phone.replace(/[^\d+]/g, '');
+  if (digits.startsWith('+')) digits = digits.slice(1);
+  else if (digits.startsWith('00')) digits = digits.slice(2);
+  else if (digits.startsWith('0')) digits = `962${digits.slice(1)}`;
+  else if (!digits.startsWith('962')) digits = `962${digits}`;
+  return `https://wa.me/${digits}`;
+}
 
 // ─── Row ────────────────────────────────────────────────────────────────────
 
@@ -67,6 +81,12 @@ export default function SettingsScreen() {
   };
   const { headerHeight, onHeaderLayout, onScroll, headerStyle } =
     useAnimatedHeader({ animateTabBar: false });
+
+  const openLink = (url: string) => {
+    Linking.openURL(url).catch(() =>
+      appAlert('تعذر الفتح', 'لم نتمكن من فتح التطبيق المطلوب. حاول لاحقاً.'),
+    );
+  };
 
   const doLogout = async () => {
     setLoggingOut(true);
@@ -149,6 +169,36 @@ export default function SettingsScreen() {
                 <Text style={styles.comingSoonText}>قريباً</Text>
               </View>
             }
+            last
+          />
+        </View>
+
+        {/* Policies */}
+        <Text style={styles.sectionLabel}>الخصوصية والسياسات</Text>
+        <View style={styles.card}>
+          <SettingRow
+            icon="shield-checkmark" iconBg="#EEF2FF" iconColor={C.navyLight}
+            label="سياسة الخصوصية"
+            value="سياسة المنصة وحماية البيانات"
+            onPress={() => router.push('/policies')}
+            last
+          />
+        </View>
+
+        {/* Support */}
+        <Text style={styles.sectionLabel}>تواصل مع الدعم الفني أو لحذف الحساب</Text>
+        <View style={styles.card}>
+          <SettingRow
+            icon="mail" iconBg="#EFF6FF" iconColor={C.info}
+            label="البريد الإلكتروني"
+            value={SUPPORT_EMAIL}
+            onPress={() => openLink(`mailto:${SUPPORT_EMAIL}`)}
+          />
+          <SettingRow
+            icon="logo-whatsapp" iconBg="#F0FDF4" iconColor={C.success}
+            label="واتساب"
+            value={SUPPORT_PHONE}
+            onPress={() => openLink(toWhatsAppUrl(SUPPORT_PHONE))}
             last
           />
         </View>

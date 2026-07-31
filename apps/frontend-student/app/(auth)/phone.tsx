@@ -14,10 +14,10 @@ import { useState, useRef } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity,
   StyleSheet, KeyboardAvoidingView, Platform,
-  ActivityIndicator, Image, ScrollView, Linking,
+  ActivityIndicator, Image, ScrollView,
 } from 'react-native';
 import { appAlert } from '@/lib/alert';
-import { useRouter } from 'expo-router';
+import { useRouter, router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { sendOtp } from '@/services/firebaseAuth';
 import { authApi } from '@/api/auth';
@@ -30,16 +30,8 @@ import { rf, s } from '@/lib/responsive';
 // can be omitted from production builds. Empty → the bypass UI is hidden.
 const SECRET_CODE = process.env.EXPO_PUBLIC_SECRET_LOGIN_CODE ?? '';
 
-// Terms & Conditions PDF — served from the Laravel public/ root (strip /api/v1).
-const POLICIES_URL =
-  (process.env.EXPO_PUBLIC_API_URL ?? '').replace(/\/api\/v1\/?$/, '') +
-  '/legal/ifluent-policies.pdf';
-
-const openPolicies = () => {
-  Linking.openURL(POLICIES_URL).catch(() =>
-    appAlert('تعذر الفتح', 'لم نتمكن من فتح ملف الشروط والأحكام. حاول لاحقاً.'),
-  );
-};
+// Terms & Conditions — an in-app page (was a PDF served from the Laravel root).
+const openPolicies = () => router.push('/policies');
 
 // ── Brand palette ──────────────────────────────────────────────────────────
 const C = {

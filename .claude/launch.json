@@ -9,6 +9,13 @@
       "autoPort": false
     },
     {
+      "name": "student",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "apps/frontend-student", "run", "web", "--", "--port", "8095"],
+      "port": 8095,
+      "autoPort": false
+    },
+    {
       "name": "crm",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["--prefix", "apps/frontend-crm", "run", "dev", "--", "--port", "3177"],
