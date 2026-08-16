@@ -2,7 +2,7 @@
   "expo": {
     "name": "iFluent",
     "slug": "ifluent-student",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "default",
     "icon": "./assets/icon.png",
     "scheme": "ifluent-student",
@@ -27,6 +27,7 @@
     },
     "android": {
       "googleServicesFile": "./google-services.json",
+      "versionCode": 9,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#FFFFFF"

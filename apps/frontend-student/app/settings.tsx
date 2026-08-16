@@ -2,10 +2,11 @@
  * Settings screen — app preferences + logout.
  * Brand theme: Yellow header / Navy text / Cream background.
  */
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
   ActivityIndicator, ScrollView, Switch, Animated, Linking,
+  Modal, TextInput, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { appAlert } from '@/lib/alert';
 import { useRouter } from 'expo-router';
@@ -13,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '@/stores/authStore';
 import { authApi }      from '@/api/auth';
+import { profileApi }   from '@/api/profile';
 import { registerForPushNotifications, unregisterPushNotifications } from '@/hooks/usePushNotifications';
 import { C, shadow }          from '@/theme';
 import { useAnimatedHeader }  from '@/hooks/useAnimatedHeader';
@@ -62,6 +64,107 @@ function SettingRow({
   );
 }
 
+// ─── Account deletion request modal ──────────────────────────────────────────
+
+function DeleteAccountModal({
+  visible, onClose, onSubmit, submitting,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  onSubmit: (reason: string) => void;
+  submitting: boolean;
+}) {
+  const insets = useSafeAreaInsets();
+  const [reason, setReason] = useState('');
+
+  useEffect(() => {
+    if (!visible) setReason('');
+  }, [visible]);
+
+  const handleClose = () => {
+    if (submitting) return;
+    setReason('');
+    onClose();
+  };
+
+  const handleSubmit = () => {
+    const trimmed = reason.trim();
+    if (trimmed.length < 3) {
+      appAlert('سبب مطلوب', 'يرجى كتابة سبب حذف الحساب (3 أحرف على الأقل).');
+      return;
+    }
+    onSubmit(trimmed);
+  };
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={handleClose}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        <View style={del.overlay}>
+          <TouchableOpacity style={StyleSheet.absoluteFill} onPress={handleClose} activeOpacity={1} />
+
+          <View style={[del.sheet, { paddingBottom: insets.bottom + 8 }]}>
+            <View style={del.header}>
+              <View style={del.headerIcon}>
+                <Ionicons name="trash-outline" size={28} color={C.error} />
+              </View>
+              <Text style={del.headerTitle}>طلب حذف الحساب</Text>
+              <Text style={del.headerSub}>أخبرنا عن سبب رغبتك في حذف حسابك</Text>
+            </View>
+
+            <ScrollView
+              contentContainerStyle={del.body}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
+              <Text style={del.label}>سبب حذف الحساب</Text>
+              <View style={del.inputWrap}>
+                <TextInput
+                  style={del.input}
+                  value={reason}
+                  onChangeText={setReason}
+                  placeholder="...اكتب سبب طلبك هنا"
+                  placeholderTextColor={C.gray}
+                  multiline
+                  textAlign="right"
+                  textAlignVertical="top"
+                  maxLength={1000}
+                  autoFocus
+                  editable={!submitting}
+                />
+              </View>
+
+              <View style={del.btnRow}>
+                <TouchableOpacity
+                  style={del.cancelBtn}
+                  onPress={handleClose}
+                  disabled={submitting}
+                  activeOpacity={0.8}
+                >
+                  <Text style={del.cancelTxt}>إلغاء</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[del.submitBtn, (reason.trim().length < 3 || submitting) && del.submitBtnOff]}
+                  onPress={handleSubmit}
+                  disabled={reason.trim().length < 3 || submitting}
+                  activeOpacity={0.85}
+                >
+                  {submitting
+                    ? <ActivityIndicator color={C.white} size="small" />
+                    : <Text style={del.submitTxt}>إرسال الطلب</Text>
+                  }
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
+          </View>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+}
+
 // ─── Page ────────────────────────────────────────────────────────────────────
 
 export default function SettingsScreen() {
@@ -70,6 +173,8 @@ export default function SettingsScreen() {
   const { user, clearAuth } = useAuthStore();
   const [notifOn,    setNotifOn]    = useState(true);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [deleteModalVisible, setDeleteModalVisible] = useState(false);
+  const [submittingDelete, setSubmittingDelete] = useState(false);
 
   const handleNotifToggle = async (value: boolean) => {
     setNotifOn(value);
@@ -105,6 +210,22 @@ export default function SettingsScreen() {
         { text: 'خروج', style: 'destructive', onPress: doLogout },
       ],
     );
+  };
+
+  const handleDeleteRequest = async (reason: string) => {
+    setSubmittingDelete(true);
+    try {
+      await profileApi.requestAccountDeletion(reason);
+      setDeleteModalVisible(false);
+      appAlert(
+        'تم إرسال الطلب',
+        'رح يتم مراجعة طلبك من قبل فريق الدعم وسيتم التواصل معك قريباً.',
+      );
+    } catch {
+      appAlert('تعذر الإرسال', 'حدث خطأ أثناء إرسال الطلب. حاول مرة أخرى لاحقاً.');
+    } finally {
+      setSubmittingDelete(false);
+    }
   };
 
   return (
@@ -207,6 +328,16 @@ export default function SettingsScreen() {
         <Text style={styles.sectionLabel}>الحساب</Text>
         <View style={[styles.card, styles.dangerCard]}>
           <TouchableOpacity
+            style={[styles.logoutRow, styles.rowBorder]}
+            onPress={() => setDeleteModalVisible(true)}
+            activeOpacity={0.80}
+          >
+            <View style={[styles.rowIcon, { backgroundColor: '#FEF2F2' }]}>
+              <Ionicons name="trash-outline" size={18} color={C.error} />
+            </View>
+            <Text style={styles.logoutLabel}>طلب حذف الحساب</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
             style={styles.logoutRow}
             onPress={handleLogout}
             disabled={loggingOut}
@@ -225,6 +356,13 @@ export default function SettingsScreen() {
         <Text style={styles.versionTxt}>الإصدار 1.0.0</Text>
         <View style={{ height: 32 }} />
       </ScrollView>
+
+      <DeleteAccountModal
+        visible={deleteModalVisible}
+        onClose={() => setDeleteModalVisible(false)}
+        onSubmit={handleDeleteRequest}
+        submitting={submittingDelete}
+      />
     </View>
   );
 }
@@ -288,4 +426,54 @@ const styles = StyleSheet.create({
     fontSize: 11, fontWeight: '700',
     color: '#B45309', letterSpacing: 0.3,
   },
+});
+
+const del = StyleSheet.create({
+  overlay: {
+    flex: 1, justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0,0,0,0.45)',
+  },
+  sheet: {
+    backgroundColor: C.white,
+    borderTopLeftRadius: 28, borderTopRightRadius: 28,
+    overflow: 'hidden',
+  },
+  header: {
+    backgroundColor: '#FEF2F2', alignItems: 'center',
+    paddingTop: 28, paddingBottom: 24, paddingHorizontal: 20,
+    borderBottomWidth: 1, borderBottomColor: '#FECACA',
+  },
+  headerIcon: {
+    width: 60, height: 60, borderRadius: 16,
+    backgroundColor: C.white,
+    justifyContent: 'center', alignItems: 'center', marginBottom: 12,
+  },
+  headerTitle: { fontSize: 20, fontWeight: '900', color: C.error, marginBottom: 4 },
+  headerSub:   { fontSize: 13, color: C.gray, textAlign: 'center' },
+
+  body: { padding: 20 },
+  label: {
+    fontSize: 14, fontWeight: '800', color: C.navy,
+    textAlign: 'right', marginBottom: 8,
+  },
+  inputWrap: {
+    borderWidth: 1.5, borderColor: '#FECACA', borderRadius: 16,
+    backgroundColor: '#FFFBFB', marginBottom: 24, minHeight: 120,
+  },
+  input: {
+    padding: 14, fontSize: 15, color: C.navy, minHeight: 120,
+  },
+
+  btnRow: { flexDirection: 'row', gap: 12 },
+  cancelBtn: {
+    flex: 1, borderRadius: 14, paddingVertical: 15,
+    backgroundColor: '#F3F4F6', alignItems: 'center',
+  },
+  cancelTxt: { fontSize: 15, fontWeight: '800', color: C.grayMid },
+  submitBtn: {
+    flex: 1, borderRadius: 14, paddingVertical: 15,
+    backgroundColor: C.error, alignItems: 'center',
+  },
+  submitBtnOff: { opacity: 0.45 },
+  submitTxt: { fontSize: 15, fontWeight: '800', color: C.white },
 });

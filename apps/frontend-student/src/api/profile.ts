@@ -50,4 +50,10 @@ export const profileApi = {
     client
       .post('/student/device-token', { fcm_token: '' })
       .then(() => undefined),
+
+  /** POST /student/account-deletion-request — submit account deletion reason */
+  requestAccountDeletion: (reason: string): Promise<{ message: string }> =>
+    client
+      .post<{ message: string }>('/student/account-deletion-request', { reason })
+      .then((r) => r.data),
 };

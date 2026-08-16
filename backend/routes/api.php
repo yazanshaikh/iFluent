@@ -221,7 +221,8 @@ Route::middleware(['auth:sanctum', 'role:student'])
         Route::get  ('profile',           [StudentProfileController::class, 'show']);
         Route::patch('profile',           [StudentProfileController::class, 'update']);
         Route::get  ('progress-summary',  [\App\Http\Controllers\Api\V1\Student\ProgressController::class, 'summary']);
-        Route::post ('device-token',      [StudentProfileController::class, 'updateFcmToken']);
+        Route::post ('device-token',               [StudentProfileController::class, 'updateFcmToken']);
+        Route::post ('account-deletion-request',   [StudentProfileController::class, 'requestAccountDeletion']);
 
         // ── Curriculum ─────────────────────────────────────────────────────────
         Route::get('levels',   [StudentLessonController::class, 'levels']);        // full roadmap

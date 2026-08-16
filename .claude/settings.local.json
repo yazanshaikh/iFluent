@@ -464,7 +464,8 @@
       "Bash(php -l backend/app/Http/Controllers/Api/V1/Public/LeadController.php)",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" \"http://localhost:8090/register\")",
       "Bash(echo \"tsc exit: $?\")",
-      "Bash(grep -nA8 \"public function index\" backend/app/Http/Controllers/Api/V1/Crm/LeadController.php)"
+      "Bash(grep -nA8 \"public function index\" backend/app/Http/Controllers/Api/V1/Crm/LeadController.php)",
+      "Bash(php -r ' *)"
     ]
   }
 }
