@@ -111,6 +111,20 @@ class LeadController extends Controller
 
             // Lead belongs to another employee (assigned and not open sea)
             if ($existing->assigned_to && $existing->assigned_to !== $actor->id) {
+                // The admin may reassign any lead, so don't tell them they can't
+                // take it — point them at the profile where they can reassign.
+                if ($actor->isSuperAdmin()) {
+                    $holder = User::find($existing->assigned_to)?->name;
+
+                    return response()->json([
+                        'message'  => $holder
+                            ? "هذا العميل مسجّل لدى الموظف {$holder} — افتح بروفايله لإعادة تعيينه."
+                            : 'هذا العميل مسجّل لدى موظف آخر — افتح بروفايله لإعادة تعيينه.',
+                        'lead_id'  => $existing->id,
+                        'conflict' => 'own',
+                    ], 409);
+                }
+
                 return response()->json([
                     'message'  => 'هذا الرقم مسجّل مسبقاً لدى موظف آخر ولا يمكنك أخذه.',
                     'conflict' => 'other_staff',
@@ -119,6 +133,18 @@ class LeadController extends Controller
 
             // Lead is unassigned (admin pool) — only admin should handle it
             if (is_null($existing->assigned_to)) {
+                // The admin IS the manager, so "go talk to the manager" is a dead
+                // end for them (that conflict type has no action in the UI either).
+                // The unassigned pool is their own list → report it as such so they
+                // get the "open profile" action and can assign it from there.
+                if ($actor->isSuperAdmin()) {
+                    return response()->json([
+                        'message'  => 'هذا العميل موجود بالفعل في قائمة المدير (غير معيّن) — افتح بروفايله لتعيينه لموظف.',
+                        'lead_id'  => $existing->id,
+                        'conflict' => 'own',
+                    ], 409);
+                }
+
                 return response()->json([
                     'message'  => 'هذا العميل موجود في قائمة المدير — تواصل مع المدير لتعيينه.',
                     'lead_id'  => $existing->id,
@@ -151,16 +177,31 @@ class LeadController extends Controller
         }
 
         $lead = DB::transaction(function () use ($request, $status, $assignedTo) {
-            // 1. Create the Lead record
-            $lead = Lead::create([
+            $phone = $request->validated()['phone'];
+
+            $attributes = [
                 ...$request->safe()->except('assigned_to'),
                 'status'            => $status,
                 'assigned_to'       => $assignedTo,
                 'first_assigned_to' => $assignedTo,
-            ]);
+            ];
+
+            // 1. Create the Lead record — or revive a soft-deleted one holding the
+            //    same phone. leads.phone is UNIQUE and that index still counts
+            //    deleted rows, so a plain create() would die on a constraint
+            //    violation (500) and the number would be permanently unusable —
+            //    there is no restore endpoint. Any LIVE duplicate already returned
+            //    409 above, so anything found here is a deleted lead being re-added.
+            $lead = Lead::withTrashed()->where('phone', $phone)->first();
+
+            if ($lead) {
+                $lead->restore();
+                $lead->fill($attributes)->save();
+            } else {
+                $lead = Lead::create($attributes);
+            }
 
             // 2. Create User account (student role) so they can log in via the app
-            $phone = $request->validated()['phone'];
             $user  = User::firstOrCreate(
                 ['phone' => $phone],
                 [
