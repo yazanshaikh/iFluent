@@ -120,9 +120,9 @@ class LessonActivityUrlSeeder extends Seeder
 
     /** assessment lessons matched by title */
     private array $assessments = [
-        ['title' => 'Greetings — Beginner', 'url' => 'https://wordwall.net/play/114276/017/809'],
-        ['title' => 'Making an Order', 'url' => 'https://wordwall.net/play/114276/145/316'],
-        ['title' => 'WH Questions', 'url' => 'https://wordwall.net/play/114276/679/142'],
+        ['level' => 'A1', 'title' => 'Greetings — Beginner', 'url' => 'https://wordwall.net/play/114276/017/809'],
+        ['level' => 'A2', 'title' => 'Making an Order',      'url' => 'https://wordwall.net/play/114276/145/316'],
+        ['level' => 'B1', 'title' => 'WH Questions',         'url' => 'https://wordwall.net/play/114276/679/142'],
     ];
 
     public function run(): void
@@ -155,8 +155,21 @@ class LessonActivityUrlSeeder extends Seeder
                 ->where('title', $row['title'])
                 ->first();
 
+            // Titles drift between environments (em-dash vs hyphen, rewording),
+            // so fall back to the level — each level holds one assessment lesson.
             if (!$lesson) {
-                $missing[] = "assessment: {$row['title']}";
+                $level = Level::where('code', $row['level'])->first();
+
+                $lesson = $level
+                    ? Lesson::where('is_assessment', true)
+                        ->where('level_id', $level->id)
+                        ->orderBy('id')
+                        ->first()
+                    : null;
+            }
+
+            if (!$lesson) {
+                $missing[] = "assessment: {$row['level']} / {$row['title']}";
                 continue;
             }
 
