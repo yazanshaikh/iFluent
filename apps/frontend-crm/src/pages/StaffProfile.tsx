@@ -170,6 +170,17 @@ export default function StaffProfilePage() {
     },
   });
 
+  /* ── Withdraw a trial from this teacher (back to the open pool) ── */
+  const withdrawDemoMutation = useMutation({
+    mutationFn: (sessionRequestId: number) => leadsApi.withdrawDemoTeacher(sessionRequestId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['teacher-demo-bookings', staffId] });
+      qc.invalidateQueries({ queryKey: ['demo-bookings'] });
+    },
+    onError: (e: any) =>
+      alert(e?.response?.data?.message ?? 'تعذّر سحب الحصة'),
+  });
+
   /* ── Reset sessions mutation ── */
   const resetMutation = useMutation({
     mutationFn: () => staffApi.resetSessions(staffId),
@@ -527,6 +538,28 @@ export default function StaffProfilePage() {
                       >
                         {booking.status === 'confirmed' ? 'مؤكدة' : 'بانتظار القبول'}
                       </Badge>
+
+                      {/* Admin: take the trial back to the open pool (not a cancellation) */}
+                      {isAdmin && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="shrink-0 text-xs h-7 text-amber-700 border-amber-300 hover:bg-amber-50"
+                          disabled={withdrawDemoMutation.isPending}
+                          onClick={() => {
+                            if (
+                              window.confirm(
+                                `سحب الحصة من ${staff?.name ?? 'المعلم'}؟\n\n` +
+                                  'الحجز يبقى قائماً للعميل، وترجع الحصة للطلبات المتاحة ليقبلها معلم آخر.',
+                              )
+                            ) {
+                              withdrawDemoMutation.mutate(booking.id);
+                            }
+                          }}
+                        >
+                          سحب الحصة
+                        </Button>
+                      )}
                     </div>
                   );
                 })}

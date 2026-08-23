@@ -117,6 +117,9 @@ Route::middleware(['auth:sanctum', 'role:super_admin,cc,ss'])
         Route::post('leads/{lead}/demo-requests',                      [DemoBookingController::class, 'store']);
         Route::post ('demo-requests/{sessionRequest}/cancel',           [DemoBookingController::class, 'cancel']);
         Route::patch('demo-requests/{sessionRequest}/change-lesson',    [DemoBookingController::class, 'changeLesson']);
+        // Admin-only: move a trial between teachers without cancelling it
+        Route::post ('demo-requests/{sessionRequest}/withdraw-teacher', [DemoBookingController::class, 'withdrawTeacher']);
+        Route::post ('demo-requests/{sessionRequest}/assign-teacher',   [DemoBookingController::class, 'assignTeacher']);
 
         // ── Checkout — generate invoice ────────────────────────────────────────
         Route::post('leads/{lead}/checkout', [CheckoutController::class, 'store']);

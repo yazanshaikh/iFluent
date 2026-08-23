@@ -180,6 +180,19 @@ export const leadsApi = {
   cancelDemo: (sessionRequestId: number) =>
     api.post<{ message: string }>(`/crm/demo-requests/${sessionRequestId}/cancel`).then(r => r.data),
 
+  /** سحب الحصة من المعلم وإرجاعها للطلبات المتاحة (بدون إلغاء الحجز) — للمدير فقط */
+  withdrawDemoTeacher: (sessionRequestId: number) =>
+    api.post<{ message: string }>(
+      `/crm/demo-requests/${sessionRequestId}/withdraw-teacher`,
+    ).then(r => r.data),
+
+  /** توجيه حصة معلّقة لمعلم محدّد — للمدير فقط */
+  assignDemoTeacher: (sessionRequestId: number, teacherId: number) =>
+    api.post<{ message: string }>(
+      `/crm/demo-requests/${sessionRequestId}/assign-teacher`,
+      { teacher_id: teacherId },
+    ).then(r => r.data),
+
   cancelSubscription: (subscriptionId: number, reason: string) =>
     api.post<{ message: string }>(
       `/admin/subscriptions/${subscriptionId}/cancel-subscription`,

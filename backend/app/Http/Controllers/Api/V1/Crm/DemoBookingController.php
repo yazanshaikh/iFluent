@@ -5,10 +5,13 @@ namespace App\Http\Controllers\Api\V1\Crm;
 use App\Http\Controllers\Controller;
 use App\Models\Lead;
 use App\Models\Lesson;
+use App\Models\Session;
 use App\Models\SessionRequest;
 use App\Models\User;
+use App\Services\DailyCoService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 /**
  * CRM Demo Booking — Sales Staff books a demo session for a lead.
@@ -22,6 +25,113 @@ use Illuminate\Http\Request;
  */
 class DemoBookingController extends Controller
 {
+    public function __construct(private DailyCoService $daily) {}
+
+    /**
+     * POST /crm/demo-requests/{sessionRequest}/withdraw-teacher
+     *
+     * Take a trial back from its teacher and return it to the open pool, so any
+     * other teacher can pick it up. This is NOT a cancellation — the customer
+     * keeps their booking and time slot; only the teacher assignment is undone.
+     * Admin-only.
+     */
+    public function withdrawTeacher(SessionRequest $sessionRequest, Request $request): JsonResponse
+    {
+        if (!$request->user()->isSuperAdmin()) {
+            return response()->json(['message' => 'هذا الإجراء متاح لمدير النظام فقط.'], 403);
+        }
+
+        if (!in_array($sessionRequest->status, [
+            SessionRequest::STATUS_PENDING,
+            SessionRequest::STATUS_CONFIRMED,
+        ], true)) {
+            return response()->json([
+                'message' => 'يمكن سحب الحصص المعلّقة أو المؤكدة فقط.',
+            ], 422);
+        }
+
+        if (!$sessionRequest->target_teacher_id && !$sessionRequest->assigned_teacher_id) {
+            return response()->json([
+                'message' => 'هذه الحصة غير معيّنة لأي معلم — هي أصلاً ضمن الطلبات المتاحة.',
+            ], 422);
+        }
+
+        // A confirmed request already has a Session (created the moment the
+        // teacher accepted). Undo it, otherwise the slot stays half-taken.
+        $session = $sessionRequest->session_id ? Session::find($sessionRequest->session_id) : null;
+
+        if ($session) {
+            if (in_array($session->status, [Session::STATUS_ACTIVE, Session::STATUS_COMPLETED], true)) {
+                return response()->json([
+                    'message' => 'لا يمكن سحب حصة بدأت أو انتهت بالفعل.',
+                ], 422);
+            }
+
+            if ($session->daily_room_name) {
+                try {
+                    $this->daily->deleteRoom($session->daily_room_name);
+                } catch (\Throwable $e) {
+                    Log::warning('withdrawTeacher: deleteRoom failed', [
+                        'session_id' => $session->id,
+                        'error'      => $e->getMessage(),
+                    ]);
+                }
+            }
+
+            $session->update([
+                'status'   => Session::STATUS_CANCELLED,
+                'ended_at' => now(),
+            ]);
+        }
+
+        $sessionRequest->update([
+            'status'              => SessionRequest::STATUS_PENDING,
+            'target_teacher_id'   => null,
+            'assigned_teacher_id' => null,
+            'confirmed_at'        => null,
+            'session_id'          => null,
+        ]);
+
+        return response()->json([
+            'message' => 'تم سحب الحصة من المعلم وإرجاعها للطلبات المتاحة.',
+        ]);
+    }
+
+    /**
+     * POST /crm/demo-requests/{sessionRequest}/assign-teacher   { teacher_id }
+     *
+     * Direct a pending trial at one specific teacher — it then shows in that
+     * teacher's directed requests and they confirm it themselves. Admin-only.
+     */
+    public function assignTeacher(SessionRequest $sessionRequest, Request $request): JsonResponse
+    {
+        if (!$request->user()->isSuperAdmin()) {
+            return response()->json(['message' => 'هذا الإجراء متاح لمدير النظام فقط.'], 403);
+        }
+
+        $validated = $request->validate([
+            'teacher_id' => ['required', 'integer', 'exists:users,id'],
+        ]);
+
+        $teacher = User::find($validated['teacher_id']);
+
+        if (!$teacher->isTeacher()) {
+            return response()->json(['message' => 'المستخدم المحدّد ليس معلماً.'], 422);
+        }
+
+        if ($sessionRequest->status !== SessionRequest::STATUS_PENDING) {
+            return response()->json([
+                'message' => 'يمكن توجيه الحصص المعلّقة فقط — هذه الحصة تم قبولها أو إلغاؤها.',
+            ], 422);
+        }
+
+        $sessionRequest->update(['target_teacher_id' => $teacher->id]);
+
+        return response()->json([
+            'message' => "تم توجيه الحصة للمعلم {$teacher->name}.",
+        ]);
+    }
+
     public function store(Lead $lead, Request $request): JsonResponse
     {
         $staff = $request->user();
