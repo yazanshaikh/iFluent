@@ -391,7 +391,7 @@ class LeadController extends Controller
 
             $lead->update([
                 'assigned_to'          => request()->user()->id,
-                'status'               => Lead::STATUS_IN_PROGRESS,
+                'status'               => Lead::STATUS_NO_ANSWER,
                 'moved_to_open_sea_at' => null,
             ]);
 

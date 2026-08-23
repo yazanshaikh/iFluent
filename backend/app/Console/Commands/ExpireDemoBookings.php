@@ -48,7 +48,7 @@ class ExpireDemoBookings extends Command
             $moved = Lead::whereIn('id', $oldBookingLeadIds)
                 ->where('status', Lead::STATUS_NEW)
                 ->whereNotNull('assigned_to')
-                ->update(['status' => Lead::STATUS_IN_PROGRESS]);
+                ->update(['status' => Lead::STATUS_NO_ANSWER]);
         }
 
         $this->info("✓ Moved {$moved} lead(s) from New Leads to Lead Pool.");

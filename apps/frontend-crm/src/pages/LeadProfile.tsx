@@ -143,7 +143,9 @@ function RemarksHistory({ remarks, open, onToggle }: { remarks: Remark[]; open: 
 }
 
 /** الحالات التي يختارها الموظف يدوياً — open_sea وsubscriber تتغير نظامياً */
-const SELECTABLE_STATUSES: LeadStatus[] = ['new', 'in_progress', 'interested', 'not_interested', 'postponed'];
+const SELECTABLE_STATUSES: LeadStatus[] = [
+  'new', 'no_answer', 'interested', 'not_interested', 'postponed', 'trial_session',
+];
 
 /* ── Time slots 9:00 AM → 12:00 AM (midnight), every 30 min ──
    Each slot is identified by MINUTES from midnight (540 … 1440). Using minutes

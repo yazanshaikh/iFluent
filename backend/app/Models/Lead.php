@@ -14,10 +14,11 @@ class Lead extends Model
     use HasFactory, SoftDeletes;
 
     const STATUS_NEW            = 'new';            // جديد
-    const STATUS_IN_PROGRESS    = 'in_progress';    // قيد التنفيذ
+    const STATUS_NO_ANSWER      = 'no_answer';      // مارد (لم يرد) — كان in_progress
     const STATUS_INTERESTED     = 'interested';     // مهتم
     const STATUS_NOT_INTERESTED = 'not_interested'; // غير مهتم
-    const STATUS_POSTPONED      = 'postponed';      // تاجيل
+    const STATUS_POSTPONED      = 'postponed';      // تأجيل
+    const STATUS_TRIAL_SESSION  = 'trial_session';  // حصة تجريبية
     const STATUS_OPEN_SEA       = 'open_sea';       // البحر المفتوح — نظام
     const STATUS_SUBSCRIBER     = 'subscriber';     // مشترك — نظام
 

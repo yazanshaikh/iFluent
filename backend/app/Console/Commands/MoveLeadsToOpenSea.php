@@ -21,7 +21,7 @@ class MoveLeadsToOpenSea extends Command
         // (بما فيها الجديدة غير المُوزَّعة) كانت تعلق للأبد دون أن تصل البحر المفتوح.
         $poolStatuses = [
             Lead::STATUS_NEW,
-            Lead::STATUS_IN_PROGRESS,
+            Lead::STATUS_NO_ANSWER,
             Lead::STATUS_INTERESTED,
             Lead::STATUS_NOT_INTERESTED,
             Lead::STATUS_POSTPONED,

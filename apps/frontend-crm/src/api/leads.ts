@@ -3,19 +3,21 @@ import api from './client';
 /**
  * Lead statuses — مطابق لـ Lead model في Laravel:
  *   new            → جديد: في قائمة المدير (غير معيّن) أو قائمة الموظف (معيّن)
- *   in_progress    → قيد التنفيذ: يصنفها الموظف
+ *   no_answer      → مارد (لم يرد): يصنفها الموظف
  *   interested     → مهتم: يصنفها الموظف
  *   not_interested → غير مهتم: يصنفها الموظف
  *   postponed      → تأجيل: يصنفها الموظف
+ *   trial_session  → حصة تجريبية: يصنفها الموظف
  *   open_sea       → البحر المفتوح: نظام تلقائي
  *   subscriber     → مشترك: نظام بعد الاشتراك
  */
 export type LeadStatus =
   | 'new'
-  | 'in_progress'
+  | 'no_answer'
   | 'interested'
   | 'not_interested'
   | 'postponed'
+  | 'trial_session'
   | 'open_sea'
   | 'subscriber';
 
@@ -108,7 +110,7 @@ export interface LeadsParams {
 }
 
 /** الحالات التي تظهر في Lead Pool — الحالات المصنّفة فقط (بدون new) */
-export const POOL_STATUSES: LeadStatus[] = ['in_progress', 'interested', 'not_interested', 'postponed', 'subscriber'];
+export const POOL_STATUSES: LeadStatus[] = ['no_answer', 'interested', 'not_interested', 'postponed', 'trial_session', 'subscriber'];
 
 export interface LeadsPaginated {
   data:         Lead[];

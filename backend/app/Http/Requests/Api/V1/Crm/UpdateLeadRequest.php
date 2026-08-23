@@ -12,8 +12,10 @@ class UpdateLeadRequest extends FormRequest
     public function rules(): array
     {
         return [
+            // Staff-selectable statuses only — open_sea and subscriber are set by
+            // the system (auto-expiry / checkout), never picked from the dropdown.
             'status' => ['sometimes', 'string', Rule::in([
-                'new', 'in_progress', 'interested', 'not_interested', 'postponed',
+                'new', 'no_answer', 'interested', 'not_interested', 'postponed', 'trial_session',
             ])],
             'name'   => ['sometimes', 'string', 'max:100'],
             'phone'  => ['sometimes', 'string', 'max:20',

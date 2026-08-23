@@ -218,7 +218,7 @@ class SubscriptionController extends Controller
      * Admin cancels an active subscription:
      *   - marks subscription as cancelled
      *   - revokes student's remaining lesson_credits
-     *   - reverts lead status from subscriber → in_progress
+     *   - reverts lead status from subscriber → no_answer
      *   - saves cancellation reason as a lead remark
      */
     public function cancelSubscription(Request $request, Subscription $subscription): JsonResponse
@@ -244,10 +244,10 @@ class SubscriptionController extends Controller
                 ->where('id', $student->user_id)
                 ->update(['lesson_credits' => 0]);
 
-            // 3. Revert lead status → in_progress (back in pipeline)
+            // 3. Revert lead status → no_answer (back in pipeline)
             $lead = $student->lead;
             if ($lead) {
-                $lead->update(['status' => Lead::STATUS_IN_PROGRESS]);
+                $lead->update(['status' => Lead::STATUS_NO_ANSWER]);
 
                 // 4. Save reason as a lead remark
                 $lead->remarks()->create([

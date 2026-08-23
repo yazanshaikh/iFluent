@@ -17,10 +17,11 @@ import { Search, ChevronLeft, Filter, Gem, X } from 'lucide-react';
 /* ─────────────────────────── Status helpers ────────────────────────────── */
 export const STATUS_LABELS: Record<LeadStatus, string> = {
   new:            'جديد',
-  in_progress:    'قيد التنفيذ',
+  no_answer:      'مارد',
   interested:     'مهتم',
   not_interested: 'غير مهتم',
   postponed:      'تأجيل',
+  trial_session:  'حصة تجريبية',
   open_sea:       'البحر المفتوح',
   subscriber:     'مشترك',
 };
@@ -30,16 +31,17 @@ export const STATUS_VARIANT: Record<
   'default' | 'secondary' | 'success' | 'warning' | 'destructive' | 'outline'
 > = {
   new:            'outline',
-  in_progress:    'default',
+  no_answer:      'default',
   interested:     'success',
   not_interested: 'destructive',
   postponed:      'secondary',
+  trial_session:  'warning',
   open_sea:       'warning',
   subscriber:     'success',
 };
 
 /** الحالات المسموح بفلترتها داخل Lead Pool */
-const POOL_FILTER_STATUSES: LeadStatus[] = ['in_progress', 'interested', 'not_interested', 'postponed', 'subscriber'];
+const POOL_FILTER_STATUSES: LeadStatus[] = ['no_answer', 'interested', 'not_interested', 'postponed', 'trial_session', 'subscriber'];
 
 
 /* ─────────────────────────── Column Definitions ────────────────────────── */
