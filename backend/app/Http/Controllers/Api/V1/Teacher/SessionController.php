@@ -146,7 +146,10 @@ class SessionController extends Controller
             return response()->json(['message' => 'Session is not active.'], 422);
         }
 
-        $signedUrl = $session->daily_room_url;
+        // Re-create the room if Daily already expired/removed it (it was created
+        // back when the teacher accepted, possibly hours before the lesson).
+        $signedUrl = $this->daily->ensureRoom($session) ?? $session->daily_room_url;
+        $session->refresh();
 
         if ($session->daily_room_name) {
             try {
@@ -229,24 +232,20 @@ class SessionController extends Controller
             ], 422);
         }
 
-        // Atomic: save PIN + mark active (Daily room already created on accept)
-        // Only create a new room if somehow it wasn't created during accept
+        // Make sure a JOINABLE room exists — it may never have been created, or
+        // Daily may have expired it since the teacher accepted the request. Done
+        // before the transaction so the HTTP calls don't hold it open.
+        $this->daily->ensureRoom($session);
+        $session->refresh();
+
+        // Atomic: save PIN + mark active
         DB::transaction(function () use ($session, $pin) {
-            $update = [
+            $session->update([
                 'status'            => Session::STATUS_ACTIVE,
                 'nearpod_pin'       => $pin,
                 'started_at'        => now(),
                 'teacher_joined_at' => now(),
-            ];
-
-            // Room not yet created (edge case) — create it now
-            if (empty($session->daily_room_url)) {
-                $room = $this->daily->createRoom($session);
-                $update['daily_room_name'] = $room['room_name'];
-                $update['daily_room_url']  = $room['room_url'];
-            }
-
-            $session->update($update);
+            ]);
 
             // Mark teacher as PRESENT (they clicked start)
             SessionAttendanceService::markTeacherPresent($session);

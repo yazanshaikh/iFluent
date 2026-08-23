@@ -28,6 +28,25 @@ class DailyCoService
         $this->baseUrl = config('services.daily.base_url') ?: 'https://api.daily.co/v1';
     }
 
+    /**
+     * When the room should stop being usable: SESSION_EXPIRY_HOURS after the
+     * lesson's scheduled time (never earlier than the same window from now, so a
+     * session started late or with no schedule still gets a usable room).
+     */
+    private function roomExpiry(Session $session): \Illuminate\Support\Carbon
+    {
+        $floor = now()->addHours(self::SESSION_EXPIRY_HOURS);
+
+        if (!$session->scheduled_at) {
+            return $floor;
+        }
+
+        $fromSchedule = \Illuminate\Support\Carbon::parse($session->scheduled_at)
+            ->addHours(self::SESSION_EXPIRY_HOURS);
+
+        return $fromSchedule->greaterThan($floor) ? $fromSchedule : $floor;
+    }
+
     /** Fail loudly (but only when a room/token is actually needed). */
     private function assertConfigured(): void
     {
@@ -63,7 +82,12 @@ class DailyCoService
                 'properties' => [
                     'max_participants' => 6,               // headroom for reconnects / multi-device
                     'enable_chat'      => false,
-                    'exp'              => now()->addHours(self::SESSION_EXPIRY_HOURS)->timestamp,
+                    // Expire relative to the SESSION, not to room creation. The room is
+                    // created the moment the teacher accepts, which can be many hours
+                    // (or days) before the lesson — anchoring on now() meant Daily
+                    // auto-deleted the room long before anyone could join, and the
+                    // classroom showed "This meeting is no longer available".
+                    'exp'              => $this->roomExpiry($session)->timestamp,
                     'start_video_off'  => false,
                     'start_audio_off'  => false,
                     // Automatically record the session (optional, set to false for privacy)
@@ -89,6 +113,67 @@ class DailyCoService
             'room_name' => $data['name'],
             'room_url'  => $data['url'],
         ];
+    }
+
+    // ─── Ensure Room ──────────────────────────────────────────────────────────
+
+    /**
+     * Guarantee the session has a JOINABLE room, and persist it on the session.
+     *
+     * Rooms are created when the teacher accepts the request, so by lesson time
+     * Daily may have expired (and removed) the room — the classroom then shows
+     * "This meeting is no longer available" with no way to recover. Re-create it
+     * on demand instead of failing.
+     *
+     * Returns the room URL, or null when Daily isn't configured.
+     */
+    public function ensureRoom(Session $session): ?string
+    {
+        if (empty($this->apiKey)) {
+            return $session->daily_room_url;
+        }
+
+        $roomName = $session->daily_room_name ?: $this->buildRoomName($session->id);
+
+        try {
+            $probe = Http::withToken($this->apiKey)
+                ->timeout(10)
+                ->get("{$this->baseUrl}/rooms/{$roomName}");
+
+            // Alive and not past its expiry → reuse as-is.
+            if ($probe->successful() && $session->daily_room_url) {
+                $exp = $probe->json('config.exp');
+
+                if (!$exp || $exp > now()->timestamp) {
+                    return $session->daily_room_url;
+                }
+            }
+
+            // Gone, expiring, or we have no URL — clear any stale room and rebuild.
+            $this->deleteRoom($roomName);
+
+            $room = $this->createRoom($session);
+
+            $session->update([
+                'daily_room_name' => $room['room_name'],
+                'daily_room_url'  => $room['room_url'],
+            ]);
+
+            Log::info('Daily.co room re-created', [
+                'session_id' => $session->id,
+                'room_name'  => $room['room_name'],
+            ]);
+
+            return $room['room_url'];
+        } catch (\Throwable $e) {
+            // Never block joining over this — fall back to whatever we have.
+            Log::warning('Daily.co ensureRoom failed', [
+                'session_id' => $session->id,
+                'error'      => $e->getMessage(),
+            ]);
+
+            return $session->daily_room_url;
+        }
     }
 
     // ─── Ensure Public ────────────────────────────────────────────────────────
