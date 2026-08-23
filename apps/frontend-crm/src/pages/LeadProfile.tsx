@@ -166,11 +166,20 @@ const TIME_SLOTS = Array.from(
   },
 );
 
-/** هل الـ slot ما زال قابلاً للحجز؟ (30 دقيقة على الأقل من الآن) */
+/**
+ * أقل مهلة قبل بداية الحصة تسمح بالحجز من الـ CRM.
+ *
+ * كان 30 دقيقة، وهذا منع الـ CC من حجز موعد قريب حتى لو كان المعلم جاهزاً.
+ * الآن 5 دقائق فقط — تكفي لأن الباك-إند يشترط `after:now`، فحجز موعد مرّ
+ * للتو يُرفض بـ 422. المواعيد المعروضة في الجدول لم تتغيّر.
+ */
+const MIN_BOOKING_LEAD_MIN = 5;
+
+/** هل الـ slot ما زال قابلاً للحجز؟ */
 function isSlotAvailable(min: number, dateMode: 'today' | 'tomorrow' | 'custom'): boolean {
   if (dateMode !== 'today') return true;
   const now = new Date();
-  return min >= now.getHours() * 60 + now.getMinutes() + 30;
+  return min >= now.getHours() * 60 + now.getMinutes() + MIN_BOOKING_LEAD_MIN;
 }
 
 export default function LeadProfilePage() {
