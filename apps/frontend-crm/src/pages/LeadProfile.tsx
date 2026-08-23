@@ -177,6 +177,19 @@ const TIME_SLOTS = Array.from(
  */
 const MIN_BOOKING_LEAD_MIN = 5;
 
+/**
+ * YYYY-MM-DD بالتوقيت المحلي.
+ *
+ * لا تستخدم toISOString() لهذا: هي تُحوِّل إلى UTC، فبين منتصف الليل و‑3 صباحاً
+ * بتوقيت الأردن يكون تاريخ UTC هو اليوم السابق — وكانت النتيجة أن "اليوم" يُرسل
+ * بتاريخ الأمس، فيرفضه الباك‑إند بـ "must be a date after now".
+ */
+function localDateStr(d: Date): string {
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${d.getFullYear()}-${mm}-${dd}`;
+}
+
 /** هل الـ slot ما زال قابلاً للحجز؟ */
 function isSlotAvailable(min: number, dateMode: 'today' | 'tomorrow' | 'custom'): boolean {
   if (dateMode !== 'today') return true;
@@ -540,9 +553,9 @@ export default function LeadProfilePage() {
 
   const handleBookSubmit = () => {
     if (bookMin === null) return;
-    const todayStr    = new Date().toISOString().split('T')[0];
+    const todayStr    = localDateStr(new Date());
     const tomorrowD   = new Date(); tomorrowD.setDate(tomorrowD.getDate() + 1);
-    const tomorrowStr = tomorrowD.toISOString().split('T')[0];
+    const tomorrowStr = localDateStr(tomorrowD);
     const dateStr     = bookDateMode === 'today' ? todayStr
                       : bookDateMode === 'tomorrow' ? tomorrowStr
                       : bookCustomDate;
@@ -1270,7 +1283,7 @@ export default function LeadProfilePage() {
                 {bookDateMode === 'custom' && (
                   <Input
                     type="date" dir="ltr"
-                    min={new Date().toISOString().split('T')[0]}
+                    min={localDateStr(new Date())}
                     value={bookCustomDate}
                     onChange={(e) => { setBookCustomDate(e.target.value); setBookError(''); }}
                     className="mt-1"
