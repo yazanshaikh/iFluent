@@ -7,7 +7,7 @@
 import { useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, Pressable,
-  ActivityIndicator, Alert, Platform,
+  ActivityIndicator, Platform,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -16,6 +16,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { availabilityApi, type NewSlot } from '@/api/availability';
 import { C, shadow } from '@/theme';
+import { appAlert } from '@/lib/alert';
 
 const AR_DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
@@ -82,12 +83,12 @@ export default function AvailabilityScreen() {
       qc.invalidateQueries({ queryKey: ['teacher-availability'] });
       const msg = 'Availability saved successfully.';
       if (Platform.OS === 'web') (window as any).alert(msg);
-      else Alert.alert('Saved', msg);
+      else appAlert('Saved', msg);
     },
     onError: (e: any) => {
       const msg = e?.response?.data?.message ?? 'Could not save availability.';
       if (Platform.OS === 'web') (window as any).alert(msg);
-      else Alert.alert('Error', msg);
+      else appAlert('Error', msg);
     },
   });
 

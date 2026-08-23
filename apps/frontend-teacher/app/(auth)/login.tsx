@@ -6,7 +6,7 @@ import { useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity,
   StyleSheet, KeyboardAvoidingView, Platform,
-  ActivityIndicator, Alert, ScrollView,
+  ActivityIndicator, ScrollView,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { authApi } from '@/api/auth';
 import { useAuthStore } from '@/stores/authStore';
 import { C, shadow } from '@/theme';
+import { appAlert } from '@/lib/alert';
 
 export default function LoginScreen() {
   const router  = useRouter();
@@ -28,7 +29,7 @@ export default function LoginScreen() {
 
   const handleLogin = async () => {
     if (!email.trim() || !password.trim()) {
-      Alert.alert('Notice', 'Please enter your email and password');
+      appAlert('Notice', 'Please enter your email and password');
       return;
     }
     setLoading(true);
@@ -38,7 +39,7 @@ export default function LoginScreen() {
       router.replace('/(tabs)/requests');
     } catch (err: any) {
       const msg = err?.response?.data?.message ?? 'Invalid credentials. Check your email and password.';
-      Alert.alert('Login Error', msg);
+      appAlert('Login Error', msg);
     } finally {
       setLoading(false);
     }

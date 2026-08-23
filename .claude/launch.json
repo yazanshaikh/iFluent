@@ -4,22 +4,63 @@
     {
       "name": "landing",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["--prefix", "apps/landing", "run", "dev", "--", "--port", "8090"],
+      "runtimeArgs": [
+        "--prefix",
+        "apps/landing",
+        "run",
+        "dev",
+        "--",
+        "--port",
+        "8090"
+      ],
       "port": 8090,
       "autoPort": false
     },
     {
       "name": "student",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["--prefix", "apps/frontend-student", "run", "web", "--", "--port", "8095"],
+      "runtimeArgs": [
+        "--prefix",
+        "apps/frontend-student",
+        "run",
+        "web",
+        "--",
+        "--port",
+        "8095"
+      ],
       "port": 8095,
       "autoPort": false
     },
     {
       "name": "crm",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["--prefix", "apps/frontend-crm", "run", "dev", "--", "--port", "3177"],
+      "runtimeArgs": [
+        "--prefix",
+        "apps/frontend-crm",
+        "run",
+        "dev",
+        "--",
+        "--port",
+        "3177"
+      ],
       "port": 3177,
+      "autoPort": false
+    },
+    {
+      "name": "teacher",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "--prefix",
+        "apps/frontend-teacher",
+        "exec",
+        "--",
+        "expo",
+        "start",
+        "--web",
+        "--port",
+        "8096"
+      ],
+      "port": 8096,
       "autoPort": false
     }
   ]

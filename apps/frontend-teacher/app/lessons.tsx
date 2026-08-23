@@ -9,7 +9,7 @@
 import { useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
-  StyleSheet, Alert, Linking, LayoutAnimation, Platform, UIManager,
+  StyleSheet, Linking, LayoutAnimation, Platform, UIManager,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -17,6 +17,7 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NEARPOD_LESSONS } from '@/data/nearpodLessons';
 import { C, shadow } from '@/theme';
+import { appAlert } from '@/lib/alert';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -34,7 +35,7 @@ export default function LessonsScreen() {
 
   const openLesson = (url: string) => {
     Linking.openURL(url).catch(() =>
-      Alert.alert('Error', 'Could not open the lesson link. Please try again.'),
+      appAlert('Error', 'Could not open the lesson link. Please try again.'),
     );
   };
 

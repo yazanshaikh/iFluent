@@ -4,7 +4,7 @@
  */
 import {
   View, Text, ScrollView, TouchableOpacity, TextInput,
-  StyleSheet, ActivityIndicator, Alert, KeyboardAvoidingView, Platform,
+  StyleSheet, ActivityIndicator, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -14,6 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useState } from 'react';
 import { requestsApi } from '@/api/requests';
 import { C, shadow } from '@/theme';
+import { appAlert } from '@/lib/alert';
 
 function InfoRow({ icon, label, value }: { icon: string; label: string; value: string }) {
   return (
@@ -45,16 +46,16 @@ export default function RequestProfileScreen() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['requests'] });
       qc.invalidateQueries({ queryKey: ['sessions'] });
-      Alert.alert('Activated', 'Request accepted and session activated for the student.', [
+      appAlert('Activated', 'Request accepted and session activated for the student.', [
         { text: 'OK', onPress: () => router.back() },
       ]);
     },
     onError: (e: any) =>
-      Alert.alert('Error', e?.response?.data?.message ?? 'Could not activate the session'),
+      appAlert('Error', e?.response?.data?.message ?? 'Could not activate the session'),
   });
 
   const handleActivate = () => {
-    Alert.alert(
+    appAlert(
       'Activate Session',
       'Are you sure you want to activate this session for the student?',
       [

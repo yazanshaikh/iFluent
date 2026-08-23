@@ -17,6 +17,7 @@ import { sessionsApi, type TeacherSession, type SessionStartError } from '@/api/
 import { fmtManila } from '@/lib/time';
 import DemoEvaluationModal from '@/components/DemoEvaluationModal';
 import { C, shadow } from '@/theme';
+import { appAlert } from '@/lib/alert';
 
 function InfoRow({ icon, label, value }: { icon: string; label: string; value: string }) {
   return (
@@ -98,7 +99,7 @@ export default function SessionDetailScreen() {
   const pinMutation = useMutation({
     mutationFn: (p: string) => sessionsApi.setNearpodPin(sessionId, p),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['session', sessionId] }),
-    onError:   (e: any) => Alert.alert('Error', e?.response?.data?.message ?? 'Could not save PIN'),
+    onError:   (e: any) => appAlert('Error', e?.response?.data?.message ?? 'Could not save PIN'),
   });
 
   // Release session back to pool
@@ -110,7 +111,7 @@ export default function SessionDetailScreen() {
       router.back();
     },
     onError: (e: any) =>
-      Alert.alert('Could not release', e?.response?.data?.message ?? 'An error occurred'),
+      appAlert('Could not release', e?.response?.data?.message ?? 'An error occurred'),
   });
 
   const handleRelease = () => releaseMutation.mutate();
@@ -130,21 +131,16 @@ export default function SessionDetailScreen() {
     onError: (e: any) => {
       const msg = e?.response?.data?.message ?? 'Could not end the session';
       if (Platform.OS === 'web') (window as any).alert(msg);
-      else Alert.alert('Error', msg);
+      else appAlert('Error', msg);
     },
   });
 
   const handleEnd = () => {
-    const doEnd = () => endMutation.mutate();
-    // Alert.alert is a no-op on web — use window.confirm there.
-    if (Platform.OS === 'web') {
-      if ((window as any).confirm('Do you want to end the meeting and close the session now?')) doEnd();
-    } else {
-      Alert.alert('End Session', 'Do you want to end the meeting and close the session now?', [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'End', style: 'destructive', onPress: doEnd },
-      ]);
-    }
+    // appAlert maps to Alert.alert on native and window.confirm on web.
+    appAlert('End Session', 'Do you want to end the meeting and close the session now?', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'End', style: 'destructive', onPress: () => endMutation.mutate() },
+    ]);
   };
 
   // Start session — sends PIN, activates, returns room URL with teacher token
@@ -166,7 +162,7 @@ export default function SessionDetailScreen() {
         setStartError(errData);
         setConfirming(false);
       } else {
-        Alert.alert('Error', errData?.message ?? 'Could not start the session');
+        appAlert('Error', errData?.message ?? 'Could not start the session');
       }
     },
   });

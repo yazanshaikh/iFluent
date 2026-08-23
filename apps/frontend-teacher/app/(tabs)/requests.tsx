@@ -5,8 +5,7 @@
 import { useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
-  StyleSheet, ActivityIndicator, RefreshControl, Alert,
-} from 'react-native';
+  StyleSheet, ActivityIndicator, RefreshControl, } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -14,6 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { requestsApi, type SessionRequest } from '@/api/requests';
 import { fmtManila } from '@/lib/time';
 import { C, shadow } from '@/theme';
+import { appAlert } from '@/lib/alert';
 
 type Tab = 'demo' | 'core' | 'private' | 'group';
 
@@ -147,7 +147,7 @@ export default function RequestsScreen() {
     },
     onError: (e: any) => {
       setAcceptingId(null);
-      Alert.alert('Error', e?.response?.data?.message ?? 'Could not claim the request');
+      appAlert('Error', e?.response?.data?.message ?? 'Could not claim the request');
     },
   });
 

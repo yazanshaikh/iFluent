@@ -14,7 +14,7 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
-  ActivityIndicator, Alert, StatusBar,
+  ActivityIndicator, StatusBar,
   BackHandler, TextInput, Modal,
   PanResponder, Platform,
 } from 'react-native';
@@ -29,6 +29,7 @@ import { lockCurrent, unlock as unlockOrientation } from '@/lib/screenOrientatio
 import { sessionsApi } from '@/api/sessions';
 import DemoEvaluationModal from '@/components/DemoEvaluationModal';
 import { C } from '@/theme';
+import { appAlert } from '@/lib/alert';
 
 
 const DAILY_MIN_H    = 90;
@@ -125,7 +126,7 @@ export default function ClassroomScreen() {
       setPinVisible(false);
       setPinInput('');
     },
-    onError: (e: any) => Alert.alert('Error', e?.response?.data?.message ?? 'Could not update the PIN'),
+    onError: (e: any) => appAlert('Error', e?.response?.data?.message ?? 'Could not update the PIN'),
   });
 
   // ── Fetch signed URL ───────────────────────────────────────────────────────
@@ -179,7 +180,7 @@ export default function ClassroomScreen() {
         await navigateAfterSession();
       }
     },
-    onError: (e: any) => Alert.alert('Error', e?.response?.data?.message ?? 'Could not end the session'),
+    onError: (e: any) => appAlert('Error', e?.response?.data?.message ?? 'Could not end the session'),
   });
 
   // ── Drag handle — resize Daily panel ──────────────────────────────────────
@@ -242,7 +243,7 @@ export default function ClassroomScreen() {
     if (Platform.OS === 'web') {
       if ((window as any).confirm('The session is still active. Leave the classroom?')) doLeave();
     } else {
-      Alert.alert('Leave Classroom', 'The session is still active. Leave the classroom?', [
+      appAlert('Leave Classroom', 'The session is still active. Leave the classroom?', [
         { text: 'Stay', style: 'cancel' },
         { text: 'Leave', style: 'destructive', onPress: doLeave },
       ]);
@@ -357,7 +358,7 @@ export default function ClassroomScreen() {
                 // Alert doesn't work on web
                 if ((window as any).confirm('End the session now?')) doEnd();
               } else {
-                Alert.alert('End Session', 'End the session now?', [
+                appAlert('End Session', 'End the session now?', [
                   { text: 'Cancel', style: 'cancel' },
                   { text: 'End', style: 'destructive', onPress: doEnd },
                 ]);
