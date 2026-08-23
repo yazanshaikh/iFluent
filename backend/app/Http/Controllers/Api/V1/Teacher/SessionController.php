@@ -20,6 +20,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
 
 class SessionController extends Controller
@@ -326,8 +327,17 @@ class SessionController extends Controller
         // Auto-determine attendance from presence flags (no manual input needed)
         $attendance = SessionAttendanceService::determineAttendanceStatus($session);
 
+        // Best-effort cleanup: a Daily outage or timeout must never stop the
+        // teacher from closing the session (the room expires on its own anyway).
         if ($session->daily_room_name) {
-            $this->daily->deleteRoom($session->daily_room_name);
+            try {
+                $this->daily->deleteRoom($session->daily_room_name);
+            } catch (\Throwable $e) {
+                Log::warning('end: deleteRoom failed', [
+                    'session_id' => $session->id,
+                    'error'      => $e->getMessage(),
+                ]);
+            }
         }
 
         DB::transaction(function () use ($session, $endedAt, $attendance) {
@@ -378,8 +388,15 @@ class SessionController extends Controller
             }
 
             // attended — النقطة مخصومة من الحجز، تقدم للدرس التالي
+            //
+            // Everything below is per-STUDENT. A trial/assessment session booked
+            // for a lead has student_id = null (there's no account yet), and
+            // student_progress.student_id is NOT NULL — writing it threw, rolled
+            // the transaction back and left the session stuck as "active", so the
+            // teacher's End did nothing. Skip the student bookkeeping instead.
+            //
             // ── Mark the lesson as completed (powers progress bars app-wide) ──
-            if ($session->lesson_id) {
+            if ($session->lesson_id && $session->student_id) {
                 \App\Models\StudentProgress::updateOrCreate(
                     ['student_id' => $session->student_id, 'lesson_id' => $session->lesson_id],
                     ['lesson_completed' => true, 'completed_at' => now()],
@@ -387,7 +404,7 @@ class SessionController extends Controller
             }
 
             // ── Advance lesson pointer (attended only) ────────────────────────
-            if ($session->lesson_id) {
+            if ($session->lesson_id && $session->student_id) {
                 $studentProfile = \App\Models\Student::where('user_id', $session->student_id)->first();
 
                 if ($studentProfile) {
