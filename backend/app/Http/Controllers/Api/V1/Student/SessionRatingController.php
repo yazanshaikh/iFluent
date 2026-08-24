@@ -25,7 +25,7 @@ class SessionRatingController extends Controller
         $student = $request->user();
 
         // Only the session's student can rate
-        if ($session->student_id !== $student->id) {
+        if (! $this->ownsSession($session, $student)) {
             return response()->json(['message' => 'Forbidden.'], 403);
         }
 
@@ -77,7 +77,7 @@ class SessionRatingController extends Controller
     {
         $student = $request->user();
 
-        if ($session->student_id !== $student->id) {
+        if (! $this->ownsSession($session, $student)) {
             return response()->json(['message' => 'Forbidden.'], 403);
         }
 
@@ -90,5 +90,36 @@ class SessionRatingController extends Controller
                 'notes'  => $existing->notes,
             ] : null,
         ]);
+    }
+
+    // ─── Ownership ────────────────────────────────────────────────────────────
+
+    /** Last 9 digits of a phone (format-agnostic), or null if too short. */
+    private function phoneLast9(?string $phone): ?string
+    {
+        $digits = preg_replace('/\D/', '', (string) $phone);
+
+        return strlen($digits) >= 8 ? substr($digits, -9) : null;
+    }
+
+    /**
+     * The session is theirs if they are its student, or it is a trial booked for
+     * their lead (student_id null, matched by phone) — mirrors SessionController.
+     */
+    private function ownsSession(Session $session, $user): bool
+    {
+        if ($session->student_id !== null && (int) $session->student_id === (int) $user->id) {
+            return true;
+        }
+
+        $last9 = $this->phoneLast9($user->phone);
+
+        if ($last9 && $session->lead) {
+            $leadDigits = preg_replace('/\D/', '', (string) $session->lead->phone);
+
+            return strlen($leadDigits) >= 8 && substr($leadDigits, -9) === $last9;
+        }
+
+        return false;
     }
 }
