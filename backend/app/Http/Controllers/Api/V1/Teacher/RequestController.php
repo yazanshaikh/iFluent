@@ -152,8 +152,6 @@ class RequestController extends Controller
                 return null; // Already taken
             }
 
-            // Create Daily.co room — we use a temporary Session-like object
-            // We create the Session first, then create the Daily room
             $session = Session::create([
                 'lesson_id'    => $locked->lesson_id,
                 'teacher_id'   => $teacher->id,
@@ -164,13 +162,12 @@ class RequestController extends Controller
                 'nearpod_pin'  => $validated['nearpod_pin'] ?? null,
             ]);
 
-            // Create Daily.co room
-            $roomData = $this->daily->createRoom($session);
-
-            $session->update([
-                'daily_room_name' => $roomData['room_name'],
-                'daily_room_url'  => $roomData['room_url'],
-            ]);
+            // NOTE: the Daily room is created AFTER this transaction commits — see
+            // below. Calling it here put an external HTTP request inside the
+            // transaction, so any Daily hiccup rolled the accept back: the session
+            // row vanished (its id already burned) while the teacher's app had
+            // moved on to that id, and ending it failed with
+            // "No query results for model [App\Models\Session]".
 
             // Update the request
             $locked->update([
@@ -186,6 +183,12 @@ class RequestController extends Controller
         if (!$session) {
             return response()->json(['message' => 'This request was just accepted by another teacher.'], 409);
         }
+
+        // Provision the video room now that the accept is safely committed.
+        // ensureRoom() swallows its own failures, and start()/classroom-url call
+        // it again — so a Daily outage delays the room instead of undoing the accept.
+        $this->daily->ensureRoom($session);
+        $session->refresh();
 
         return response()->json([
             'message' => 'Request accepted. Session created.',
