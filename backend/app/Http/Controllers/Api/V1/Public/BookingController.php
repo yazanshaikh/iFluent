@@ -21,6 +21,18 @@ use Illuminate\Http\Request;
  */
 class BookingController extends Controller
 {
+    /**
+     * Landing-form level → platform level code, so the trial gets that level's
+     * assessment lesson (and therefore its activity). The form's labels carry
+     * the mapping: مبتدئ A1–A2 / أساسي B1 / متوسط B2 / متقدم C1–C2.
+     */
+    private const LEVEL_TO_CODE = [
+        'beginner'     => 'A1',
+        'elementary'   => 'B1',
+        'intermediate' => 'B2',
+        'advanced'     => 'FT',
+    ];
+
     public function store(Request $request): JsonResponse
     {
         $validated = $request->validate([
@@ -100,11 +112,18 @@ class BookingController extends Controller
             ->setTimezone('UTC');
 
         // ── 4. Create demo booking (Trial Booking in CRM) ──────────────────────
-        // Attach a default assessment lesson (like the CRM demo flow) so the
-        // teacher has an assessment to run and the session passes the student
-        // app's "assessment lessons only" visibility filter. Null-safe: stays
-        // null if no assessment lesson is seeded yet.
-        $assessmentLessonId = Lesson::defaultAssessment()->first()?->id;
+        // Attach the assessment lesson MATCHING the level the visitor picked on
+        // the landing form — so the teacher runs the right assessment and the
+        // student gets that level's activity. Falls back to the lowest level when
+        // no level was chosen (or that level has no assessment lesson yet).
+        // Null-safe: stays null if no assessment lesson is seeded at all.
+        $levelCode = self::LEVEL_TO_CODE[$validated['level'] ?? ''] ?? null;
+
+        $assessmentLesson = $levelCode
+            ? Lesson::assessmentForLevel($levelCode)->first()
+            : null;
+
+        $assessmentLessonId = ($assessmentLesson ?? Lesson::defaultAssessment()->first())?->id;
 
         SessionRequest::create([
             'type'             => SessionRequest::TYPE_DEMO,

@@ -78,6 +78,18 @@ class Lesson extends Model
     }
 
     /**
+     * The assessment lesson belonging to a specific level code (A1/A2/B1/B2/FT).
+     * Each level has exactly one, so this is what a trial should use when the
+     * visitor told us their level.
+     */
+    public function scopeAssessmentForLevel($query, string $levelCode)
+    {
+        return $query->where('is_assessment', true)
+            ->where('is_active', true)
+            ->whereHas('level', fn ($q) => $q->where('code', $levelCode));
+    }
+
+    /**
      * The assessment lesson a trial should default to: the lowest level's (A1).
      *
      * Assessment lessons sit outside units and all carry order = 0, so the old
