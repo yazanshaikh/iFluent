@@ -173,7 +173,7 @@ class DemoBookingController extends Controller
             }
         } else {
             // Default: use first available assessment lesson
-            $lesson = Lesson::assessment()->where('is_active', true)->orderBy('order')->first();
+            $lesson = Lesson::defaultAssessment()->first();
             if (!$lesson) {
                 return response()->json(['message' => 'No assessment lessons available.'], 422);
             }

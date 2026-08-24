@@ -104,10 +104,7 @@ class BookingController extends Controller
         // teacher has an assessment to run and the session passes the student
         // app's "assessment lessons only" visibility filter. Null-safe: stays
         // null if no assessment lesson is seeded yet.
-        $assessmentLessonId = Lesson::assessment()
-            ->where('is_active', true)
-            ->orderBy('order')
-            ->value('id');
+        $assessmentLessonId = Lesson::defaultAssessment()->first()?->id;
 
         SessionRequest::create([
             'type'             => SessionRequest::TYPE_DEMO,

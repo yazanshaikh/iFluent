@@ -76,4 +76,23 @@ class Lesson extends Model
     {
         return $query->where('is_assessment', true);
     }
+
+    /**
+     * The assessment lesson a trial should default to: the lowest level's (A1).
+     *
+     * Assessment lessons sit outside units and all carry order = 0, so the old
+     * `orderBy('order')` left Postgres free to return ANY of them — trials were
+     * landing on the B2/FT assessment at random. Order by the LEVEL instead
+     * (levels.order is 1–5), which is both deterministic and the sensible
+     * starting point for someone new.
+     */
+    public function scopeDefaultAssessment($query)
+    {
+        return $query->where('is_assessment', true)
+            ->where('is_active', true)
+            ->leftJoin('levels', 'lessons.level_id', '=', 'levels.id')
+            ->orderBy('levels.order')
+            ->orderBy('lessons.id')
+            ->select('lessons.*');
+    }
 }
