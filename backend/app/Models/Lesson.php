@@ -100,8 +100,11 @@ class Lesson extends Model
      */
     public function scopeDefaultAssessment($query)
     {
-        return $query->where('is_assessment', true)
-            ->where('is_active', true)
+        // Every column must be table-qualified: lessons and levels BOTH have
+        // is_active (and order), so a bare where('is_active') is ambiguous once
+        // the join is on and Postgres rejects the whole query.
+        return $query->where('lessons.is_assessment', true)
+            ->where('lessons.is_active', true)
             ->leftJoin('levels', 'lessons.level_id', '=', 'levels.id')
             ->orderBy('levels.order')
             ->orderBy('lessons.id')
