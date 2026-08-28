@@ -114,10 +114,27 @@ export default function VerifyScreen() {
       router.replace('/(tabs)/levels');
 
     } catch (err: any) {
+      // Firebase expires the verification session after a few minutes. With a
+      // slow SMS this is the most common failure users hit, and it used to
+      // surface as raw English text with no way forward — the countdown was
+      // still running, so "إعادة الإرسال" stayed disabled. Unlock it instead and
+      // say what to do.
+      const expired = err?.code === 'auth/session-expired'
+                   || err?.code === 'auth/code-expired';
+
+      // Keep the (dead) confirmation in the store on purpose: clearing it makes
+      // the guard above bounce the user back to the phone screen on their next
+      // tap. Resending replaces it anyway.
+      if (expired) {
+        setResend(0); // make "إعادة الإرسال" tappable right away
+      }
+
       const msg = err?.response?.data?.message
+        ?? (expired ? 'انتهت صلاحية الرمز. اضغط "إعادة الإرسال" للحصول على رمز جديد.' : null)
         ?? (err?.code === 'auth/invalid-verification-code' ? 'رمز التحقق غير صحيح' : null)
         ?? err?.message
         ?? 'حدث خطأ. حاول مجدداً.';
+
       appAlert('خطأ', msg);
       setDigits(Array(6).fill(''));
       boxRefs.current[0]?.focus();
