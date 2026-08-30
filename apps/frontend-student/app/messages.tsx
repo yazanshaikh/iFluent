@@ -111,7 +111,10 @@ function MessageModal({
 
           <Text style={styles.modalBody2}>{msg.body}</Text>
 
-          {/* Action link (e.g. pay the invoice) */}
+          {/* Generic link an admin attached to the message. Deliberately NOT
+              labelled or iconed as a payment action: App Review treats any
+              "pay / invoice" call-to-action as directing users to purchase
+              outside the app (Guideline 3.1.1). */}
           {!!msg.link && (
             <TouchableOpacity
               style={styles.linkBtn}
@@ -122,8 +125,8 @@ function MessageModal({
                 )
               }
             >
-              <Ionicons name="card-outline" size={18} color="#fff" />
-              <Text style={styles.linkBtnTxt}>فتح الفاتورة والدفع</Text>
+              <Ionicons name="open-outline" size={18} color="#fff" />
+              <Text style={styles.linkBtnTxt}>فتح الرابط</Text>
             </TouchableOpacity>
           )}
 

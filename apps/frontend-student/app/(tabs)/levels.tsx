@@ -256,7 +256,7 @@ function CreditsBody({
       <View style={styles.credWidget}>
         <View style={styles.credLeft}>
           <Text style={styles.credCount}>{credits}</Text>
-          <Text style={styles.credLabel}>رصيد الحصص المتبقية</Text>
+          <Text style={styles.credLabel}>الحصص المتبقية</Text>
         </View>
         <View style={styles.credDivider} />
         <View style={styles.credRight}>

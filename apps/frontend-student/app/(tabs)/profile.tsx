@@ -290,7 +290,7 @@ export default function ProfileScreen() {
               <View style={styles.pointsTrack}>
                 <View style={[styles.pointsFill, { width: `${badgePct}%` as any }]} />
               </View>
-              <Text style={styles.nextLevelHint}>ادخل مشتركين من خلالك لتحصل على اشتراكات مجانية وتجديدات غير محدودة</Text>
+              <Text style={styles.nextLevelHint}>ادعُ أصدقاءك للانضمام واجمع نقاطاً ومكافآت تعليمية</Text>
             </View>
           </View>
 

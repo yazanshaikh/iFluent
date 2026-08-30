@@ -110,7 +110,7 @@ class BookingController extends Controller
             // Credits guard: skip for assessment lessons (free evaluation for non-subscribers)
             if (!$lesson->is_assessment && $student->lesson_credits < 1) {
                 return response()->json([
-                    'message' => 'لا يوجد رصيد حصص متاح. يرجى التواصل مع الإدارة لتجديد اشتراكك.',
+                    'message' => 'لا توجد حصص متاحة حالياً. يرجى التواصل مع مركزك التعليمي.',
                 ], 403);
             }
 
@@ -129,7 +129,7 @@ class BookingController extends Controller
                 $paidLessonIds = Subscription::paidLessonIdsForUser($student->id);
                 if (!$paidLessonIds->contains($lesson->id)) {
                     return response()->json([
-                        'message' => 'هذا الدرس خارج نطاق اشتراكك الحالي.',
+                        'message' => 'هذا الدرس خارج نطاق خطتك الدراسية الحالية.',
                     ], 403);
                 }
             }
@@ -146,7 +146,7 @@ class BookingController extends Controller
             // Quick booking (no lesson_id) always requires credits
             if ($student->lesson_credits < 1) {
                 return response()->json([
-                    'message' => 'لا يوجد رصيد حصص متاح. يرجى التواصل مع الإدارة لتجديد اشتراكك.',
+                    'message' => 'لا توجد حصص متاحة حالياً. يرجى التواصل مع مركزك التعليمي.',
                 ], 403);
             }
 
@@ -174,7 +174,7 @@ class BookingController extends Controller
 
             if ($exhaustedSubscription) {
                 return response()->json([
-                    'message' => 'لقد أكملت جميع دروس باقتك الحالية. يرجى التواصل مع الإدارة لتجديد الاشتراك.',
+                    'message' => 'لقد أكملت جميع دروس خطتك الحالية. يرجى التواصل مع مركزك التعليمي.',
                 ], 403);
             }
 
@@ -252,7 +252,7 @@ class BookingController extends Controller
                 if (! $locked || $locked->lesson_credits < 1) {
                     throw new \Illuminate\Http\Exceptions\HttpResponseException(
                         response()->json([
-                            'message' => 'لا يوجد رصيد حصص متاح. يرجى التواصل مع الإدارة لتجديد اشتراكك.',
+                            'message' => 'لا توجد حصص متاحة حالياً. يرجى التواصل مع مركزك التعليمي.',
                         ], 403)
                     );
                 }
