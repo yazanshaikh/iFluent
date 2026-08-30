@@ -201,14 +201,31 @@ class LeadController extends Controller
                 $lead = Lead::create($attributes);
             }
 
-            // 2. Create User account (student role) so they can log in via the app
-            $user  = User::firstOrCreate(
-                ['phone' => $phone],
-                [
-                    'name' => $request->validated()['name'],
-                    'role' => User::ROLE_STUDENT,
-                ]
-            );
+            // 2. Create User account (student role) so they can log in via the app.
+            //    users.phone is UNIQUE and that index counts soft-deleted rows, so
+            //    firstOrCreate() — which can't see them — tried to INSERT over a
+            //    deleted user and died with a constraint violation (500) for that
+            //    one number while other leads saved fine.
+            $user = User::withTrashed()->where('phone', $phone)->first();
+
+            if (!$user) {
+                $user = User::create([
+                    'phone' => $phone,
+                    'name'  => $request->validated()['name'],
+                    'role'  => User::ROLE_STUDENT,
+                ]);
+            } elseif ($user->trashed() && $user->role === User::ROLE_STUDENT) {
+                // Re-enrolling a previously removed student: bring their account
+                // back. A trashed STAFF account is deliberately left deactivated —
+                // reusing their number as a lead must never restore CRM access.
+                $user->restore();
+            }
+
+            // A still-deactivated account (staff, or a student we chose not to
+            // revive) gets no student profile; the lead itself is already saved.
+            if ($user->trashed()) {
+                return $lead;
+            }
 
             // 3. Create Student profile linking user ↔ lead
             if (!$user->student) {
