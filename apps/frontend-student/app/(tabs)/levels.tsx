@@ -187,8 +187,7 @@ function NoCreditsBody({ allLevels, router, onBook }: { allLevels: Level[]; rout
         </View>
         <Text style={styles.noCredTitle}>رحلتك تبدأ هنا!</Text>
         <Text style={styles.noCredSub}>
-          اشترك الآن واحصل على حصصك للبدء في تعلّم الإنجليزية مع معلمين
-          متخصصين. تواصل معنا على واتساب لمعرفة الباقات المتاحة.
+          هل تحتاج إلى مساعدة؟ تواصل معنا عبر الدعم الفني.
         </Text>
 
         <TouchableOpacity
@@ -197,7 +196,7 @@ function NoCreditsBody({ allLevels, router, onBook }: { allLevels: Level[]; rout
           activeOpacity={0.85}
         >
           <Ionicons name="logo-whatsapp" size={20} color="#fff" />
-          <Text style={styles.waBtnTxt}>تواصل معنا الآن</Text>
+          <Text style={styles.waBtnTxt}>تواصل مع المستشار التعليمي</Text>
         </TouchableOpacity>
       </View>
 
