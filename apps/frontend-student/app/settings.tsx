@@ -9,7 +9,7 @@ import {
   Modal, TextInput, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { appAlert } from '@/lib/alert';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '@/stores/authStore';
@@ -18,7 +18,7 @@ import { profileApi }   from '@/api/profile';
 import { registerForPushNotifications, unregisterPushNotifications } from '@/hooks/usePushNotifications';
 import { C, shadow }          from '@/theme';
 import { EvalBookingModal }  from '@/components/EvalBookingModal';
-import { isIapSupported }    from '@/services/iap';
+import { canOfferAssessment } from '@/services/iap';
 import { useAnimatedHeader }  from '@/hooks/useAnimatedHeader';
 
 // Support contacts — same details shown on the landing page footer.
@@ -175,7 +175,9 @@ export default function SettingsScreen() {
   const { user, clearAuth } = useAuthStore();
   const [notifOn,    setNotifOn]    = useState(true);
   const [loggingOut, setLoggingOut] = useState(false);
-  const [bookingVisible, setBookingVisible] = useState(false);
+  // ?book=assessment — the sidebar's booking shortcut lands here with the modal open.
+  const { book } = useLocalSearchParams<{ book?: string }>();
+  const [bookingVisible, setBookingVisible] = useState(book === 'assessment' && canOfferAssessment);
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
   const [submittingDelete, setSubmittingDelete] = useState(false);
 
@@ -297,8 +299,8 @@ export default function SettingsScreen() {
           />
         </View>
 
-        {/* Paid assessment — in-app purchase (iOS only; Android has no billing yet) */}
-        {isIapSupported && (
+        {/* Paid assessment — in-app purchase (hidden on Android: no billing yet) */}
+        {canOfferAssessment && (
           <>
             <Text style={styles.sectionLabel}>الحصص التقييمية</Text>
             <View style={styles.card}>

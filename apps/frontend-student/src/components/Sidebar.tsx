@@ -16,6 +16,7 @@ import { useAuthStore }    from '@/stores/authStore';
 import { useSidebarStore } from '@/stores/sidebarStore';
 import { useAvatarStore }  from '@/stores/avatarStore';
 import { C, shadow }       from '@/theme';
+import { canOfferAssessment } from '@/services/iap';
 import client              from '@/api/client';
 import { profileApi }      from '@/api/profile';
 import type { StudentProgress, Unit } from '@/api/levels';
@@ -221,6 +222,18 @@ export default function Sidebar() {
               label="التقدم"
               onPress={() => navigate('/progress')}
             />
+            {/* Paid assessment — opens the booking sheet on the settings screen.
+                Hidden on Android, which has no Play Billing integration yet. */}
+            {canOfferAssessment && (
+              <SidebarItem
+                icon="calendar"
+                iconBg="#FEF3C7"
+                iconColor={C.amber}
+                label="احجز حصة تقييمية"
+                badge="1.99 د.أ"
+                onPress={() => navigate('/settings?book=assessment')}
+              />
+            )}
             <SidebarItem
               icon="settings"
               iconBg={C.cream}

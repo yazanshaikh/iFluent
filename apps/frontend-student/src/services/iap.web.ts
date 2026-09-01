@@ -11,6 +11,9 @@ export const ASSESSMENT_SKU =
 
 export const isIapSupported = false;
 
+/** The entry points still render here; purchasing itself reports unavailable. */
+export const canOfferAssessment = true;
+
 export async function getAssessmentPrice(): Promise<string | null> {
   return null;
 }

@@ -29,6 +29,14 @@ export const ASSESSMENT_SKU =
 /** StoreKit only ships on iOS here. */
 export const isIapSupported = Platform.OS === 'ios';
 
+/**
+ * Whether to SHOW the paid-assessment entry points at all — a separate question
+ * from whether we can charge. Android is excluded because offering a price
+ * without Play Billing breaks Google's payments policy; everywhere else the
+ * entry point is visible and `purchaseAssessment` explains what's unavailable.
+ */
+export const canOfferAssessment = Platform.OS !== 'android';
+
 let connected = false;
 
 async function connect(): Promise<void> {

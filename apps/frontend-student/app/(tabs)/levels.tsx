@@ -31,6 +31,7 @@ import { C, LEVEL_COLORS, shadow } from '@/theme';
 import { useSidebarStore }        from '@/stores/sidebarStore';
 import { useAnimatedHeader }      from '@/hooks/useAnimatedHeader';
 import { EvalBookingModal }        from '@/components/EvalBookingModal';
+import { canOfferAssessment }      from '@/services/iap';
 import { SessionBookingModal }    from '@/components/SessionBookingModal';
 import { MascotGreeting }         from '@/components/MascotGreeting';
 
@@ -216,7 +217,9 @@ function NoCreditsBody({ allLevels, router, onBook }: { allLevels: Level[]; rout
         <View style={styles.evalBtnIcon}>
           <Ionicons name="calendar-outline" size={22} color={C.yellow} />
         </View>
-        <Text style={styles.evalBtnTitle}>احجز حصة تقييمية · 1.99 د.أ</Text>
+        <Text style={styles.evalBtnTitle}>
+          {canOfferAssessment ? 'احجز حصة تقييمية · 1.99 د.أ' : 'احجز حصة تقييمية'}
+        </Text>
       </TouchableOpacity>
 
       {/* Roadmap preview (read-only) */}
@@ -456,7 +459,7 @@ export default function LevelsScreen() {
       <EvalBookingModal
         visible={bookingVisible}
         onClose={() => setBookingVisible(false)}
-        paid
+        paid={canOfferAssessment}
       />
       <SessionBookingModal
         visible={sessionBookingVisible}
