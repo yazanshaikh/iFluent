@@ -44,6 +44,14 @@ return [
 
     // ── Student SMS-bypass login (testing only) ───────────────────────────────
     // Leave SECRET_LOGIN_CODE unset in production to disable the bypass entirely.
+    // ── Apple in-app purchase (StoreKit) ──────────────────────────────────────
+    // shared_secret: App Store Connect → App → App Information → App-Specific
+    // Shared Secret. product_id: the Consumable product's identifier.
+    'apple' => [
+        'shared_secret'        => env('APPLE_IAP_SHARED_SECRET'),
+        'assessment_product_id'=> env('APPLE_IAP_ASSESSMENT_PRODUCT_ID', 'io.ifluent.student.assessment'),
+    ],
+
     'student_auth' => [
         'secret_login_code' => env('SECRET_LOGIN_CODE'),
     ],

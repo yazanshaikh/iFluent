@@ -243,6 +243,9 @@ Route::middleware(['auth:sanctum', 'role:student'])
         // ── Session Booking ────────────────────────────────────────────────────
         Route::get   ('bookings',                          [StudentBookingController::class, 'index']);
         Route::post  ('bookings',                          [StudentBookingController::class, 'store']);
+        // Assessment paid for with an Apple in-app purchase (receipt verified server-side)
+        Route::post  ('bookings/paid-assessment',
+            [\App\Http\Controllers\Api\V1\Student\PaidAssessmentController::class, 'store']);
         Route::get   ('bookings/{sessionRequest}/profile', [StudentBookingController::class, 'profile']);
         Route::post  ('bookings/{sessionRequest}/cancel',  [StudentBookingController::class, 'cancel']);
 
