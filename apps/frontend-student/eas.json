@@ -29,7 +29,8 @@
         "EXPO_PUBLIC_REVERB_PORT": "443",
         "EXPO_PUBLIC_REVERB_SCHEME": "wss",
         "EXPO_PUBLIC_REVERB_APP_KEY": "cxar16zcqn1j6y4fbprx",
-        "EXPO_PUBLIC_SECRET_LOGIN_CODE": "221133"
+        "EXPO_PUBLIC_SECRET_LOGIN_CODE": "221133",
+        "EXPO_PUBLIC_IAP_ASSESSMENT_PRODUCT_ID": "com.ifluent.student.assessment_session"
       },
       "android": {
         "buildType": "apk"
@@ -44,7 +45,8 @@
         "EXPO_PUBLIC_REVERB_PORT": "443",
         "EXPO_PUBLIC_REVERB_SCHEME": "wss",
         "EXPO_PUBLIC_REVERB_APP_KEY": "cxar16zcqn1j6y4fbprx",
-        "EXPO_PUBLIC_SECRET_LOGIN_CODE": "221133"
+        "EXPO_PUBLIC_SECRET_LOGIN_CODE": "221133",
+        "EXPO_PUBLIC_IAP_ASSESSMENT_PRODUCT_ID": "com.ifluent.student.assessment_session"
       },
       "android": {
         "buildType": "app-bundle"

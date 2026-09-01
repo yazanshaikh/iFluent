@@ -217,7 +217,7 @@ function NoCreditsBody({ allLevels, router, onBook }: { allLevels: Level[]; rout
         <View style={styles.evalBtnIcon}>
           <Ionicons name="calendar-outline" size={22} color={C.yellow} />
         </View>
-        <Text style={styles.evalBtnTitle}>احجز حصة تقييمية</Text>
+        <Text style={styles.evalBtnTitle}>احجز حصة تقييمية · 1.99 د.أ</Text>
       </TouchableOpacity>
 
       {/* Roadmap preview (read-only) */}
@@ -453,9 +453,11 @@ export default function LevelsScreen() {
       {/* Mascot greeting — mounted once, unmounted after animation via onHide */}
       {mascotVisible && <MascotGreeting onHide={() => setMascotVisible(false)} />}
 
+      {/* Assessment booking is a paid in-app purchase (Apple Guideline 3.1.1). */}
       <EvalBookingModal
         visible={bookingVisible}
         onClose={() => setBookingVisible(false)}
+        paid
       />
       <SessionBookingModal
         visible={sessionBookingVisible}

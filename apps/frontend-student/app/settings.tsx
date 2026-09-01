@@ -17,6 +17,8 @@ import { authApi }      from '@/api/auth';
 import { profileApi }   from '@/api/profile';
 import { registerForPushNotifications, unregisterPushNotifications } from '@/hooks/usePushNotifications';
 import { C, shadow }          from '@/theme';
+import { EvalBookingModal }  from '@/components/EvalBookingModal';
+import { isIapSupported }    from '@/services/iap';
 import { useAnimatedHeader }  from '@/hooks/useAnimatedHeader';
 
 // Support contacts — same details shown on the landing page footer.
@@ -173,6 +175,7 @@ export default function SettingsScreen() {
   const { user, clearAuth } = useAuthStore();
   const [notifOn,    setNotifOn]    = useState(true);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [bookingVisible, setBookingVisible] = useState(false);
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
   const [submittingDelete, setSubmittingDelete] = useState(false);
 
@@ -294,6 +297,22 @@ export default function SettingsScreen() {
           />
         </View>
 
+        {/* Paid assessment — in-app purchase (iOS only; Android has no billing yet) */}
+        {isIapSupported && (
+          <>
+            <Text style={styles.sectionLabel}>الحصص التقييمية</Text>
+            <View style={styles.card}>
+              <SettingRow
+                icon="calendar" iconBg="#FEF3C7" iconColor={C.amber}
+                label="احجز حصة تقييمية"
+                value="1.99 د.أ"
+                onPress={() => setBookingVisible(true)}
+                last
+              />
+            </View>
+          </>
+        )}
+
         {/* Policies */}
         <Text style={styles.sectionLabel}>الخصوصية والسياسات</Text>
         <View style={styles.card}>
@@ -354,6 +373,12 @@ export default function SettingsScreen() {
         </View>
 
         <Text style={styles.versionTxt}>الإصدار 1.0.0</Text>
+
+        <EvalBookingModal
+          visible={bookingVisible}
+          onClose={() => setBookingVisible(false)}
+          paid
+        />
         <View style={{ height: 32 }} />
       </ScrollView>
 

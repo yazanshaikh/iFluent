@@ -49,7 +49,7 @@ return [
     // Shared Secret. product_id: the Consumable product's identifier.
     'apple' => [
         'shared_secret'        => env('APPLE_IAP_SHARED_SECRET'),
-        'assessment_product_id'=> env('APPLE_IAP_ASSESSMENT_PRODUCT_ID', 'io.ifluent.student.assessment'),
+        'assessment_product_id'=> env('APPLE_IAP_ASSESSMENT_PRODUCT_ID', 'com.ifluent.student.assessment_session'),
     ],
 
     'student_auth' => [

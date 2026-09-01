@@ -27,6 +27,7 @@ import { useSafeAreaInsets }     from 'react-native-safe-area-context';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import client                    from '@/api/client';
 import { C, shadow }             from '@/theme';
+import { purchaseAssessment, getAssessmentPrice, isIapSupported } from '@/services/iap';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -77,11 +78,17 @@ function formatBookingLabel(val: string): string {
 interface Props {
   visible: boolean;
   onClose: () => void;
+  /**
+   * Paid assessment: identical flow and screens, with an App Store purchase
+   * before the booking is created. Apple requires in-app purchase for this
+   * (Guideline 3.1.1), so the button only works where StoreKit exists.
+   */
+  paid?: boolean;
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export function EvalBookingModal({ visible, onClose }: Props) {
+export function EvalBookingModal({ visible, onClose, paid = false }: Props) {
   const insets = useSafeAreaInsets();
   const qc     = useQueryClient();
 
@@ -91,6 +98,16 @@ export function EvalBookingModal({ visible, onClose }: Props) {
   const [genderPref, setGenderPref] = useState<'male' | 'female' | null>(null);
   const [note,       setNote]       = useState('');
   const [done,       setDone]       = useState(false);
+  const [buying,     setBuying]     = useState(false);
+  // The store's own localized price ("JOD 1.99"); falls back to the label below.
+  const [storePrice, setStorePrice] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!paid || !visible || !isIapSupported) return;
+    getAssessmentPrice().then(setStorePrice).catch(() => {});
+  }, [paid, visible]);
+
+  const priceLabel = storePrice ?? '1.99 د.أ';
 
   // Fetch assessment lessons (once)
   const { data: assessLessons = [] } = useQuery<AssessmentLesson[]>({
@@ -156,11 +173,43 @@ export function EvalBookingModal({ visible, onClose }: Props) {
 
   const pad = (n: number) => String(n).padStart(2, '0');
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!effectiveSlot || assessLessons.length === 0) return;
     const d            = days[dayIdx];
     const scheduled_at = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${effectiveSlot}:00`;
-    bookMutation.mutate({ lessonId: assessLessons[0].id, scheduled_at });
+
+    if (!paid) {
+      bookMutation.mutate({ lessonId: assessLessons[0].id, scheduled_at });
+      return;
+    }
+
+    if (!isIapSupported) {
+      appAlert('غير متاح', 'حجز الحصة المدفوعة متاح على تطبيق الآيفون حالياً.');
+      return;
+    }
+
+    setBuying(true);
+    try {
+      // 1) StoreKit. 2) our server re-verifies the receipt and books.
+      //    3) only then finish the transaction — finishing earlier would consume
+      //    the purchase even if the booking failed.
+      const purchase = await purchaseAssessment();
+
+      await client.post('/student/bookings/paid-assessment', {
+        receipt: purchase.receipt,
+        scheduled_at,
+        ...(note.trim() ? { notes: note.trim() } : {}),
+      });
+
+      await purchase.finish().catch(() => {});
+
+      qc.invalidateQueries({ queryKey: ['bookings'] });
+      setDone(true);
+    } catch (e: any) {
+      appAlert('خطأ', e?.response?.data?.message ?? e?.message ?? 'تعذّر إتمام العملية.');
+    } finally {
+      setBuying(false);
+    }
   };
 
   const handleClose = () => {
@@ -348,15 +397,21 @@ export function EvalBookingModal({ visible, onClose }: Props) {
               <TouchableOpacity
                 style={[s.submitBtn, !canSubmit && s.submitBtnOff]}
                 onPress={handleSubmit}
-                disabled={bookMutation.isPending || !canSubmit}
+                disabled={bookMutation.isPending || buying || !canSubmit}
                 activeOpacity={0.85}
               >
-                {bookMutation.isPending ? (
+                {bookMutation.isPending || buying ? (
                   <ActivityIndicator color={C.navy} />
                 ) : (
                   <>
-                    <Ionicons name="calendar-outline" size={19} color={C.navy} />
-                    <Text style={s.submitTxt}>تأكيد الحجز</Text>
+                    <Ionicons
+                      name={paid ? 'card-outline' : 'calendar-outline'}
+                      size={19}
+                      color={C.navy}
+                    />
+                    <Text style={s.submitTxt}>
+                      {paid ? `ادفع ${priceLabel} وأكّد الحجز` : 'تأكيد الحجز'}
+                    </Text>
                   </>
                 )}
               </TouchableOpacity>
