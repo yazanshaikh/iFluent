@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard,
@@ -14,6 +15,9 @@ import {
   ClipboardList,
   UserCheck,
   MessageSquare,
+  Ban,
+  Inbox,
+  UserCircle,
 } from 'lucide-react';
 import { cn }          from '@/lib/utils';
 import { Button }      from '@/components/ui/button';
@@ -21,12 +25,15 @@ import { MaintenanceSecret } from '@/components/layout/MaintenanceSecret';
 import { Separator }   from '@/components/ui/separator';
 import { useAuthStore } from '@/stores/authStore';
 import { authApi }      from '@/api/auth';
+import { paidStudentsApi } from '@/api/paidStudents';
 
 interface NavItem {
   label: string;
   to:    string;
   icon:  React.ComponentType<{ className?: string }>;
   adminOnly?: boolean;
+  lpOnly?: boolean;      // SS (LP) only
+  ccOnly?: boolean;      // CC only
 }
 
 const NAV_ITEMS: NavItem[] = [
@@ -38,8 +45,12 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Trial Bookings',to: '/bookings',        icon: BookOpen },
   { label: 'Process Orders', to: '/process-orders', icon: ClipboardList },
   { label: 'Paid Students',  to: '/paid-students',   icon: UserCheck },
+  { label: 'Cancellation Requests', to: '/cancellation-requests', icon: Ban, adminOnly: true },
+  { label: 'Cancellation Requests', to: '/my-requests',      icon: Inbox, lpOnly: true },
+  { label: 'Teachers',       to: '/teachers',         icon: GraduationCap, lpOnly: true },
+  { label: 'My Profile',     to: '/my-profile',       icon: UserCircle, ccOnly: true },
   { label: 'Employee Mg',   to: '/employees',        icon: GraduationCap, adminOnly: true },
-  { label: 'الرسائل',       to: '/messages',         icon: MessageSquare, adminOnly: true },
+  { label: 'Messages',      to: '/messages',         icon: MessageSquare, adminOnly: true },
 ];
 
 export function Sidebar() {
@@ -53,8 +64,17 @@ export function Sidebar() {
     navigate('/login', { replace: true });
   };
 
+  const isAdmin = user?.role === 'super_admin';
+
+  // Badge on Paid Students: packages ending soon (admin + LP)
+  const { data: nearEndCount = 0 } = useQuery({
+    queryKey: ['paid-students-near-end-count'],
+    queryFn:  paidStudentsApi.nearEndCount,
+    enabled:  isAdmin || user?.role === 'ss',
+    refetchInterval: 60_000,
+  });
   const visibleItems = NAV_ITEMS.filter(
-    (item) => !item.adminOnly || user?.role === 'super_admin',
+    (item) => (!item.adminOnly || isAdmin) && (!item.lpOnly || user?.role === 'ss') && (!item.ccOnly || user?.role === 'cc'),
   );
 
   const initials = user?.name
@@ -108,8 +128,21 @@ export function Sidebar() {
                 }
                 title={collapsed ? item.label : undefined}
               >
-                <item.icon className="h-5 w-5 shrink-0" />
+                <span className="relative shrink-0">
+                  <item.icon className="h-5 w-5" />
+                  {item.to === '/paid-students' && nearEndCount > 0 && collapsed && (
+                    <span className="absolute -top-1 -left-1 h-2.5 w-2.5 rounded-full bg-red-500" />
+                  )}
+                </span>
                 {!collapsed && <span>{item.label}</span>}
+                {!collapsed && item.to === '/paid-students' && nearEndCount > 0 && (
+                  <span
+                    className="ms-auto min-w-5 h-5 px-1.5 rounded-full bg-red-500 text-white text-[11px] font-bold flex items-center justify-center"
+                    title={`${nearEndCount} packages ending soon`}
+                  >
+                    {nearEndCount}
+                  </span>
+                )}
               </NavLink>
             </li>
           ))}
@@ -126,7 +159,7 @@ export function Sidebar() {
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-sidebar-foreground truncate">{user?.name}</p>
               <p className="text-xs text-sidebar-foreground/50 truncate">
-                {user?.role === 'super_admin' ? 'مدير النظام' : 'وكيل CRM'}
+                {user?.role === 'super_admin' ? 'Admin' : user?.role === 'ss' ? 'LP' : user?.role === 'cc' ? 'CC' : 'CRM agent'}
               </p>
             </div>
           </div>
@@ -139,10 +172,10 @@ export function Sidebar() {
             'text-sidebar-foreground/60 hover:bg-red-500/10 hover:text-red-400',
             collapsed ? 'h-9 w-9' : 'w-full justify-start gap-2',
           )}
-          title={collapsed ? 'تسجيل الخروج' : undefined}
+          title={collapsed ? 'Sign out' : undefined}
         >
           <LogOut className="h-4 w-4 shrink-0" />
-          {!collapsed && 'تسجيل الخروج'}
+          {!collapsed && 'Sign out'}
         </Button>
       </div>
     </aside>

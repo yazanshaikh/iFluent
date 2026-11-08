@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { type ColumnDef } from '@tanstack/react-table';
 
 import { leadsApi, type DemoBooking } from '@/api/leads';
@@ -13,26 +13,29 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Search, Filter, CalendarClock, ChevronLeft, X, CalendarRange } from 'lucide-react';
+import { Search, Filter, CalendarClock, ChevronLeft, X, Loader2, CalendarPlus } from 'lucide-react';
+import { BookDemoDialog } from '@/components/demo/BookDemoDialog';
+import { DateRangeFilter } from '@/components/filters/DateRangeFilter';
+import { useDebounced } from '@/hooks/useDebounced';
 
 /* ── Status helpers ─────────────────────────────────────────────────────────── */
 // Support both SessionRequest statuses AND Session statuses
 const STATUS_LABEL: Record<string, string> = {
-  pending:   'بانتظار التنفيذ',
-  confirmed: 'مؤكدة',
-  rejected:  'مرفوضة',
-  cancelled: 'ملغاة',
-  expired:   'منتهية',
-  waiting:   'بانتظار التنفيذ',
-  active:    'نشطة الآن',
-  completed: 'مكتملة',
+  pending:   'Pending',
+  confirmed: 'Confirmed',
+  rejected:  'Rejected',
+  cancelled: 'Cancelled',
+  expired:   'Expired',
+  waiting:   'Pending',
+  active:    'Live now',
+  completed: 'Completed',
 };
 
 function getStatusLabel(status: string, attendanceStatus?: string | null): string {
   if (status === 'completed' || attendanceStatus) {
-    if (attendanceStatus === 'attended')       return '✅ مكتملة';
-    if (attendanceStatus === 'absent')         return '😔 غاب الطالب';
-    if (attendanceStatus === 'teacher_absent') return '🚫 غاب المعلم';
+    if (attendanceStatus === 'attended')       return '✅ Completed';
+    if (attendanceStatus === 'absent')         return '😔 Student absent';
+    if (attendanceStatus === 'teacher_absent') return '🚫 Teacher absent';
   }
   return STATUS_LABEL[status] ?? status;
 }
@@ -61,17 +64,23 @@ const STATUS_VARIANT: Record<string, 'default' | 'secondary' | 'success' | 'dest
 };
 
 const ROLE_LABEL: Record<string, string> = {
-  cc: 'CC', ss: 'LP', super_admin: 'مدير',
+  cc: 'CC', ss: 'LP', super_admin: 'Admin',
 };
 
 /* ── Columns ────────────────────────────────────────────────────────────────── */
-function useColumns(isAdmin: boolean): ColumnDef<DemoBooking, unknown>[] {
+interface RowActions {
+  onCancel:   (b: DemoBooking) => void;
+  onBook:     (b: DemoBooking) => void;
+  cancelingId: number | null;
+}
+
+function useColumns(showStaff: boolean, actions: RowActions | null): ColumnDef<DemoBooking, unknown>[] {
   const navigate = useNavigate();
 
   const cols: ColumnDef<DemoBooking, unknown>[] = [
     {
       accessorKey: 'lead',
-      header: ({ column }) => <SortableHeader column={column} label="العميل" />,
+      header: ({ column }) => <SortableHeader column={column} label="Lead" />,
       cell: ({ row }) => row.original.lead ? (
         <div>
           <p className="font-medium">{row.original.lead.name}</p>
@@ -82,16 +91,16 @@ function useColumns(isAdmin: boolean): ColumnDef<DemoBooking, unknown>[] {
     },
     {
       accessorKey: 'scheduled_at',
-      header: ({ column }) => <SortableHeader column={column} label="موعد الحصة" />,
+      header: ({ column }) => <SortableHeader column={column} label="Session time" />,
       cell: ({ row }) => {
         const d = new Date(row.original.scheduled_at);
         return (
-          <div className="text-sm">
+          <div className="text-sm" dir="ltr">
             <p className="font-medium">
-              {d.toLocaleDateString('ar-JO', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
+              {d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
             </p>
             <p className="text-xs text-muted-foreground">
-              {d.toLocaleTimeString('ar-JO', { hour: '2-digit', minute: '2-digit' })}
+              {d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
             </p>
           </div>
         );
@@ -99,7 +108,7 @@ function useColumns(isAdmin: boolean): ColumnDef<DemoBooking, unknown>[] {
     },
     {
       accessorKey: 'status',
-      header: ({ column }) => <SortableHeader column={column} label="الحالة" />,
+      header: ({ column }) => <SortableHeader column={column} label="Status" />,
       cell: ({ row }) => {
         const s = row.original;
         return (
@@ -111,20 +120,20 @@ function useColumns(isAdmin: boolean): ColumnDef<DemoBooking, unknown>[] {
     },
     {
       accessorKey: 'created_at',
-      header: ({ column }) => <SortableHeader column={column} label="تاريخ الحجز" />,
+      header: ({ column }) => <SortableHeader column={column} label="Booked on" />,
       cell: ({ row }) => (
-        <span className="text-xs text-muted-foreground">
-          {new Date(row.original.created_at).toLocaleDateString('ar-JO')}
+        <span className="text-xs text-muted-foreground" dir="ltr">
+          {new Date(row.original.created_at).toLocaleDateString('en-GB')}
         </span>
       ),
     },
   ];
 
-  // Admin extra column — show assigned CC
-  if (isAdmin) {
+  // Admin / LP extra column — show assigned CC
+  if (showStaff) {
     cols.splice(1, 0, {
       id: 'assigned_to',
-      header: 'الموظف',
+      header: 'Staff',
       enableSorting: false,
       cell: ({ row }) => row.original.assigned_to ? (
         <div className="flex items-center gap-1.5">
@@ -134,20 +143,43 @@ function useColumns(isAdmin: boolean): ColumnDef<DemoBooking, unknown>[] {
           <span className="text-sm">{row.original.assigned_to.name}</span>
         </div>
       ) : (
-        <span className="text-xs text-muted-foreground">غير معيّن</span>
+        <span className="text-xs text-muted-foreground">Unassigned</span>
       ),
     });
   }
 
-  // Actions column — navigate to lead profile only
+  // Actions column — cancel / book (admin + LP) + open lead profile
   cols.push({
     id: 'actions',
     header: '',
     enableSorting: false,
     cell: ({ row }) => {
       const booking = row.original;
+      const isActive = booking.status === 'pending' || booking.status === 'confirmed';
       return (
-        <div className="flex items-center justify-end">
+        <div className="flex items-center justify-end gap-1.5">
+          {actions && booking.status === 'pending' && (
+            <Button
+              size="sm" variant="outline"
+              className="text-destructive hover:text-destructive border-red-300 text-xs h-7 px-2"
+              disabled={actions.cancelingId === booking.id}
+              onClick={(e) => { e.stopPropagation(); actions.onCancel(booking); }}
+            >
+              {actions.cancelingId === booking.id
+                ? <Loader2 className="h-3 w-3 animate-spin" />
+                : 'Cancel session'}
+            </Button>
+          )}
+          {actions && booking.lead && !isActive && (
+            <Button
+              size="sm" variant="outline"
+              className="text-xs h-7 px-2 gap-1"
+              onClick={(e) => { e.stopPropagation(); actions.onBook(booking); }}
+            >
+              <CalendarPlus className="h-3.5 w-3.5" />
+              Book session
+            </Button>
+          )}
           {booking.lead && (
             <button
               type="button"
@@ -168,7 +200,8 @@ function useColumns(isAdmin: boolean): ColumnDef<DemoBooking, unknown>[] {
 /* ── Page ───────────────────────────────────────────────────────────────────── */
 export default function TrialBookingsPage() {
   const user    = useAuthStore((s) => s.user);
-  const isAdmin = user?.role === 'super_admin';
+  // Admin and LP (ss) see every booking + the employee column
+  const seesAll = user?.role === 'super_admin' || user?.role === 'ss';
 
   const [search,       setSearch]       = useState('');
   const [statusFilter, setStatusFilter] = useState<DemoBooking['status'] | 'all'>('all');
@@ -177,12 +210,13 @@ export default function TrialBookingsPage() {
   const [page,         setPage]         = useState(1);
 
   const hasFilters = search || statusFilter !== 'all' || dateFrom || dateTo;
+  const debouncedSearch = useDebounced(search.trim());
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['demo-bookings', page, search, statusFilter, dateFrom, dateTo],
+    queryKey: ['demo-bookings', page, debouncedSearch, statusFilter, dateFrom, dateTo],
     queryFn: () => leadsApi.listDemoBookings({
       page,
-      search:    search  || undefined,
+      search:    debouncedSearch || undefined,
       status:    statusFilter !== 'all' ? statusFilter : undefined,
       date_from: dateFrom || undefined,
       date_to:   dateTo   || undefined,
@@ -190,7 +224,23 @@ export default function TrialBookingsPage() {
     staleTime: 30_000,
   });
 
-  const columns = useColumns(isAdmin);
+  // Admin + LP can cancel / book trial sessions straight from this page
+  const qc = useQueryClient();
+  const [bookLeadId, setBookLeadId] = useState<number | null>(null);
+
+  const cancelMutation = useMutation({
+    mutationFn: (id: number) => leadsApi.cancelDemo(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['demo-bookings'] }),
+    onError: (err: any) => alert(err?.response?.data?.message ?? 'Could not cancel the session'),
+  });
+
+  const columns = useColumns(seesAll, seesAll ? {
+    cancelingId: cancelMutation.isPending ? (cancelMutation.variables ?? null) : null,
+    onCancel: (b) => {
+      if (confirm(`Cancel the trial session for ${b.lead?.name ?? 'this lead'}?`)) cancelMutation.mutate(b.id);
+    },
+    onBook: (b) => b.lead && setBookLeadId(b.lead.id),
+  } : null);
   const bookings = data?.data ?? [];
 
   return (
@@ -202,8 +252,8 @@ export default function TrialBookingsPage() {
             <CalendarClock className="h-6 w-6" />
             Trial Bookings
           </h1>
-          <p className="text-muted-foreground text-sm mt-0.5">
-            {data ? `${data.total} حصة تقييمية` : ' '}
+          <p className="text-muted-foreground text-sm mt-0.5" dir="ltr">
+            {data ? `${data.total} trial sessions` : ' '}
           </p>
         </div>
       </div>
@@ -213,7 +263,8 @@ export default function TrialBookingsPage() {
         <div className="relative flex-1 min-w-[200px] max-w-sm">
           <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="ابحث باسم العميل أو الرقم..."
+            placeholder="Search by name or phone…"
+            dir="auto"
             value={search}
             onChange={(e) => { setSearch(e.target.value); setPage(1); }}
             className="pr-9"
@@ -229,46 +280,24 @@ export default function TrialBookingsPage() {
             onValueChange={(v) => { setStatusFilter(v as DemoBooking['status'] | 'all'); setPage(1); }}
           >
             <SelectTrigger className="w-40">
-              <SelectValue placeholder="كل الحالات" />
+              <SelectValue placeholder="All statuses" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">كل الحالات</SelectItem>
+              <SelectItem value="all">All statuses</SelectItem>
               {FILTER_STATUSES.map((s) => (
                 <SelectItem key={s} value={s}>{STATUS_LABEL[s]}</SelectItem>
               ))}
             </SelectContent>
           </Select>
 
-          {/* Date range filter */}
-          <div className="flex items-center gap-1.5">
-            <CalendarRange className="h-4 w-4 text-muted-foreground shrink-0" />
-            <input
-              type="date"
-              dir="ltr"
-              value={dateFrom}
-              max={dateTo || undefined}
-              onChange={(e) => { setDateFrom(e.target.value); setPage(1); }}
-              className={`flex h-9 w-36 rounded-md border bg-background px-2 py-1 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${dateFrom ? 'border-primary ring-1 ring-primary/20' : 'border-input'}`}
-            />
-            <span className="text-muted-foreground text-xs shrink-0">—</span>
-            <input
-              type="date"
-              dir="ltr"
-              value={dateTo}
-              min={dateFrom || undefined}
-              onChange={(e) => { setDateTo(e.target.value); setPage(1); }}
-              className={`flex h-9 w-36 rounded-md border bg-background px-2 py-1 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${dateTo ? 'border-primary ring-1 ring-primary/20' : 'border-input'}`}
-            />
-            {(dateFrom || dateTo) && (
-              <button
-                type="button"
-                onClick={() => { setDateFrom(''); setDateTo(''); setPage(1); }}
-                className="text-muted-foreground hover:text-foreground transition-colors"
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
-            )}
-          </div>
+          {/* Date range — session date */}
+          <DateRangeFilter
+            from={dateFrom}
+            to={dateTo}
+            onFrom={(v) => { setDateFrom(v); setPage(1); }}
+            onTo={(v) => { setDateTo(v); setPage(1); }}
+            onClear={() => { setDateFrom(''); setDateTo(''); setPage(1); }}
+          />
 
           {hasFilters && (
             <Button
@@ -277,7 +306,7 @@ export default function TrialBookingsPage() {
               className="text-muted-foreground text-xs gap-1"
             >
               <X className="h-3.5 w-3.5" />
-              مسح الكل
+              Clear all
             </Button>
           )}
         </div>
@@ -286,7 +315,7 @@ export default function TrialBookingsPage() {
       {/* Table */}
       <Card>
         <CardHeader className="pb-0">
-          <CardTitle className="text-base font-semibold">الحصص التقييمية المحجوزة</CardTitle>
+          <CardTitle className="text-base font-semibold">Booked trial sessions</CardTitle>
         </CardHeader>
         <CardContent className="pt-4">
           <DataTable
@@ -299,8 +328,8 @@ export default function TrialBookingsPage() {
                 <p className="text-3xl">📅</p>
                 <p>
                   {hasFilters
-                    ? 'لا توجد نتائج للفلاتر المحددة'
-                    : 'لا توجد حصص تقييمية محجوزة بعد'}
+                    ? 'No sessions match these filters'
+                    : 'No trial sessions booked yet'}
                 </p>
               </div>
             }
@@ -309,25 +338,33 @@ export default function TrialBookingsPage() {
           {/* Pagination */}
           {data && data.last_page > 1 && (
             <div className="flex items-center justify-between mt-4 pt-4 border-t">
-              <p className="text-sm text-muted-foreground">
-                صفحة {data.current_page} من {data.last_page} · {data.total} نتيجة
+              <p className="text-sm text-muted-foreground" dir="ltr">
+                Page {data.current_page} of {data.last_page} · {data.total} results
               </p>
               <div className="flex gap-2">
                 <Button variant="outline" size="sm"
                   disabled={page === 1}
                   onClick={() => setPage((p) => p - 1)}>
-                  السابق
+                  Previous
                 </Button>
                 <Button variant="outline" size="sm"
                   disabled={page === data.last_page}
                   onClick={() => setPage((p) => p + 1)}>
-                  التالي
+                  Next
                 </Button>
               </div>
             </div>
           )}
         </CardContent>
       </Card>
+
+      {bookLeadId !== null && (
+        <BookDemoDialog
+          leadId={bookLeadId}
+          open
+          onClose={() => setBookLeadId(null)}
+        />
+      )}
     </div>
   );
 }

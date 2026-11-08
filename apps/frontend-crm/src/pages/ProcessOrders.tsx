@@ -1,5 +1,4 @@
-import axios from 'axios';
-import { useRef, useState, useEffect,  } from 'react';
+import { useRef, useState, useEffect, type ReactNode } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { checkoutApi, lessonsApi, type PendingOrder, type LessonOption } from '@/api/checkout';
 import { useAuthStore } from '@/stores/authStore';
@@ -14,8 +13,9 @@ import {
 } from '@/components/ui/dialog';
 import {
   Loader2, Upload, ClipboardList, Copy, Check, ExternalLink, Settings2,
-  CheckCircle2, XCircle, FileImage,
+  CheckCircle2, XCircle, FileImage, ChevronDown,
 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 // ─── Pricing Dialog (Admin only) ──────────────────────────────────────────────
 
@@ -123,42 +123,45 @@ function PricingDialog({ open, onClose }: { open: boolean; onClose: () => void }
 // ─── Receipt Viewer Dialog ────────────────────────────────────────────────────
 
 function ReceiptViewerDialog({
-  screenshotUrl,
+  subscriptionId,
   onClose,
 }: {
-  screenshotUrl: string | null;
+  subscriptionId: number | null;
   onClose: () => void;
 }) {
-  const token                     = useAuthStore((s) => s.token);
   const [blobUrl,  setBlobUrl]    = useState<string | null>(null);
   const [isPdf,    setIsPdf]      = useState(false);
   const [loading,  setLoading]    = useState(false);
   const [error,    setError]      = useState('');
 
-  // Fetch file with Bearer token and create a local blob URL
+  // Fetch the file through the API client and create a local blob URL
   useEffect(() => {
-    if (!screenshotUrl) return;
+    if (subscriptionId === null) return;
     let revoke = '';
     setLoading(true);
     setError('');
     setBlobUrl(null);
 
-    axios
-      .get(screenshotUrl, {
-        responseType: 'blob',
-        headers: { Authorization: `Bearer ${token}` },
-      })
-      .then((res) => {
-        const url = URL.createObjectURL(res.data as Blob);
+    checkoutApi
+      .fetchReceipt(subscriptionId)
+      .then((blob) => {
+        const url = URL.createObjectURL(blob);
         revoke = url;
-        setIsPdf((res.data as Blob).type === 'application/pdf');
+        setIsPdf(blob.type === 'application/pdf');
         setBlobUrl(url);
       })
-      .catch(() => setError('تعذّر تحميل الوصل، حاول مرة أخرى.'))
+      .catch((err: { response?: { status?: number } }) => {
+        const status = err?.response?.status;
+        setError(
+          status === 404 ? 'ملف الوصل غير متوفر على الخادم.'
+          : status === 403 ? 'لا تملك صلاحية عرض هذا الوصل.'
+          : 'تعذّر تحميل الوصل، يرجى المحاولة مرة أخرى.',
+        );
+      })
       .finally(() => setLoading(false));
 
     return () => { if (revoke) URL.revokeObjectURL(revoke); };
-  }, [screenshotUrl, token]);
+  }, [subscriptionId]);
 
   const handleClose = () => {
     if (blobUrl) URL.revokeObjectURL(blobUrl);
@@ -167,7 +170,7 @@ function ReceiptViewerDialog({
   };
 
   return (
-    <Dialog open={!!screenshotUrl} onOpenChange={(o) => { if (!o) handleClose(); }}>
+    <Dialog open={subscriptionId !== null} onOpenChange={(o) => { if (!o) handleClose(); }}>
       <DialogContent className="max-w-2xl w-full" dir="rtl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -226,6 +229,7 @@ function OrderCard({
   onViewReceipt,
   isAdmin,
   isApprovalSection,
+  extra,
 }: {
   order: PendingOrder;
   copiedId: string | null;
@@ -234,23 +238,39 @@ function OrderCard({
   onCancel?: (id: number) => void;
   onApprove?: (id: number) => void;
   onReject?: (id: number) => void;
-  onViewReceipt?: (url: string) => void;
+  onViewReceipt?: (subscriptionId: number) => void;
   isAdmin: boolean;
   isApprovalSection: boolean;
+  /** Rendered at the bottom of the expanded card (e.g. the lesson-range picker). */
+  extra?: ReactNode;
 }) {
+  // Collapsed by default: one summary line; click it to see details + actions
+  const [open, setOpen] = useState(false);
+
   return (
     <Card className={isApprovalSection ? 'border-blue-200' : 'border-orange-200'}>
-      <CardHeader className="pb-2">
-        <div className="flex items-center justify-between flex-wrap gap-2">
+      <CardHeader className={cn('py-3', open && 'pb-2')}>
+        <button
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          aria-expanded={open}
+          className="flex items-center gap-3 w-full text-right flex-wrap"
+        >
+          <ChevronDown className={cn('h-4 w-4 text-muted-foreground transition-transform shrink-0', !open && 'rotate-90')} />
           <CardTitle className="text-base font-semibold">
             {order.student?.name ?? '—'}
           </CardTitle>
-          <Badge variant={isApprovalSection ? 'secondary' : 'warning'} className="font-mono text-xs">
+          <span className="text-sm text-muted-foreground">
+            {order.amount_paid} دينار ·{' '}
+            {order.lessons_count ? `${order.lessons_count} درس` : `${order.months_count} شهر`} ·{' '}
+            {new Date(order.created_at).toLocaleDateString('ar-JO')}
+          </span>
+          <Badge variant={isApprovalSection ? 'secondary' : 'warning'} className="font-mono text-xs mr-auto">
             {isApprovalSection ? 'بانتظار الموافقة' : 'بانتظار الوصل'}
           </Badge>
-        </div>
+        </button>
       </CardHeader>
-      <CardContent className="space-y-3">
+      {open && <CardContent className="space-y-3">
         <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 text-sm">
           <div className="flex items-center gap-1.5 text-muted-foreground">
             <span>المبلغ:</span>
@@ -347,7 +367,7 @@ function OrderCard({
                   size="sm"
                   variant="outline"
                   className="gap-1.5"
-                  onClick={() => onViewReceipt?.(order.payment_screenshot_url!)}
+                  onClick={() => onViewReceipt?.(order.id)}
                 >
                   <FileImage className="h-3.5 w-3.5" />
                   عرض الوصل
@@ -373,8 +393,41 @@ function OrderCard({
             </>
           )}
         </div>
-      </CardContent>
+
+        {extra}
+      </CardContent>}
     </Card>
+  );
+}
+
+// ─── Collapsible section header ───────────────────────────────────────────────
+
+function SectionHeader({
+  open, onToggle, dotClass, textClass, title, count, note,
+}: {
+  open: boolean;
+  onToggle: () => void;
+  dotClass: string;
+  textClass: string;
+  title: string;
+  count?: number;
+  note?: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-expanded={open}
+      className="w-full flex items-center gap-2 rounded-lg border bg-card px-3 py-2.5 hover:bg-muted/50 transition-colors text-right"
+    >
+      <ChevronDown className={cn('h-4 w-4 text-muted-foreground transition-transform', !open && 'rotate-90')} />
+      <span className={cn('w-2 h-2 rounded-full inline-block', dotClass)} />
+      <span className={cn('text-base font-semibold', textClass)}>{title}</span>
+      {count !== undefined && (
+        <Badge variant="secondary" className="font-mono text-xs">{count}</Badge>
+      )}
+      {note}
+    </button>
   );
 }
 
@@ -385,6 +438,10 @@ export default function ProcessOrdersPage() {
   const user    = useAuthStore((s) => s.user);
   const isAdmin = user?.role === 'super_admin';
 
+  // Both sections start collapsed — open the one you need
+  const [screenshotOpen, setScreenshotOpen] = useState(false);
+  const [approvalOpen,   setApprovalOpen]   = useState(false);
+
   const [page,          setPage]          = useState(1);
   const [approvalPage,  setApprovalPage]  = useState(1);
   const [uploadTarget,  setUploadTarget]  = useState<PendingOrder | null>(null);
@@ -394,7 +451,7 @@ export default function ProcessOrdersPage() {
   const [pricingOpen,    setPricingOpen]    = useState(false);
   const [rejectTarget,   setRejectTarget]   = useState<number | null>(null);
   const [rejectReason,   setRejectReason]   = useState('');
-  const [receiptViewUrl, setReceiptViewUrl] = useState<string | null>(null);
+  const [receiptViewId, setReceiptViewId] = useState<number | null>(null);
   // lesson range for approve
   const [lessonRangeMap, setLessonRangeMap] = useState<Record<number, { from: string; to: string }>>({});
 
@@ -509,15 +566,19 @@ export default function ProcessOrdersPage() {
 
       {/* ── Section 1: pending_screenshot (upload receipt) ── */}
       <section className="space-y-3">
-        <h2 className="text-base font-semibold text-orange-700 flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-orange-400 inline-block" />
-          فواتير بانتظار رفع الوصل
-          {!isAdmin && (
+        <SectionHeader
+          open={screenshotOpen}
+          onToggle={() => setScreenshotOpen((o) => !o)}
+          dotClass="bg-orange-400"
+          textClass="text-orange-700"
+          title="فواتير بانتظار رفع الوصل"
+          count={pendingScreenshot?.meta?.total}
+          note={!isAdmin && (
             <span className="text-xs text-muted-foreground font-normal">(فواتيرك أنت فقط)</span>
           )}
-        </h2>
+        />
 
-        {isLoading ? (
+        {!screenshotOpen ? null : isLoading ? (
           <div className="flex justify-center py-10">
             <Loader2 className="h-7 w-7 animate-spin text-muted-foreground" />
           </div>
@@ -558,17 +619,16 @@ export default function ProcessOrdersPage() {
       {/* ── Section 2 (Admin only — Section 7): pending_approval ── */}
       {isAdmin && (
         <section className="space-y-3">
-          <h2 className="text-base font-semibold text-blue-700 flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-blue-400 inline-block" />
-            موافقة الإدارة — فواتير بانتظار التفعيل
-            {pendingApproval?.meta && (
-              <Badge variant="secondary" className="font-mono text-xs">
-                {pendingApproval.meta.total}
-              </Badge>
-            )}
-          </h2>
+          <SectionHeader
+            open={approvalOpen}
+            onToggle={() => setApprovalOpen((o) => !o)}
+            dotClass="bg-blue-400"
+            textClass="text-blue-700"
+            title="موافقة الإدارة — فواتير بانتظار التفعيل"
+            count={pendingApproval?.meta?.total}
+          />
 
-          {isLoadingApproval ? (
+          {!approvalOpen ? null : isLoadingApproval ? (
             <div className="flex justify-center py-10">
               <Loader2 className="h-7 w-7 animate-spin text-muted-foreground" />
             </div>
@@ -588,8 +648,8 @@ export default function ProcessOrdersPage() {
                     to:   order.to_lesson_id   ? String(order.to_lesson_id)   : '',
                   };
                   return (
-                    <div key={order.id} className="space-y-2">
-                      <OrderCard
+                    <OrderCard
+                        key={order.id}
                         order={order}
                         copiedId={copiedId}
                         onCopy={handleCopy}
@@ -605,53 +665,53 @@ export default function ProcessOrdersPage() {
                           approveMutation.mutate({ id, fromId: fromNum, toId: toNum });
                         }}
                         onReject={(id) => { setRejectTarget(id); setRejectReason(''); }}
-                        onViewReceipt={(url) => setReceiptViewUrl(url)}
+                        onViewReceipt={(id) => setReceiptViewId(id)}
                         isAdmin={isAdmin}
                         isApprovalSection
+                        extra={
+                          <div className="flex flex-wrap items-center gap-2 px-1 pb-2 bg-muted/30 rounded-lg p-2" dir="rtl">
+                            <span className="text-xs font-medium text-muted-foreground whitespace-nowrap">نطاق الدروس:</span>
+                            <select
+                              value={range.from}
+                              onChange={(e) => setLessonRangeMap((prev) => ({
+                                ...prev,
+                                [order.id]: { ...range, from: e.target.value },
+                              }))}
+                              className="flex-1 min-w-[160px] rounded-md border border-input bg-background px-2 py-1 text-sm text-right"
+                            >
+                              <option value="">— من درس —</option>
+                              {allLessons.map((l) => (
+                                <option key={l.id} value={String(l.id)}>
+                                  {l.level.code} · {l.title}
+                                </option>
+                              ))}
+                            </select>
+                            <span className="text-xs text-muted-foreground">→</span>
+                            <select
+                              value={range.to}
+                              onChange={(e) => setLessonRangeMap((prev) => ({
+                                ...prev,
+                                [order.id]: { ...range, to: e.target.value },
+                              }))}
+                              className="flex-1 min-w-[160px] rounded-md border border-input bg-background px-2 py-1 text-sm text-right"
+                            >
+                              <option value="">— إلى درس —</option>
+                              {allLessons
+                                .filter((l) => !range.from || l.id >= Number(range.from))
+                                .map((l) => (
+                                  <option key={l.id} value={String(l.id)}>
+                                    {l.level.code} · {l.title}
+                                  </option>
+                                ))}
+                            </select>
+                            {range.from && range.to && (
+                              <span className="text-xs font-semibold text-green-600 bg-green-50 px-2 py-1 rounded">
+                                {allLessons.filter((l) => l.id >= Number(range.from) && l.id <= Number(range.to)).length} درس
+                              </span>
+                            )}
+                          </div>
+                        }
                       />
-                      {/* ── Lesson Range dropdowns ── */}
-                      <div className="flex flex-wrap items-center gap-2 px-1 pb-2 bg-muted/30 rounded-lg p-2" dir="rtl">
-                        <span className="text-xs font-medium text-muted-foreground whitespace-nowrap">نطاق الدروس:</span>
-                        <select
-                          value={range.from}
-                          onChange={(e) => setLessonRangeMap((prev) => ({
-                            ...prev,
-                            [order.id]: { ...range, from: e.target.value },
-                          }))}
-                          className="flex-1 min-w-[160px] rounded-md border border-input bg-background px-2 py-1 text-sm text-right"
-                        >
-                          <option value="">— من درس —</option>
-                          {allLessons.map((l) => (
-                            <option key={l.id} value={String(l.id)}>
-                              {l.level.code} · {l.title}
-                            </option>
-                          ))}
-                        </select>
-                        <span className="text-xs text-muted-foreground">→</span>
-                        <select
-                          value={range.to}
-                          onChange={(e) => setLessonRangeMap((prev) => ({
-                            ...prev,
-                            [order.id]: { ...range, to: e.target.value },
-                          }))}
-                          className="flex-1 min-w-[160px] rounded-md border border-input bg-background px-2 py-1 text-sm text-right"
-                        >
-                          <option value="">— إلى درس —</option>
-                          {allLessons
-                            .filter((l) => !range.from || l.id >= Number(range.from))
-                            .map((l) => (
-                              <option key={l.id} value={String(l.id)}>
-                                {l.level.code} · {l.title}
-                              </option>
-                            ))}
-                        </select>
-                        {range.from && range.to && (
-                          <span className="text-xs font-semibold text-green-600 bg-green-50 px-2 py-1 rounded">
-                            {allLessons.filter((l) => l.id >= Number(range.from) && l.id <= Number(range.to)).length} درس
-                          </span>
-                        )}
-                      </div>
-                    </div>
                   );
                 })}
               </div>
@@ -670,8 +730,8 @@ export default function ProcessOrdersPage() {
 
       {/* ── Receipt Viewer ── */}
       <ReceiptViewerDialog
-        screenshotUrl={receiptViewUrl}
-        onClose={() => setReceiptViewUrl(null)}
+        subscriptionId={receiptViewId}
+        onClose={() => setReceiptViewId(null)}
       />
 
       {/* ── Pricing Dialog ── */}

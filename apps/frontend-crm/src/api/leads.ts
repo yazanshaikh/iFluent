@@ -56,6 +56,8 @@ export interface Lead {
   assigned_to:         { id: number; name: string; role: string } | null;
   is_small_treasure:   boolean;
   moved_to_open_sea_at: string | null;
+  /** Stale 5+ days → red "ترحيل" button (moved to the Open Sea only after confirmation). */
+  needs_transfer?:     boolean;
   converted_at:        string | null;
   converted_by:        { id: number; name: string } | null;
   active_subscription?: {
@@ -63,8 +65,15 @@ export interface Lead {
     activated_at:  string | null;
     amount_paid:   number;
     lessons_count: number | null;
+    has_pending_cancellation?: boolean;
+    remaining_lessons?: number;
+    is_near_end?: boolean;
     from_lesson:   { id: number; title: string } | null;
     to_lesson:     { id: number; title: string } | null;
+  } | null;
+  /** Present when the lead has a student account; teacher null = not assigned yet. */
+  teacher_assignment?: {
+    teacher: { id: number; name: string; is_active: boolean } | null;
   } | null;
   created_at:          string;
   updated_at:          string;
@@ -103,14 +112,19 @@ export interface LeadsParams {
   assigned_to?:       number;
   /** unassigned=1 → يُعيد الليدات التي لا موظف عليها (للمدير في New Lead) */
   unassigned?:        1 | 0;
+  /** Lead Pool: leave subscribed students out */
+  exclude_subscribed?: 1 | 0;
   /** 1 → يُعيد ليدات Small Treasury فقط */
   is_small_treasure?: 1 | 0;
   /** YYYY-MM-DD → فلتر بتاريخ الإضافة */
   date?: string;
+  date_from?: string;
+  date_to?:   string;
 }
 
 /** الحالات التي تظهر في Lead Pool — الحالات المصنّفة فقط (بدون new) */
-export const POOL_STATUSES: LeadStatus[] = ['no_answer', 'interested', 'not_interested', 'postponed', 'trial_session', 'subscriber'];
+// Subscribed students don't stay in the Lead Pool
+export const POOL_STATUSES: LeadStatus[] = ['no_answer', 'interested', 'not_interested', 'postponed', 'trial_session'];
 
 export interface LeadsPaginated {
   data:         Lead[];
@@ -135,8 +149,17 @@ export interface StudentProgress {
 }
 
 export const leadsApi = {
+  // Laravel resource pagination nests the counts under `meta` — lift them to the
+  // top level so pages can read data.total / data.last_page / data.current_page.
   list: (params?: LeadsParams) =>
-    api.get<LeadsPaginated>('/crm/leads', { params }).then((r) => r.data),
+    api
+      .get<LeadsPaginated & { meta?: Partial<Omit<LeadsPaginated, 'data'>> }>('/crm/leads', { params })
+      .then((r): LeadsPaginated => ({
+        data:         r.data.data,
+        current_page: r.data.current_page ?? r.data.meta?.current_page ?? 1,
+        last_page:    r.data.last_page    ?? r.data.meta?.last_page    ?? 1,
+        total:        r.data.total        ?? r.data.meta?.total        ?? r.data.data.length,
+      })),
 
   get: (id: number) =>
     api.get<Lead>(`/crm/leads/${id}`).then((r) => r.data),
@@ -161,6 +184,10 @@ export const leadsApi = {
   /** POST /crm/leads/{lead}/recall — يعيد الليد لـ pool المدير (status: new) */
   recall: (leadId: number) =>
     api.post<Lead>(`/crm/leads/${leadId}/recall`).then((r) => r.data),
+
+  /** Manual "ترحيل": move a stale lead to the Open Sea (after confirmation). */
+  moveToSea: (leadId: number) =>
+    api.post<Lead>(`/crm/leads/${leadId}/move-to-sea`).then((r) => r.data),
 
   /* ── Remarks ──
      لا يوجد GET منفصل — الملاحظات تأتي مع lead_remarks في GET /crm/leads/{id}

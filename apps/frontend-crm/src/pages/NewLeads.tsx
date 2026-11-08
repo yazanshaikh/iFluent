@@ -23,6 +23,7 @@ import {
 } from '@/components/ui/dialog';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loader2, UserPlus, UserRoundCog, Gem, Plus } from 'lucide-react';
+import { MoveToSeaButton } from '@/components/leads/MoveToSeaButton';
 
 const PER_PAGE = 10;
 
@@ -167,9 +168,10 @@ function AssignDialog({ lead, onClose }: AssignDialogProps) {
   const qc = useQueryClient();
   const [selectedStaff, setSelectedStaff] = useState('');
 
+  // Leads go to active CC staff only
   const { data: staffList = [], isLoading: staffLoading } = useQuery({
-    queryKey: ['staff'],
-    queryFn:  staffApi.list,
+    queryKey: ['assignable-staff', 'cc'],
+    queryFn:  () => staffApi.assignable('cc'),
     staleTime: 60_000,
   });
 
@@ -209,13 +211,10 @@ function AssignDialog({ lead, onClose }: AssignDialogProps) {
                 <SelectValue placeholder="اختر موظفاً..." />
               </SelectTrigger>
               <SelectContent>
-                {staffList.map((s) => (
-                  <SelectItem key={s.id} value={String(s.id)}>
-                    {s.name}
-                    <span className="mr-1.5 text-muted-foreground text-xs">
-                      ({s.role === 'ss' ? 'LP' : s.role.toUpperCase()})
-                    </span>
-                  </SelectItem>
+                {staffList.length === 0 ? (
+                  <div className="px-2 py-1.5 text-xs text-muted-foreground">لا يوجد موظفو CC</div>
+                ) : staffList.map((s) => (
+                  <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -323,6 +322,17 @@ export default function NewLeadsPage() {
       ) : (
         <span className="text-xs text-muted-foreground">—</span>
       ),
+    },
+    /* ترحيل — stale 5+ days; moved to the Open Sea only after confirmation */
+    {
+      id: 'transfer',
+      header: '',
+      enableSorting: false,
+      cell: ({ row }) => row.original.needs_transfer ? (
+        <div onClick={(e) => e.stopPropagation()}>
+          <MoveToSeaButton lead={row.original} />
+        </div>
+      ) : null,
     },
     /* عمود الإجراءات — يظهر للمدير فقط */
     ...(isAdmin

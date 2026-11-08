@@ -10,7 +10,8 @@ export interface OpenSeaLead extends Lead {
 export interface OpenSeaParams {
   page?:      number;
   per_page?:  number;   // 10 ثابتة
-  phone?:     string;   // بحث برقم الجوال
+  search?:    string;   // name or phone (any format)
+  phone?:     string;   // phone only (legacy)
   date_from?: string;   // فلتر التاريخ من (YYYY-MM-DD)
   date_to?:   string;   // فلتر التاريخ الى (YYYY-MM-DD)
 }

@@ -9,6 +9,7 @@ export interface StaffMember {
   email:       string;
   role:        StaffRole;
   leads_count?: number;
+  is_active?:  boolean;
   created_at:  string;
   teacher_profile?: {
     teacher_code:            string;
@@ -16,7 +17,17 @@ export interface StaffMember {
     specialization:          string | null;
     commission_rate:         string;
     balance:                 string | number;
+    /** Total sessions: trial + regular. Conversion points are counted separately. */
     sessions_count:          number;
+    trial_sessions?:         number;
+    regular_sessions?:       number;
+    conversion_points?:      number;
+    session_commission?:     number;
+    conversion_commission?:  number;
+    conversion_commission_rate?: number;
+    group_sessions?:         number;
+    group_commission?:       number;
+    group_commission_rate?:  number;
     absences_count:          number;
     avg_rating:              number | null;
     sessions_count_reset_at: string | null;
@@ -63,11 +74,49 @@ function unwrapArray<T>(res: T[] | WrappedOrRaw<T[]>): T[] {
   return [];
 }
 
+export interface CcSales {
+  /** Sales after refunds */
+  amount: number;
+  gross?: number;
+  refunds_deducted?: number;
+  count:  number;
+  since:  string;
+  /** Admin view only */
+  due?:           number;
+  refund_count?:  number;
+  refund_amount?: number;
+}
+
 export const staffApi = {
+  /** CC: own sales counter */
+  mySales: () => api.get<CcSales>('/crm/me/sales').then((r) => r.data),
+
+  /** Admin: a CC's sales counter */
+  sales: (id: number) => api.get<CcSales>(`/admin/staff/${id}/sales`).then((r) => r.data),
+
+  addDue: (id: number, amount: number) =>
+    api.post<CcSales>(`/admin/staff/${id}/due`, { amount }).then((r) => r.data),
+  resetDue: (id: number) => api.post<CcSales>(`/admin/staff/${id}/reset-due`).then((r) => r.data),
+  addRefund: (id: number, amount: number) =>
+    api.post<CcSales>(`/admin/staff/${id}/refunds`, { amount }).then((r) => r.data),
+  resetRefunds: (id: number) => api.post<CcSales>(`/admin/staff/${id}/reset-refunds`).then((r) => r.data),
+
+  /** Admin: start a CC's sales counter again from now */
+  resetSales: (id: number) => api.post<CcSales>(`/admin/staff/${id}/reset-sales`).then((r) => r.data),
+
   list: () =>
     api
       .get<StaffMember[] | WrappedOrRaw<StaffMember[]>>('/admin/staff')
       .then((r) => unwrapArray<StaffMember>(r.data)),
+
+  /**
+   * GET /admin/staff/assignable — ACTIVE staff of one role, unpaginated.
+   * Leads are assigned to CC only; paid students to LP (ss) only.
+   */
+  assignable: (role: 'cc' | 'ss' = 'cc') =>
+    api
+      .get<{ data: { id: number; name: string; role: 'cc' | 'ss' }[] }>('/admin/staff/assignable', { params: { role } })
+      .then((r) => r.data.data),
 
   /** GET /admin/staff/{id} — بروفايل موظف محدد */
   get: (id: number) =>
@@ -93,6 +142,12 @@ export const staffApi = {
     api.get<{ total: number; bookings: TeacherBooking[] }>(`/admin/staff/${id}/demo-bookings`).then((r) => r.data),
 
   /** PUT /admin/teachers/{id}/commission-rate — تحديث عمولة المعلم */
+  updateGroupCommissionRate: (userId: number, rate: number) =>
+    api.put(`/admin/teachers/${userId}/commission-rate`, { group_commission_rate: rate }).then((r) => r.data),
+
+  updateConversionCommissionRate: (userId: number, rate: number) =>
+    api.put(`/admin/teachers/${userId}/commission-rate`, { conversion_commission_rate: rate }).then((r) => r.data),
+
   updateCommissionRate: (userId: number, commissionRate: number) =>
     api.put<{ message: string; commission_rate: number }>(
       `/admin/teachers/${userId}/commission-rate`,

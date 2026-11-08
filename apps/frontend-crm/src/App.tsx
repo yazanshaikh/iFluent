@@ -15,6 +15,10 @@ import SmallTreasuryPage   from '@/pages/SmallTreasury';
 import TrialBookingsPage   from '@/pages/TrialBookings';
 import ProcessOrdersPage   from '@/pages/ProcessOrders';
 import PaidStudentsPage    from '@/pages/PaidStudents';
+import CancellationRequestsPage from '@/pages/CancellationRequests';
+import MyRequestsPage      from '@/pages/MyRequests';
+import TeachersPage        from '@/pages/Teachers';
+import MyProfilePage       from '@/pages/MyProfile';
 import InvoicePage         from '@/pages/InvoicePage';
 import MessagesPage        from '@/pages/Messages';
 import NotFoundPage        from '@/pages/NotFound';
@@ -51,8 +55,12 @@ export default function App() {
             <Route path="/bookings"       element={<TrialBookingsPage />} />
             <Route path="/process-orders" element={<ProcessOrdersPage />} />
             <Route path="/paid-students"  element={<PaidStudentsPage />} />
+            <Route path="/cancellation-requests" element={<CancellationRequestsPage />} />
+            <Route path="/my-requests"    element={<MyRequestsPage />} />
             <Route path="/messages"       element={<MessagesPage />} />
-            <Route path="/teachers"     element={<ComingSoon title="Teachers" />} />
+            <Route path="/my-profile"     element={<MyProfilePage />} />
+            <Route path="/teachers"     element={<TeachersPage />} />
+            <Route path="/teachers/:id" element={<StaffProfilePage />} />
             <Route path="/settings"     element={<ComingSoon title="Settings" />} />
           </Route>
 

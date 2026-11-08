@@ -110,6 +110,16 @@ export const checkoutApi = {
       )
       .then((r) => r.data),
 
+  /**
+   * Admin: the payment receipt file. Always goes through the API client: the URL
+   * the server builds comes out as http:// behind Cloudflare, and the browser
+   * blocks that from the https CRM.
+   */
+  fetchReceipt: (subscriptionId: number) =>
+    client
+      .get<Blob>(`/admin/subscriptions/${subscriptionId}/screenshot`, { responseType: 'blob' })
+      .then((r) => r.data),
+
   /** Admin: approve a subscription → activates the student.
    *  from_lesson_id + to_lesson_id define the lesson range for this package.
    *  current_lesson_id is set automatically = from_lesson_id on the backend. */

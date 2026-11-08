@@ -9,7 +9,7 @@ export interface AuthUser {
   id:    number;
   name:  string;
   email: string;
-  role:  'crm_agent' | 'super_admin';
+  role:  'super_admin' | 'cc' | 'ss' | 'crm_agent';
 }
 
 export interface LoginResponse {

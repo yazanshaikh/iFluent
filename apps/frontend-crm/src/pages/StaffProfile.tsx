@@ -4,6 +4,10 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 import { staffApi, type TeacherBooking } from '@/api/staff';
 import { leadsApi, type Lead } from '@/api/leads';
+import { teachersApi } from '@/api/teachers';
+import { TeacherStudentsCard } from '@/components/teachers/TeacherStudentsCard';
+import { CcSalesCard } from '@/components/staff/CcSalesCard';
+import { CcAccountsCard } from '@/components/staff/CcAccountsCard';
 import { useAuthStore } from '@/stores/authStore';
 import { Navigate } from 'react-router-dom';
 
@@ -106,6 +110,64 @@ function StarRating({ rating }: { rating: number | null | undefined }) {
   );
 }
 
+/* ── One editable commission rate (JOD) ── */
+function RateRow({
+  title, unit, current, isPending, onSave,
+}: {
+  title: string;
+  unit: string;
+  current: number | string;
+  isPending: boolean;
+  onSave: (rate: number, done: () => void) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [value,   setValue]   = useState('');
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm font-medium">{title}</p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            الحالية:{' '}
+            <span className="font-semibold text-primary">{current} د.أ / {unit}</span>
+          </p>
+        </div>
+        <Button
+          variant="outline" size="sm"
+          onClick={() => { setValue(String(current)); setEditing(true); }}
+        >
+          تعديل العمولة
+        </Button>
+      </div>
+
+      {editing && (
+        <div className="flex items-center gap-2 mt-2 p-3 bg-muted/40 rounded-lg">
+          <Input
+            type="number" min={0} step={0.5}
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            className="w-32 text-left"
+            autoFocus
+          />
+          <span className="text-sm text-muted-foreground">د.أ / {unit}</span>
+          <Button
+            size="sm"
+            disabled={!value || isPending}
+            onClick={() => {
+              const rate = parseFloat(value);
+              if (!isNaN(rate) && rate >= 0) onSave(rate, () => setEditing(false));
+            }}
+          >
+            {isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'حفظ'}
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => setEditing(false)}>إلغاء</Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ══════════════════════════ Main Page ════════════════════════════════════ */
 export default function StaffProfilePage() {
   const { id }   = useParams<{ id: string }>();
@@ -115,11 +177,11 @@ export default function StaffProfilePage() {
   const staffId  = Number(id);
 
   const [resetDialogOpen,    setResetDialogOpen]    = useState(false);
-  const [commissionInput,    setCommissionInput]    = useState('');
-  const [commissionEditing,  setCommissionEditing]  = useState(false);
 
-  /* ── Auth guard — admin only (hooks first) ── */
+  /* ── Auth guard (hooks first): admin sees any staff; LP sees teachers only ── */
   const isAdmin = user?.role === 'super_admin';
+  const isLP    = user?.role === 'ss';
+  const backTo  = isAdmin ? '/employees' : '/teachers';
 
   /* ── Fetch staff profile ── */
   const {
@@ -128,8 +190,9 @@ export default function StaffProfilePage() {
     isError:   staffError,
   } = useQuery({
     queryKey: ['staff-member', staffId],
-    queryFn:  () => staffApi.get(staffId),
-    enabled:  isAdmin && !!staffId,
+    // LP reads the teacher profile through /crm/teachers (no money fields)
+    queryFn:  () => (isAdmin ? staffApi.get(staffId) : teachersApi.get(staffId)),
+    enabled:  (isAdmin || isLP) && !!staffId,
   });
 
   /* ── Fetch new leads for this staff member (cc/ss only) ── */
@@ -190,6 +253,19 @@ export default function StaffProfilePage() {
     },
   });
 
+  /* ── CC sales counter ── */
+  const { data: ccSales, isLoading: ccSalesLoading } = useQuery({
+    queryKey: ['cc-sales', staffId],
+    queryFn:  () => staffApi.sales(staffId),
+    enabled:  isAdmin && staff?.role === 'cc',
+  });
+
+  const resetSalesMutation = useMutation({
+    mutationFn: () => staffApi.resetSales(staffId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['cc-sales', staffId] }),
+    onError: (e: any) => alert(e?.response?.data?.message ?? 'تعذّر تصفير العداد'),
+  });
+
   /* ── Reset balance mutation ── */
   const resetBalanceMutation = useMutation({
     mutationFn: () => staffApi.resetBalance(staffId),
@@ -199,15 +275,23 @@ export default function StaffProfilePage() {
   /* ── Update commission mutation ── */
   const commissionMutation = useMutation({
     mutationFn: (rate: number) => staffApi.updateCommissionRate(staffId, rate),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['staff-member', staffId] });
-      setCommissionEditing(false);
-      setCommissionInput('');
-    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['staff-member', staffId] }),
   });
 
-  /* ── Guard: admin only ── */
-  if (!isAdmin) return <Navigate to="/dashboard" replace />;
+  /* ── Update the commission per group class ── */
+  const groupRateMutation = useMutation({
+    mutationFn: (rate: number) => staffApi.updateGroupCommissionRate(staffId, rate),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['staff-member', staffId] }),
+  });
+
+  /* ── Update the commission per realised subscription ── */
+  const conversionRateMutation = useMutation({
+    mutationFn: (rate: number) => staffApi.updateConversionCommissionRate(staffId, rate),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['staff-member', staffId] }),
+  });
+
+  /* ── Guard: admin, or LP looking at a teacher ── */
+  if (!isAdmin && !isLP) return <Navigate to="/dashboard" replace />;
 
   /* ── Loading ── */
   if (staffLoading) {
@@ -224,8 +308,8 @@ export default function StaffProfilePage() {
     return (
       <div className="flex flex-col items-center justify-center h-full py-24 gap-3">
         <p className="text-destructive font-medium">لم يتم العثور على الموظف</p>
-        <Button variant="outline" onClick={() => navigate('/employees')}>
-          العودة لقائمة الموظفين
+        <Button variant="outline" onClick={() => navigate(backTo)}>
+          {isAdmin ? 'العودة لقائمة الموظفين' : 'العودة لقائمة المعلمين'}
         </Button>
       </div>
     );
@@ -284,6 +368,9 @@ export default function StaffProfilePage() {
     </Card>
   );
 
+  // LP only has access to teacher profiles
+  if (!isAdmin && !isTeacher) return <Navigate to="/teachers" replace />;
+
   /* ══════════ Teacher branch ══════════════════════════════════════════════ */
   if (isTeacher) {
     const tp = staff.teacher_profile;
@@ -294,11 +381,11 @@ export default function StaffProfilePage() {
         {/* Back */}
         <Button
           variant="ghost" size="sm"
-          onClick={() => navigate('/employees')}
+          onClick={() => navigate(backTo)}
           className="gap-1 -mr-2"
         >
           <ArrowRight className="h-4 w-4" />
-          العودة لقائمة الموظفين
+          {isAdmin ? 'العودة لقائمة الموظفين' : 'العودة لقائمة المعلمين'}
         </Button>
 
         {headerCard}
@@ -309,13 +396,48 @@ export default function StaffProfilePage() {
             <CardTitle className="text-base font-semibold">إحصائيات المدرّس</CardTitle>
           </CardHeader>
           <CardContent className="pt-4 space-y-4">
-            <div className="flex gap-8">
-              <div className="text-center">
-                <p className="text-2xl font-bold text-primary">
-                  {tp?.sessions_count ?? 0}
-                </p>
-                <p className="text-muted-foreground text-xs mt-0.5">عدد الحصص</p>
+            {/* Sessions: trial + regular = total */}
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                { label: 'حصص تقييمية', value: tp?.trial_sessions ?? 0 },
+                { label: 'حصص أساسية',  value: tp?.regular_sessions ?? 0 },
+              ].map((item) => (
+                <div key={item.label} className="rounded-lg border bg-muted/30 px-2 py-3 text-center">
+                  <p className="text-2xl font-bold">{item.value}</p>
+                  <p className="text-muted-foreground text-xs mt-0.5">{item.label}</p>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex items-center justify-between rounded-lg bg-primary/10 px-4 py-3">
+              <div>
+                <p className="text-sm font-semibold">إجمالي الحصص</p>
+                <p className="text-xs text-muted-foreground mt-0.5">الأساس المعتمد لاحتساب عمولة الحصص</p>
               </div>
+              <p className="text-3xl font-bold text-primary">{tp?.sessions_count ?? 0}</p>
+            </div>
+
+            {/* Not part of the total: each has its own count and commission */}
+            <div className="grid grid-cols-2 gap-2">
+              <div
+                className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-3 text-center dark:border-emerald-800 dark:bg-emerald-950/30"
+                title="تُحتسب نقطة واحدة عن كل طالب أتمّ اشتراكه الأول بعد حصته التقييمية"
+              >
+                <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-400">{tp?.conversion_points ?? 0}</p>
+                <p className="text-sm font-semibold mt-0.5">اشتراكات محققة</p>
+                <p className="text-xs text-muted-foreground">عمولة مستقلة تُضاف إلى الرصيد</p>
+              </div>
+              <div
+                className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-3 text-center dark:border-sky-800 dark:bg-sky-950/30"
+                title="الحصص الجماعية المكتملة التي سُجّل فيها طالب واحد على الأقل"
+              >
+                <p className="text-2xl font-bold text-sky-700 dark:text-sky-400">{tp?.group_sessions ?? 0}</p>
+                <p className="text-sm font-semibold mt-0.5">حصص جماعية</p>
+                <p className="text-xs text-muted-foreground">عمولة مستقلة تُضاف إلى الرصيد</p>
+              </div>
+            </div>
+
+            <div className="flex gap-8">
               <div className="text-center">
                 <p className="text-2xl font-bold text-destructive">
                   {tp?.absences_count ?? 0}
@@ -352,68 +474,45 @@ export default function StaffProfilePage() {
                   </Button>
                 </div>
 
-                {/* ── Commission Rate ── */}
+                {/* ── Commission rates ── */}
                 <Separator />
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium">عمولة الحصة</p>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        الحالية:{' '}
-                        <span className="font-semibold text-primary">
-                          {tp?.commission_rate ?? '0'} د.أ / حصة
-                        </span>
-                      </p>
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        setCommissionInput(String(tp?.commission_rate ?? ''));
-                        setCommissionEditing(true);
-                      }}
-                    >
-                      تعديل العمولة
-                    </Button>
-                  </div>
-
-                  {commissionEditing && (
-                    <div className="flex items-center gap-2 mt-2 p-3 bg-muted/40 rounded-lg">
-                      <Input
-                        type="number"
-                        min={0}
-                        step={0.5}
-                        value={commissionInput}
-                        onChange={(e) => setCommissionInput(e.target.value)}
-                        placeholder="مثال: 5"
-                        className="w-32 text-left"
-                        autoFocus
-                      />
-                      <span className="text-sm text-muted-foreground">د.أ / حصة</span>
-                      <Button
-                        size="sm"
-                        disabled={!commissionInput || commissionMutation.isPending}
-                        onClick={() => {
-                          const rate = parseFloat(commissionInput);
-                          if (!isNaN(rate) && rate >= 0) commissionMutation.mutate(rate);
-                        }}
-                      >
-                        {commissionMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'حفظ'}
-                      </Button>
-                      <Button
-                        size="sm" variant="ghost"
-                        onClick={() => { setCommissionEditing(false); setCommissionInput(''); }}
-                      >
-                        إلغاء
-                      </Button>
-                    </div>
-                  )}
-                </div>
+                <RateRow
+                  title="عمولة الحصة"
+                  unit="حصة"
+                  current={tp?.commission_rate ?? '0'}
+                  isPending={commissionMutation.isPending}
+                  onSave={(rate, done) => commissionMutation.mutate(rate, { onSuccess: done })}
+                />
+                <Separator />
+                <RateRow
+                  title="عمولة الاشتراك المحقق"
+                  unit="اشتراك"
+                  current={tp?.conversion_commission_rate ?? 1}
+                  isPending={conversionRateMutation.isPending}
+                  onSave={(rate, done) => conversionRateMutation.mutate(rate, { onSuccess: done })}
+                />
+                <Separator />
+                <RateRow
+                  title="عمولة الحصة الجماعية"
+                  unit="حصة جماعية"
+                  current={tp?.group_commission_rate ?? 0}
+                  isPending={groupRateMutation.isPending}
+                  onSave={(rate, done) => groupRateMutation.mutate(rate, { onSuccess: done })}
+                />
               </>
             )}
           </CardContent>
         </Card>
 
+        {/* Students this teacher is responsible for — admin + LP can edit */}
+        <TeacherStudentsCard
+          teacherId={staffId}
+          teacherName={staff.name}
+          teacherActive={staff.is_active ?? true}
+          canEdit={isAdmin || isLP}
+        />
+
+        {isAdmin && <>
         {/* Balance & Rating Card */}
         <Card>
           <CardHeader className="pb-0">
@@ -426,6 +525,15 @@ export default function StaffProfilePage() {
                 <p className="text-sm text-muted-foreground">الرصيد الحالي</p>
                 <p className="text-2xl font-bold text-emerald-600 mt-0.5">
                   {Number(tp?.balance ?? 0).toFixed(2)} د.أ
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  عمولة الحصص: {Number(tp?.session_commission ?? 0).toFixed(2)} د.أ
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  عمولة الاشتراكات المحققة: {Number(tp?.conversion_commission ?? 0).toFixed(2)} د.أ
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  عمولة الحصص الجماعية: {Number(tp?.group_commission ?? 0).toFixed(2)} د.أ
                 </p>
                 {tp?.balance_reset_at && (
                   <p className="text-xs text-muted-foreground mt-0.5">
@@ -568,6 +676,8 @@ export default function StaffProfilePage() {
           </CardContent>
         </Card>
 
+        </>}
+
         {/* Confirm dialog */}
         <Dialog open={resetDialogOpen} onOpenChange={setResetDialogOpen}>
           <DialogContent>
@@ -664,6 +774,25 @@ export default function StaffProfilePage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* CC sales since the counter last started */}
+      {staff.role === 'cc' && (
+        <CcSalesCard
+          sales={ccSales}
+          isLoading={ccSalesLoading}
+          resetting={resetSalesMutation.isPending}
+          onReset={() => {
+            if (window.confirm(`تصفير عداد مبيعات ${staff.name}؟ سيبدأ العداد من الآن ولا يمكن التراجع عن هذا الإجراء.`)) {
+              resetSalesMutation.mutate();
+            }
+          }}
+        />
+      )}
+
+      {/* Monthly due + refunds (admin) */}
+      {staff.role === 'cc' && (
+        <CcAccountsCard staffId={staffId} staffName={staff.name} sales={ccSales} />
+      )}
 
       {/* Fresh leads */}
       <Card>

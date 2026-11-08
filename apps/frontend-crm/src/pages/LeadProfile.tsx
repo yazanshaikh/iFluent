@@ -8,7 +8,7 @@ import { staffApi } from '@/api/staff';
 import { checkoutApi, type InvoiceCreatedResponse } from '@/api/checkout';
 import { invoiceFullUrl } from '@/lib/appUrl';
 import { useAuthStore } from '@/stores/authStore';
-import { STATUS_LABELS, STATUS_VARIANT } from './Leads';
+import { STATUS_LABELS_EN, STATUS_VARIANT } from './Leads';
 import { Badge }    from '@/components/ui/badge';
 import { Button }   from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -19,14 +19,18 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
 import {
-  ArrowRight, Loader2, Phone, Calendar, MessageSquarePlus, User, ChevronDown, ChevronLeft, Gem,
+  ArrowRight, Loader2, Phone, Calendar, MessageSquarePlus, User, ChevronDown, Gem,
   Pencil, Check, X, CalendarClock, UserRoundCog, ShoppingCart, Copy, ExternalLink, UserCheck, Smartphone,
-  TrendingUp, BookOpen, Clock, Award,
+  TrendingUp, BookOpen, Clock, Award, GraduationCap, BellRing,
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
+import { BookDemoDialog } from '@/components/demo/BookDemoDialog';
+import { CancellationRequestDialog } from '@/components/cancellation/CancellationRequestDialog';
+import { MoveToSeaButton } from '@/components/leads/MoveToSeaButton';
+import { paidStudentsApi } from '@/api/paidStudents';
 
 const ROLE_LABELS: Record<string, string> = { cc: 'CC', ss: 'LP', super_admin: 'مدير' };
 
@@ -147,55 +151,6 @@ const SELECTABLE_STATUSES: LeadStatus[] = [
   'new', 'no_answer', 'interested', 'not_interested', 'postponed', 'trial_session',
 ];
 
-/* ── Time slots 9:00 AM → 12:00 AM (midnight), every 30 min ──
-   Each slot is identified by MINUTES from midnight (540 … 1440). Using minutes
-   (not a 0–24 hour) avoids the old bug where the midnight slot collapsed to
-   hour 0 and was therefore always treated as "past" today. 1440 = 24:00 = the
-   midnight that ENDS the day (booked as 00:00 the next day). */
-const SLOT_START_MIN = 9 * 60;    // 9:00 AM
-const SLOT_END_MIN   = 24 * 60;   // 12:00 AM (midnight), inclusive
-const SLOT_STEP_MIN  = 30;        // half-hour gaps
-
-const TIME_SLOTS = Array.from(
-  { length: Math.floor((SLOT_END_MIN - SLOT_START_MIN) / SLOT_STEP_MIN) + 1 },
-  (_, i) => {
-    const min    = SLOT_START_MIN + i * SLOT_STEP_MIN;  // 540 … 1440
-    const h24    = Math.floor(min / 60) % 24;           // 9 … 23, then 0 at 1440
-    const mm     = min % 60;
-    const h12    = h24 % 12 === 0 ? 12 : h24 % 12;
-    const period = h24 < 12 ? 'ص' : 'م';
-    return { min, label: `${h12}:${String(mm).padStart(2, '0')} ${period}` };
-  },
-);
-
-/**
- * أقل مهلة قبل بداية الحصة تسمح بالحجز من الـ CRM.
- *
- * كان 30 دقيقة، وهذا منع الـ CC من حجز موعد قريب حتى لو كان المعلم جاهزاً.
- * الآن 5 دقائق فقط — تكفي لأن الباك-إند يشترط `after:now`، فحجز موعد مرّ
- * للتو يُرفض بـ 422. المواعيد المعروضة في الجدول لم تتغيّر.
- */
-const MIN_BOOKING_LEAD_MIN = 5;
-
-/**
- * YYYY-MM-DD بالتوقيت المحلي.
- *
- * لا تستخدم toISOString() لهذا: هي تُحوِّل إلى UTC، فبين منتصف الليل و‑3 صباحاً
- * بتوقيت الأردن يكون تاريخ UTC هو اليوم السابق — وكانت النتيجة أن "اليوم" يُرسل
- * بتاريخ الأمس، فيرفضه الباك‑إند بـ "must be a date after now".
- */
-function localDateStr(d: Date): string {
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const dd = String(d.getDate()).padStart(2, '0');
-  return `${d.getFullYear()}-${mm}-${dd}`;
-}
-
-/** هل الـ slot ما زال قابلاً للحجز؟ */
-function isSlotAvailable(min: number, dateMode: 'today' | 'tomorrow' | 'custom'): boolean {
-  if (dateMode !== 'today') return true;
-  const now = new Date();
-  return min >= now.getHours() * 60 + now.getMinutes() + MIN_BOOKING_LEAD_MIN;
-}
 
 export default function LeadProfilePage() {
   const { id }    = useParams<{ id: string }>();
@@ -226,12 +181,6 @@ export default function LeadProfilePage() {
   const [sentToApp,           setSentToApp]           = useState(false);
 
   const [bookingOpen,    setBookingOpen]    = useState(false);
-  const [bookStep,       setBookStep]       = useState<1 | 2 | 'success'>(1);
-  const [bookDateMode,   setBookDateMode]   = useState<'today' | 'tomorrow' | 'custom'>('today');
-  const [bookCustomDate, setBookCustomDate] = useState('');
-  const [bookMin,        setBookMin]        = useState<number | null>(null);
-  const [bookNotes,      setBookNotes]      = useState('');
-  const [bookError,      setBookError]      = useState('');
 
   /* ── Fetch lead ── */
   const { data: lead, isLoading, isError } = useQuery({
@@ -404,19 +353,26 @@ export default function LeadProfilePage() {
   const [assignDraft,  setAssignDraft]  = useState<string>('');
   const [assignError,  setAssignError]  = useState<string | null>(null);
 
+  // A regular lead is assigned to a CC only; a paid student (converted lead)
+  // to an LP only — through the paid-students endpoint that keeps its status.
+  const assignRole: 'cc' | 'ss' = lead?.converted_at ? 'ss' : 'cc';
   const { data: staffList = [] } = useQuery({
-    queryKey: ['staff'],
-    queryFn:  staffApi.list,
+    queryKey: ['assignable-staff', assignRole],
+    queryFn:  () => staffApi.assignable(assignRole),
     staleTime: 60_000,
-    enabled:  isAdmin,
+    enabled:  isAdmin && !!lead,
   });
 
   const assignMutation = useMutation({
-    mutationFn: (staffId: number) => leadsApi.assign(leadId, staffId),
+    mutationFn: async (staffId: number): Promise<void> => {
+      if (assignRole === 'ss') await paidStudentsApi.assign(leadId, staffId);
+      else await leadsApi.assign(leadId, staffId);
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['lead', leadId] });
       qc.invalidateQueries({ queryKey: ['new-leads'] });
       qc.invalidateQueries({ queryKey: ['leads'] });
+      qc.invalidateQueries({ queryKey: ['paid-students'] });
       setAssignDraft('');
       setAssignError(null);
     },
@@ -452,29 +408,6 @@ export default function LeadProfilePage() {
     onError: () => setRemarkError('فشل إضافة الملاحظة'),
   });
 
-  /* ── Book demo ── */
-  const [bookApiError, setBookApiError] = useState<string | null>(null);
-  const bookMutation = useMutation({
-    mutationFn: (payload: { scheduled_at: string; notes?: string }) =>
-      leadsApi.bookDemo(leadId, payload),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['lead', leadId] });
-      qc.invalidateQueries({ queryKey: ['lead-demo-requests', leadId] });
-      setBookApiError(null);
-      setBookStep('success');
-    },
-    onError: (err: unknown) => {
-      const msg = (err as { response?: { data?: { message?: string; errors?: Record<string, string[]> } } })
-        ?.response?.data;
-      if (msg?.errors) {
-        const firstErr = Object.values(msg.errors).flat()[0];
-        setBookApiError(firstErr ?? 'حدث خطأ أثناء الحجز');
-      } else {
-        setBookApiError(msg?.message ?? 'حدث خطأ أثناء الحجز، حاول مرة أخرى');
-      }
-    },
-  });
-
   const cancelDemoMutation = useMutation({
     mutationFn: (sessionId: number) => leadsApi.cancelDemo(sessionId),
     onSuccess: () => {
@@ -484,6 +417,7 @@ export default function LeadProfilePage() {
   });
 
   const [cancelSubOpen,   setCancelSubOpen]   = useState(false);
+  const [cancelRequestOpen, setCancelRequestOpen] = useState(false);
   const [cancelSubReason, setCancelSubReason] = useState('');
 
   const cancelSubMutation = useMutation({
@@ -525,50 +459,6 @@ export default function LeadProfilePage() {
     onError: (err: any) => alert(err?.response?.data?.message ?? 'تعذر تغيير الدرس'),
   });
 
-  const resetBooking = () => {
-    setBookingOpen(false);
-    setTimeout(() => {
-      setBookStep(1);
-      setBookDateMode('today');
-      setBookCustomDate('');
-      setBookMin(null);
-      setBookNotes('');
-      setBookError('');
-      setBookApiError(null);
-    }, 200);
-  };
-
-  const handleNext1 = () => {
-    if (bookDateMode === 'custom' && !bookCustomDate) { setBookError('الرجاء اختيار تاريخ أولاً'); return; }
-    if (bookMin === null) { setBookError('الرجاء اختيار وقت للحصة'); return; }
-    if (!isSlotAvailable(bookMin, bookDateMode)) {
-      setBookError('هذا الوقت انتهى — اختر وقتاً لاحقاً أو تاريخاً آخر');
-      setBookMin(null);
-      return;
-    }
-    setBookError('');
-    setBookApiError(null);
-    setBookStep(2);
-  };
-
-  const handleBookSubmit = () => {
-    if (bookMin === null) return;
-    const todayStr    = localDateStr(new Date());
-    const tomorrowD   = new Date(); tomorrowD.setDate(tomorrowD.getDate() + 1);
-    const tomorrowStr = localDateStr(tomorrowD);
-    const dateStr     = bookDateMode === 'today' ? todayStr
-                      : bookDateMode === 'tomorrow' ? tomorrowStr
-                      : bookCustomDate;
-    // Build the local datetime from minutes-since-midnight. 1440 (midnight that
-    // ENDS the day) rolls over to 00:00 of the next day.
-    const dayOffset = Math.floor(bookMin / 1440);
-    const h = Math.floor((bookMin % 1440) / 60);
-    const m = bookMin % 60;
-    const dt = new Date(`${dateStr}T00:00:00`);
-    dt.setDate(dt.getDate() + dayOffset);
-    dt.setHours(h, m, 0, 0);
-    bookMutation.mutate({ scheduled_at: dt.toISOString(), notes: bookNotes || undefined });
-  };
 
   const handleAddRemark = (e: React.FormEvent) => {
     e.preventDefault();
@@ -602,6 +492,17 @@ export default function LeadProfilePage() {
     );
   }
 
+  /* ── What this viewer may do on this lead ──
+     admin / owner (CC or LP the lead is assigned to) → everything;
+     CC on a paid student they don't own → remarks, status, book/cancel trial;
+     LP on a lead they don't own (opened from Trial Bookings) → book/cancel trial only. */
+  const isOwner    = !!user && lead.assigned_to?.id === user.id;
+  const canEdit    = isAdmin || isOwner;
+  const isCcViewer = !canEdit && user?.role === 'cc';
+  const canWork    = canEdit || isCcViewer;
+  const canDemo    = canWork || user?.role === 'ss';
+  const isLpOwner  = user?.role === 'ss' && isOwner;
+
   const currentStatus = statusDraft ?? lead.status;
   const remarks       = lead.remarks ?? [];
 
@@ -613,11 +514,6 @@ export default function LeadProfilePage() {
   );
   const bookingBlocked = !!activeBooking;
 
-  /* ── Booking date helpers ── */
-  const bookToday    = new Date();
-  const bookTomorrow = new Date(bookToday); bookTomorrow.setDate(bookToday.getDate() + 1);
-  const fmtDate      = (d: Date) =>
-    d.toLocaleDateString('ar-JO', { weekday: 'short', day: 'numeric', month: 'short' });
 
   return (
     <>
@@ -658,13 +554,13 @@ export default function LeadProfilePage() {
             ) : (
               <div className="flex items-center gap-1.5 group">
                 <h1 className="text-xl font-bold">{lead.name}</h1>
-                <Button
+                {canEdit && <Button
                   size="icon" variant="ghost"
                   className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground"
                   onClick={() => { setNameDraft(lead.name); setNameEditing(true); }}
                 >
                   <Pencil className="h-3 w-3" />
-                </Button>
+                </Button>}
               </div>
             )}
 
@@ -695,13 +591,13 @@ export default function LeadProfilePage() {
                 <span className="text-sm text-muted-foreground">
                   {lead.age ? `${lead.age} سنة` : <span className="text-xs text-muted-foreground/60">العمر غير محدد</span>}
                 </span>
-                <Button
+                {canEdit && <Button
                   size="icon" variant="ghost"
                   className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground"
                   onClick={() => { setAgeDraft(lead.age ? String(lead.age) : ''); setAgeEditing(true); }}
                 >
                   <Pencil className="h-2.5 w-2.5" />
-                </Button>
+                </Button>}
               </div>
             )}
 
@@ -723,6 +619,23 @@ export default function LeadProfilePage() {
                 إلغاء الاشتراك
               </Button>
             )}
+            {/* Cancellation REQUEST — LP on their own student (admin approves) */}
+            {isLpOwner && lead.active_subscription && (
+              lead.active_subscription.has_pending_cancellation ? (
+                <Badge variant="warning" className="gap-1 text-xs">
+                  <Clock className="h-3 w-3" />
+                  طلب إلغاء قيد المراجعة
+                </Badge>
+              ) : (
+                <Button
+                  size="sm" variant="outline"
+                  className="text-destructive hover:text-destructive border-red-300 text-xs h-7 px-2"
+                  onClick={() => setCancelRequestOpen(true)}
+                >
+                  طلب إلغاء الاشتراك
+                </Button>
+              )
+            )}
             <div className="relative group">
               <button
                 className="flex items-center gap-2 rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-1.5 hover:bg-emerald-100 transition-colors cursor-pointer dark:bg-emerald-950/30 dark:border-emerald-800"
@@ -730,7 +643,7 @@ export default function LeadProfilePage() {
               >
                 <UserCheck className="h-4 w-4 text-emerald-600 shrink-0" />
                 <div className="text-sm leading-tight text-right">
-                  <span className="font-semibold text-emerald-700 dark:text-emerald-400">مشتري ◂</span>
+                  <span className="font-semibold text-emerald-700 dark:text-emerald-400">Subscribed ◂</span>
                   {lead.converted_by && (
                     <span className="text-emerald-600/80 dark:text-emerald-500 mr-1.5">
                       — بواسطة <span className="font-medium">{lead.converted_by.name}</span>
@@ -781,9 +694,13 @@ export default function LeadProfilePage() {
             </div>
           ) : (
             <Badge variant={STATUS_VARIANT[lead.status]} className="text-sm px-3 py-1">
-              {STATUS_LABELS[lead.status]}
+              {STATUS_LABELS_EN[lead.status]}
             </Badge>
           )}
+          {lead.needs_transfer && canEdit && (
+            <MoveToSeaButton lead={lead} onMoved={() => navigate(isAdmin ? '/open-sea' : '/leads')} />
+          )}
+          {canEdit && <>
           <Button
             size="sm"
             variant="default"
@@ -810,8 +727,56 @@ export default function LeadProfilePage() {
               : <Gem className="h-3.5 w-3.5" />}
             {lead.is_small_treasure ? 'محمية' : 'Small Treasury'}
           </Button>
+          </>}
         </div>
       </div>
+
+      {/* Few lessons left → reminder to follow up about renewing */}
+      {lead.active_subscription?.is_near_end && (
+        <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-400">
+          <BellRing className="h-4 w-4 shrink-0" />
+          <span>
+            الباقة على وشك الانتهاء — الحصص المتبقية: {lead.active_subscription.remaining_lessons ?? 0}.
+            يُرجى التواصل مع الطالب بشأن التجديد.
+          </span>
+        </div>
+      )}
+
+      {/* Teacher this student studies with (assigned from the teacher's profile) */}
+      {lead.teacher_assignment && (
+        <Card>
+          <CardContent className="py-3 px-4 flex items-center gap-3">
+            <div className="h-9 w-9 rounded-full bg-violet-100 flex items-center justify-center shrink-0">
+              <GraduationCap className="h-4 w-4 text-violet-700" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs text-muted-foreground">المعلم</p>
+              {lead.teacher_assignment.teacher ? (
+                <p className="font-semibold truncate">
+                  {lead.teacher_assignment.teacher.name}
+                  {!lead.teacher_assignment.teacher.is_active && (
+                    <span className="text-xs text-muted-foreground font-normal mr-2">(معطّل)</span>
+                  )}
+                </p>
+              ) : (
+                <p className="text-sm text-muted-foreground">لم يتم تعيين معلم بعد</p>
+              )}
+            </div>
+            {lead.teacher_assignment.teacher && (isAdmin || user?.role === 'ss') && (
+              <Button
+                size="sm" variant="outline" className="text-xs h-7"
+                onClick={() => navigate(
+                  isAdmin
+                    ? `/employees/${lead.teacher_assignment!.teacher!.id}`
+                    : `/teachers/${lead.teacher_assignment!.teacher!.id}`,
+                )}
+              >
+                بروفايل المعلم
+              </Button>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Student progress — mirrors what the student sees in their app */}
       {progress?.has_account && progress.summary && (
@@ -896,7 +861,7 @@ export default function LeadProfilePage() {
         </CardHeader>
         <CardContent className="space-y-4">
           {/* Book button */}
-          <div className="space-y-2">
+          {canDemo && <div className="space-y-2">
             <Button
               size="sm"
               className="gap-2"
@@ -924,7 +889,7 @@ export default function LeadProfilePage() {
                 </span>
               </p>
             )}
-          </div>
+          </div>}
 
           {/* Session history log */}
           {demoHistory && demoHistory.requests.length > 0 ? (
@@ -964,15 +929,15 @@ export default function LeadProfilePage() {
                         >
                           {getSessionLabel(req.status, attendanceStatus)}
                         </Badge>
-                        {isPending && (
+                        {isPending && canDemo && (
                           <>
-                            <Button
+                            {canEdit && <Button
                               size="sm" variant="outline"
                               className="text-blue-600 hover:text-blue-700 border-blue-300 text-xs h-6 px-2"
                               onClick={() => { setChangeLessonTarget(req.id); setSelectedLessonId(null); }}
                             >
                               تغيير الدرس
-                            </Button>
+                            </Button>}
                             <Button
                               size="sm" variant="outline"
                               className="text-destructive hover:text-destructive text-xs h-6 px-2"
@@ -1086,7 +1051,9 @@ export default function LeadProfilePage() {
 
             {/* Reassign select */}
             <div className="space-y-2">
-              <Label className="text-xs text-muted-foreground">إعادة التعيين لموظف</Label>
+              <Label className="text-xs text-muted-foreground">
+                {assignRole === 'ss' ? 'إعادة التعيين لموظف LP (طالب مشترك)' : 'إعادة التعيين لموظف CC'}
+              </Label>
               <div className="flex items-center gap-2">
                 <Select
                   value={assignDraft}
@@ -1096,16 +1063,18 @@ export default function LeadProfilePage() {
                     <SelectValue placeholder="اختر موظفاً..." />
                   </SelectTrigger>
                   <SelectContent>
-                    {staffList
-                      .filter((s) => s.role === 'cc' || s.role === 'ss')
-                      .map((s) => (
-                        <SelectItem key={s.id} value={String(s.id)}>
-                          <span>{s.name}</span>
-                          <span className="mr-1.5 text-muted-foreground text-xs font-mono">
-                            ({s.role === 'ss' ? 'LP' : 'CC'})
-                          </span>
-                        </SelectItem>
-                      ))}
+                    {staffList.length === 0 ? (
+                      <div className="px-2 py-1.5 text-xs text-muted-foreground">
+                        {assignRole === 'ss' ? 'لا يوجد موظفو LP' : 'لا يوجد موظفو CC'}
+                      </div>
+                    ) : staffList.map((s) => (
+                      <SelectItem key={s.id} value={String(s.id)}>
+                        <span>{s.name}</span>
+                        <span className="mr-1.5 text-muted-foreground text-xs font-mono">
+                          ({s.role === 'ss' ? 'LP' : 'CC'})
+                        </span>
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
                 <Button
@@ -1143,9 +1112,9 @@ export default function LeadProfilePage() {
       )}
 
       {/* Update Status */}
-      <Card>
+      {canWork && <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-base">تحديث الحالة</CardTitle>
+          <CardTitle className="text-base">Update status</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="flex items-center gap-3">
@@ -1158,7 +1127,7 @@ export default function LeadProfilePage() {
               </SelectTrigger>
               <SelectContent>
                 {SELECTABLE_STATUSES.map((s) => (
-                  <SelectItem key={s} value={s}>{STATUS_LABELS[s]}</SelectItem>
+                  <SelectItem key={s} value={s}>{STATUS_LABELS_EN[s]}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -1181,7 +1150,7 @@ export default function LeadProfilePage() {
             <p className="text-sm text-destructive mt-2">{statusError}</p>
           )}
         </CardContent>
-      </Card>
+      </Card>}
 
       {/* Remarks */}
       <Card>
@@ -1193,7 +1162,7 @@ export default function LeadProfilePage() {
         </CardHeader>
         <CardContent className="space-y-3">
           {/* Add remark form */}
-          <form onSubmit={handleAddRemark} className="space-y-2">
+          {canWork && <form onSubmit={handleAddRemark} className="space-y-2">
             <Label htmlFor="remark-body">إضافة ملاحظة</Label>
             <Textarea
               id="remark-body"
@@ -1211,7 +1180,7 @@ export default function LeadProfilePage() {
                 إضافة الملاحظة
               </Button>
             </div>
-          </form>
+          </form>}
 
           {/* Collapsible history */}
           <RemarksHistory
@@ -1223,183 +1192,18 @@ export default function LeadProfilePage() {
       </Card>
     </div>
 
-    {/* ── Booking Modal ── */}
-    <Dialog open={bookingOpen} onOpenChange={(o) => { if (!o) resetBooking(); }}>
-      <DialogContent className="max-w-md">
+    <BookDemoDialog leadId={leadId} open={bookingOpen} onClose={() => setBookingOpen(false)} />
 
-        {/* Progress bar */}
-        {bookStep !== 'success' && (
-          <div className="flex gap-1.5 -mt-1 mb-1">
-            {[1, 2].map((s) => (
-              <div
-                key={s}
-                className={`h-1 rounded-full flex-1 transition-all duration-300 ${
-                  bookStep === s                                           ? 'bg-amber-400' :
-                  typeof bookStep === 'number' && s < (bookStep as number) ? 'bg-amber-600' :
-                  'bg-border'
-                }`}
-              />
-            ))}
-          </div>
-        )}
-
-        {/* ── Step 1: Date + Time ── */}
-        {bookStep === 1 && (
-          <>
-            <DialogHeader>
-              <DialogTitle>متى تريد الحصة؟ 📅</DialogTitle>
-              <DialogDescription>اختر اليوم والوقت المناسب للحصة التقييمية</DialogDescription>
-            </DialogHeader>
-
-            <div className="space-y-5 overflow-y-auto max-h-[55vh] pr-0.5">
-              {/* Date selection */}
-              <div className="space-y-2">
-                <Label>اليوم</Label>
-                <div className="grid grid-cols-3 gap-2">
-                  {(['today', 'tomorrow', 'custom'] as const).map((mode) => {
-                    const label = mode === 'today' ? 'اليوم' : mode === 'tomorrow' ? 'غداً' : 'تاريخ آخر';
-                    const sub   = mode === 'today' ? fmtDate(bookToday) : mode === 'tomorrow' ? fmtDate(bookTomorrow) : null;
-                    return (
-                      <button
-                        key={mode}
-                        type="button"
-                        onClick={() => { setBookDateMode(mode); setBookMin(null); setBookError(''); }}
-                        className={`rounded-xl border-2 px-2 py-2.5 text-sm font-semibold transition-all text-center ${
-                          bookDateMode === mode
-                            ? 'border-amber-400 border-b-amber-600 border-b-[3px] bg-amber-50 dark:bg-amber-950/30 text-foreground'
-                            : 'border-border bg-muted/40 text-muted-foreground hover:bg-muted'
-                        }`}
-                      >
-                        {label}
-                        {sub && (
-                          <span className="block text-[10px] font-normal mt-0.5 text-muted-foreground">
-                            {sub}
-                          </span>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-                {bookDateMode === 'custom' && (
-                  <Input
-                    type="date" dir="ltr"
-                    min={localDateStr(new Date())}
-                    value={bookCustomDate}
-                    onChange={(e) => { setBookCustomDate(e.target.value); setBookError(''); }}
-                    className="mt-1"
-                  />
-                )}
-              </div>
-
-              {/* Time slots */}
-              <div className="space-y-2">
-                <Label>الوقت</Label>
-                <div className="grid grid-cols-4 gap-2">
-                  {TIME_SLOTS.map((slot) => {
-                    const available = isSlotAvailable(slot.min, bookDateMode);
-                    return (
-                      <button
-                        key={slot.min}
-                        type="button"
-                        disabled={!available}
-                        onClick={() => { setBookMin(slot.min); setBookError(''); }}
-                        className={`rounded-xl border-2 py-2 text-sm font-medium transition-all ${
-                          !available
-                            ? 'border-border/40 bg-muted/20 text-muted-foreground/30 cursor-not-allowed line-through'
-                            : bookMin === slot.min
-                            ? 'border-amber-400 border-b-amber-600 border-b-[3px] bg-amber-50 dark:bg-amber-950/30 text-foreground font-bold'
-                            : 'border-border bg-muted/40 text-muted-foreground hover:bg-muted'
-                        }`}
-                      >
-                        {slot.label}
-                      </button>
-                    );
-                  })}
-                </div>
-                {bookError && (
-                  <p className="text-xs text-destructive">{bookError}</p>
-                )}
-              </div>
-            </div>
-
-            <DialogFooter>
-              <Button variant="outline" onClick={resetBooking}>إلغاء</Button>
-              <Button onClick={handleNext1} className="gap-1">
-                التالي
-                <ChevronLeft className="h-4 w-4 rotate-180" />
-              </Button>
-            </DialogFooter>
-          </>
-        )}
-
-        {/* ── Step 2: Notes ── */}
-        {bookStep === 2 && (
-          <>
-            <DialogHeader>
-              <DialogTitle>ملاحظات للمعلم 📝</DialogTitle>
-              <DialogDescription>أي معلومات تساعد في تحضير الحصة التقييمية (اختياري)</DialogDescription>
-            </DialogHeader>
-
-            <div className="space-y-3">
-              <Textarea
-                autoFocus
-                value={bookNotes}
-                onChange={(e) => setBookNotes(e.target.value)}
-                placeholder="مثال: العميل مستوى متوسط — يريد التركيز على المحادثة..."
-                rows={4}
-              />
-              {bookApiError && (
-                <p className="text-sm text-destructive bg-destructive/10 rounded-md px-3 py-2">
-                  {bookApiError}
-                </p>
-              )}
-            </div>
-
-            <DialogFooter className="sm:justify-between">
-              <Button variant="ghost" onClick={() => setBookStep(1)} className="gap-1">
-                <ChevronLeft className="h-4 w-4" />
-                رجوع
-              </Button>
-              <Button onClick={handleBookSubmit} disabled={bookMutation.isPending}>
-                {bookMutation.isPending && <Loader2 className="h-4 w-4 animate-spin ml-1" />}
-                ✓ تأكيد الحجز
-              </Button>
-            </DialogFooter>
-          </>
-        )}
-
-        {/* ── Success screen ── */}
-        {bookStep === 'success' && (
-          <div className="text-center py-6 space-y-4">
-            <p className="text-6xl">🎉</p>
-            <div>
-              <h3 className="text-xl font-bold">تم الحجز بنجاح!</h3>
-              <p className="text-sm text-muted-foreground mt-1">
-                سيتلقى المعلم إشعاراً بموعد الحصة التقييمية
-              </p>
-            </div>
-            <div className="flex justify-center gap-2 flex-wrap">
-              {([
-                ['✓', 'تم الإرسال'],
-                ['⚡', 'بانتظار تأكيد المعلم'],
-                ['📅', 'الموعد محجوز'],
-              ] as const).map(([ico, lbl]) => (
-                <span
-                  key={lbl}
-                  className="flex items-center gap-1.5 text-xs bg-muted px-3 py-1.5 rounded-full border text-muted-foreground"
-                >
-                  {ico} {lbl}
-                </span>
-              ))}
-            </div>
-            <Button onClick={resetBooking} className="mt-2">
-              حسناً 👍
-            </Button>
-          </div>
-        )}
-
-      </DialogContent>
-    </Dialog>
+    {lead.active_subscription && (
+      <CancellationRequestDialog
+        open={cancelRequestOpen}
+        onClose={() => setCancelRequestOpen(false)}
+        subscriptionId={lead.active_subscription.id}
+        studentName={lead.name}
+        summary={`${lead.active_subscription.amount_paid} د.أ${lead.active_subscription.lessons_count ? ` — ${lead.active_subscription.lessons_count} درس` : ''}`}
+        onSent={() => qc.invalidateQueries({ queryKey: ['lead', leadId] })}
+      />
+    )}
 
     {/* ── Purchase Course Modal ── */}
     <Dialog open={purchaseOpen} onOpenChange={(o) => { if (!o) { setPurchaseOpen(false); setPurchaseResult(null); } }}>

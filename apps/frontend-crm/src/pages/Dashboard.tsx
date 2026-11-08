@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '@/stores/authStore';
 import client from '@/api/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Users, TrendingUp, UserCheck, Loader2, BarChart3, Clock, Banknote } from 'lucide-react';
+import { Users, TrendingUp, UserCheck, Loader2, BarChart3, Clock, Banknote, HandCoins, Wallet } from 'lucide-react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -15,6 +15,8 @@ interface AdminDashboard {
     conversion_rate:        number;
     revenue_this_month:     number;
     pending_approvals:      number;
+    teachers_due:           number;
+    cc_dues:                number;
   };
   leaderboard: {
     id:                     number;
@@ -22,6 +24,7 @@ interface AdminDashboard {
     leads_this_month:       number;
     conversions_this_month: number;
     total_leads:            number;
+    sales_this_month:       number;
     conversion_rate:        number;
   }[];
   period: { start: string; end: string; label: string };
@@ -47,7 +50,7 @@ function StatCard({
             <Icon className={`h-5 w-5 ${iconClass}`} />
           </div>
           <div className="min-w-0">
-            <p className="text-xs text-muted-foreground truncate">{label}</p>
+            <p className="text-xs text-muted-foreground">{label}</p>
             <p className="text-2xl font-bold leading-tight">{value}</p>
             {sub && <p className="text-xs text-muted-foreground">{sub}</p>}
           </div>
@@ -107,7 +110,7 @@ export default function DashboardPage() {
       ) : (
         <>
           {/* ── Stats ── */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
             <StatCard
               label="ليدات دخلت هذا الشهر"
               value={s?.leads_this_month ?? 0}
@@ -137,6 +140,22 @@ export default function DashboardPage() {
               iconClass="text-purple-600"
               bgClass="bg-purple-50 dark:bg-purple-950/30"
             />
+            <StatCard
+              label="المستحق للمعلمين"
+              value={`${(s?.teachers_due ?? 0).toLocaleString()} د.أ`}
+              sub="إجمالي الأرصدة منذ آخر تصفير"
+              icon={HandCoins}
+              iconClass="text-rose-600"
+              bgClass="bg-rose-50 dark:bg-rose-950/30"
+            />
+            <StatCard
+              label="مستحقات CC"
+              value={`${(s?.cc_dues ?? 0).toLocaleString()} د.أ`}
+              sub="إجمالي المبالغ المضافة منذ آخر تصفير"
+              icon={Wallet}
+              iconClass="text-sky-600"
+              bgClass="bg-sky-50 dark:bg-sky-950/30"
+            />
           </div>
 
           {/* ── Employee performance ── */}
@@ -162,6 +181,7 @@ export default function DashboardPage() {
                         <th className="text-center px-4 py-2.5 font-medium">ليدات الشهر</th>
                         <th className="text-center px-4 py-2.5 font-medium">مشترين</th>
                         <th className="text-center px-4 py-2.5 font-medium">نسبة التحويل</th>
+                        <th className="text-center px-4 py-2.5 font-medium">المبيعات</th>
                         <th className="text-center px-4 py-2.5 font-medium text-xs text-muted-foreground/70">إجمالي الليدات</th>
                       </tr>
                     </thead>
@@ -178,6 +198,11 @@ export default function DashboardPage() {
                           </td>
                           <td className="px-4 py-3 text-center">
                             <RateBadge rate={row.conversion_rate} />
+                          </td>
+                          <td className="px-4 py-3 text-center tabular-nums whitespace-nowrap">
+                            <span className={row.sales_this_month > 0 ? 'font-bold text-emerald-700' : 'text-muted-foreground'}>
+                              {row.sales_this_month.toLocaleString()} د.أ
+                            </span>
                           </td>
                           <td className="px-4 py-3 text-center text-muted-foreground text-xs tabular-nums">
                             {row.total_leads}

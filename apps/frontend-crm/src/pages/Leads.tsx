@@ -4,6 +4,7 @@ import { type ColumnDef } from '@tanstack/react-table';
 import { useQuery } from '@tanstack/react-query';
 
 import { leadsApi, type Lead, type LeadStatus, POOL_STATUSES } from '@/api/leads';
+import { MoveToSeaButton } from '@/components/leads/MoveToSeaButton';
 import { DataTable, SortableHeader } from '@/components/ui/data-table';
 import { Badge }    from '@/components/ui/badge';
 import { Button }   from '@/components/ui/button';
@@ -13,6 +14,8 @@ import {
 } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Search, ChevronLeft, Filter, Gem, X } from 'lucide-react';
+import { DateRangeFilter } from '@/components/filters/DateRangeFilter';
+import { useDebounced } from '@/hooks/useDebounced';
 
 /* ─────────────────────────── Status helpers ────────────────────────────── */
 export const STATUS_LABELS: Record<LeadStatus, string> = {
@@ -24,6 +27,18 @@ export const STATUS_LABELS: Record<LeadStatus, string> = {
   trial_session:  'حصة تجريبية',
   open_sea:       'البحر المفتوح',
   subscriber:     'مشترك',
+};
+
+/** English labels — used on the English list pages (Lead Pool, Open Sea). */
+export const STATUS_LABELS_EN: Record<LeadStatus, string> = {
+  new:            'New',
+  no_answer:      'No answer',
+  interested:     'Interested',
+  not_interested: 'Not interested',
+  postponed:      'Postponed',
+  trial_session:  'Trial session',
+  open_sea:       'Open Sea',
+  subscriber:     'Subscribed',
 };
 
 export const STATUS_VARIANT: Record<
@@ -41,7 +56,8 @@ export const STATUS_VARIANT: Record<
 };
 
 /** الحالات المسموح بفلترتها داخل Lead Pool */
-const POOL_FILTER_STATUSES: LeadStatus[] = ['no_answer', 'interested', 'not_interested', 'postponed', 'trial_session', 'subscriber'];
+// Subscribed students don't stay in the Lead Pool
+const POOL_FILTER_STATUSES: LeadStatus[] = ['no_answer', 'interested', 'not_interested', 'postponed', 'trial_session'];
 
 
 /* ─────────────────────────── Column Definitions ────────────────────────── */
@@ -49,7 +65,7 @@ function useLeadColumns(onView: (lead: Lead) => void): ColumnDef<Lead, unknown>[
   return [
     {
       accessorKey: 'name',
-      header: ({ column }) => <SortableHeader column={column} label="الاسم" />,
+      header: ({ column }) => <SortableHeader column={column} label="Name" />,
       cell: ({ row }) => (
         <span className="flex items-center gap-1.5 font-medium">
           {row.original.name}
@@ -61,7 +77,7 @@ function useLeadColumns(onView: (lead: Lead) => void): ColumnDef<Lead, unknown>[
     },
     {
       accessorKey: 'phone',
-      header: 'رقم الجوال',
+      header: 'Phone',
       cell: ({ row }) => (
         <span dir="ltr" className="text-muted-foreground">{row.original.phone}</span>
       ),
@@ -69,33 +85,37 @@ function useLeadColumns(onView: (lead: Lead) => void): ColumnDef<Lead, unknown>[
     },
     {
       accessorKey: 'status',
-      header: ({ column }) => <SortableHeader column={column} label="الحالة" />,
+      header: ({ column }) => <SortableHeader column={column} label="Status" />,
       cell: ({ row }) => (
-        <Badge variant={STATUS_VARIANT[row.original.status]}>
-          {STATUS_LABELS[row.original.status]}
-        </Badge>
+        <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+          <Badge variant={STATUS_VARIANT[row.original.status]}>
+            {STATUS_LABELS_EN[row.original.status]}
+          </Badge>
+          {/* Stale 5+ days → manual transfer to the Open Sea */}
+          {row.original.needs_transfer && <MoveToSeaButton lead={row.original} size="xs" />}
+        </div>
       ),
     },
     {
       accessorKey: 'created_at',
-      header: ({ column }) => <SortableHeader column={column} label="تاريخ الإضافة" />,
+      header: ({ column }) => <SortableHeader column={column} label="Added on" />,
       cell: ({ row }) => (
-        <span className="text-muted-foreground text-xs">
-          {new Date(row.original.created_at).toLocaleDateString('ar-JO')}
+        <span className="text-muted-foreground text-xs" dir="ltr">
+          {new Date(row.original.created_at).toLocaleDateString('en-GB')}
         </span>
       ),
     },
     {
       accessorKey: 'demo_session',
-      header: 'موعد الحصة',
+      header: 'Trial session',
       enableSorting: false,
       cell: ({ row }) => row.original.demo_session?.scheduled_at ? (
-        <span className="text-xs text-primary font-medium">
-          {new Date(row.original.demo_session.scheduled_at).toLocaleDateString('ar-JO', {
+        <span className="text-xs text-primary font-medium" dir="ltr">
+          {new Date(row.original.demo_session.scheduled_at).toLocaleDateString('en-GB', {
             day: 'numeric', month: 'short',
           })}
           {' '}
-          {new Date(row.original.demo_session.scheduled_at).toLocaleTimeString('ar-JO', {
+          {new Date(row.original.demo_session.scheduled_at).toLocaleTimeString('en-GB', {
             hour: '2-digit', minute: '2-digit',
           })}
         </span>
@@ -125,10 +145,12 @@ export default function LeadsPage() {
   const navigate = useNavigate();
   const [search,       setSearch]       = useState('');
   const [statusFilter, setStatusFilter] = useState<LeadStatus | 'all'>('all');
-  const [dateFilter,   setDateFilter]   = useState('');
+  const [dateFrom,     setDateFrom]     = useState('');
+  const [dateTo,       setDateTo]       = useState('');
   const [page,         setPage]         = useState(1);
 
-  const hasFilters = search || statusFilter !== 'all' || dateFilter;
+  const hasFilters = search || statusFilter !== 'all' || dateFrom || dateTo;
+  const debouncedSearch = useDebounced(search.trim());
 
   /*
    * Lead Pool يعرض حالتين فقط: working + subscriber
@@ -139,8 +161,15 @@ export default function LeadsPage() {
   const apiStatus = statusFilter === 'all' ? POOL_STATUSES : statusFilter;
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['leads', page, search, statusFilter, dateFilter],
-    queryFn:  () => leadsApi.list({ page, search, status: apiStatus, date: dateFilter || undefined }),
+    queryKey: ['leads', page, debouncedSearch, statusFilter, dateFrom, dateTo],
+    queryFn:  () => leadsApi.list({
+      page,
+      search:    debouncedSearch || undefined,
+      status:    apiStatus,
+      date_from: dateFrom || undefined,
+      date_to:   dateTo || undefined,
+      exclude_subscribed: 1,
+    }),
     staleTime: 30_000,
   });
 
@@ -153,8 +182,8 @@ export default function LeadsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Lead Pool</h1>
-          <p className="text-muted-foreground text-sm mt-0.5">
-            {data ? `${data.total} عميل محتمل` : ' '}
+          <p className="text-muted-foreground text-sm mt-0.5" dir="ltr">
+            {data ? `${data.total} leads` : ' '}
           </p>
         </div>
       </div>
@@ -165,7 +194,8 @@ export default function LeadsPage() {
           <div className="relative flex-1 min-w-[200px] max-w-sm">
             <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="ابحث بالاسم أو الرقم..."
+              placeholder="Search by name or phone…"
+              dir="auto"
               value={search}
               onChange={(e) => { setSearch(e.target.value); setPage(1); }}
               className="pr-9"
@@ -182,45 +212,34 @@ export default function LeadsPage() {
               onValueChange={(v) => { setStatusFilter(v as LeadStatus | 'all'); setPage(1); }}
             >
               <SelectTrigger className="w-44">
-                <SelectValue placeholder="كل الحالات" />
+                <SelectValue placeholder="All statuses" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">كل الحالات</SelectItem>
+                <SelectItem value="all">All statuses</SelectItem>
                 {POOL_FILTER_STATUSES.map((s) => (
-                  <SelectItem key={s} value={s}>{STATUS_LABELS[s]}</SelectItem>
+                  <SelectItem key={s} value={s}>{STATUS_LABELS_EN[s]}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
 
-            {/* Date filter */}
-            <div className="relative">
-              <Input
-                type="date"
-                dir="ltr"
-                value={dateFilter}
-                onChange={(e) => { setDateFilter(e.target.value); setPage(1); }}
-                className={`w-40 text-sm ${dateFilter ? 'border-primary ring-1 ring-primary/20' : ''}`}
-              />
-              {dateFilter && (
-                <button
-                  type="button"
-                  onClick={() => { setDateFilter(''); setPage(1); }}
-                  className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                >
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              )}
-            </div>
+            {/* Date range — the date the lead was added */}
+            <DateRangeFilter
+              from={dateFrom}
+              to={dateTo}
+              onFrom={(v) => { setDateFrom(v); setPage(1); }}
+              onTo={(v) => { setDateTo(v); setPage(1); }}
+              onClear={() => { setDateFrom(''); setDateTo(''); setPage(1); }}
+            />
 
             {/* Clear all filters */}
             {hasFilters && (
               <Button
                 variant="ghost" size="sm"
-                onClick={() => { setSearch(''); setStatusFilter('all'); setDateFilter(''); setPage(1); }}
+                onClick={() => { setSearch(''); setStatusFilter('all'); setDateFrom(''); setDateTo(''); setPage(1); }}
                 className="text-muted-foreground text-xs gap-1"
               >
                 <X className="h-3.5 w-3.5" />
-                مسح الكل
+                Clear all
               </Button>
             )}
           </div>
@@ -229,7 +248,7 @@ export default function LeadsPage() {
         {/* Table */}
         <Card>
           <CardHeader className="pb-0">
-            <CardTitle className="text-base font-semibold">قائمة العملاء</CardTitle>
+            <CardTitle className="text-base font-semibold">Leads</CardTitle>
           </CardHeader>
           <CardContent className="pt-4">
             <DataTable
@@ -243,8 +262,8 @@ export default function LeadsPage() {
                   <p className="text-3xl">📋</p>
                   <p>
                     {hasFilters
-                      ? 'لا توجد نتائج للفلاتر المحددة'
-                      : 'لا توجد ليدات في الـ Pool — الليدات تنتقل هنا بعد بدء العمل عليها'}
+                      ? 'No leads match these filters'
+                      : 'No leads in the pool yet — leads move here once work on them starts'}
                   </p>
                 </div>
               }
@@ -253,21 +272,21 @@ export default function LeadsPage() {
             {/* Pagination */}
             {data && data.last_page > 1 && (
               <div className="flex items-center justify-between mt-4 pt-4 border-t">
-                <p className="text-sm text-muted-foreground">
-                  صفحة {data.current_page} من {data.last_page}
+                <p className="text-sm text-muted-foreground" dir="ltr">
+                  Page {data.current_page} of {data.last_page}
                   {' '}·{' '}
-                  {data.total} نتيجة
+                  {data.total} results
                 </p>
                 <div className="flex gap-2">
                   <Button variant="outline" size="sm"
                     disabled={page === 1}
                     onClick={() => setPage((p) => p - 1)}>
-                    السابق
+                    Previous
                   </Button>
                   <Button variant="outline" size="sm"
                     disabled={page === data.last_page}
                     onClick={() => setPage((p) => p + 1)}>
-                    التالي
+                    Next
                   </Button>
                 </div>
               </div>
