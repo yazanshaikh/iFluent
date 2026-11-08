@@ -47,6 +47,8 @@ class LeadResource extends JsonResource
             ),
 
             'moved_to_open_sea_at' => $this->moved_to_open_sea_at?->toIso8601String(),
+            // Red "ترحيل" flag — the lead is stale and can be moved to the Open Sea (manually)
+            'needs_transfer'       => $this->resource->isStaleForOpenSea(),
             'converted_at'         => $this->converted_at?->toIso8601String(),
             'converted_by'         => $this->when(
                 $this->status === 'subscriber' && $this->relationLoaded('student'),
@@ -58,7 +60,7 @@ class LeadResource extends JsonResource
             ),
             'active_subscription'  => $this->when(
                 $this->status === 'subscriber' && $this->relationLoaded('student'),
-                function () {
+                function () use ($viewer) {
                     $sub = $this->student?->subscriptions
                         ?->where('status', 'active')
                         ->sortByDesc('id')
@@ -76,10 +78,27 @@ class LeadResource extends JsonResource
                         'activated_at'   => $sub->activated_at?->setTimezone('Asia/Amman')->toDateTimeString(),
                         'amount_paid'    => $sub->amount_paid,
                         'lessons_count'  => $sub->lessons_count,
+                        'remaining_lessons' => (int) ($this->student->user?->lesson_credits ?? 0),
+                        'is_near_end' => $viewer && !$viewer->isCC()
+                            && (int) ($this->student->user?->lesson_credits ?? 0) <= \App\Models\Subscription::NEAR_END_LESSONS,
+                        'has_pending_cancellation' => \App\Models\SubscriptionCancellationRequest::where('subscription_id', $sub->id)
+                            ->where('status', 'pending')->exists(),
                         'from_lesson'    => $fromLesson ? ['id' => $fromLesson->id, 'title' => $fromLesson->title] : null,
                         'to_lesson'      => $toLesson   ? ['id' => $toLesson->id,   'title' => $toLesson->title]   : null,
                     ];
                 }
+            ),
+            // Teacher the (subscribed) student is assigned to — null when the
+            // lead has no student account; teacher null when not assigned yet.
+            'teacher_assignment'   => $this->when(
+                $this->relationLoaded('student'),
+                fn () => $this->student ? [
+                    'teacher' => $this->student->teacher ? [
+                        'id'        => $this->student->teacher->id,
+                        'name'      => $this->student->teacher->name,
+                        'is_active' => is_null($this->student->teacher->deleted_at),
+                    ] : null,
+                ] : null
             ),
             'created_at'           => $this->created_at->toIso8601String(),
         ];
@@ -87,19 +106,28 @@ class LeadResource extends JsonResource
 
     private function resolvePhone(?User $viewer): string
     {
-        if (!$viewer) return $this->maskPhone($this->phone);
-
-        if ($viewer->isSuperAdmin()) return $this->phone;
-
-        // CC staff sees phone only for their own leads
-        if ($viewer->isCC() && $this->assigned_to === $viewer->id) {
-            return $this->phone;
-        }
-
-        return $this->maskPhone($this->phone);
+        return self::phoneFor($this->resource, $viewer);
     }
 
-    private function maskPhone(string $phone): string
+    /**
+     * The phone a given viewer may see for a lead — full for admin and the
+     * owning CC or LP, masked for everyone else. Shared with the Paid Students list.
+     */
+    public static function phoneFor(\App\Models\Lead $lead, ?User $viewer): string
+    {
+        if (!$viewer) return self::maskPhone($lead->phone);
+
+        if ($viewer->isSuperAdmin()) return $lead->phone;
+
+        // CC / LP staff see the phone only for their own leads
+        if (($viewer->isCC() || $viewer->isSS()) && $lead->assigned_to === $viewer->id) {
+            return $lead->phone;
+        }
+
+        return self::maskPhone($lead->phone);
+    }
+
+    private static function maskPhone(string $phone): string
     {
         // Show first 4 and last 2 digits: 009627*****67
         if (strlen($phone) <= 6) return '***';

@@ -14,6 +14,7 @@ class Student extends Model
     protected $fillable = [
         'user_id',
         'lead_id',
+        'teacher_user_id',
         'profile_photo',
     ];
 
@@ -27,6 +28,12 @@ class Student extends Model
     public function lead(): BelongsTo
     {
         return $this->belongsTo(Lead::class);
+    }
+
+    /** The teacher this student is assigned to (kept visible if the teacher is deactivated). */
+    public function teacher(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'teacher_user_id')->withTrashed();
     }
 
     public function subscriptions(): HasMany

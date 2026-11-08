@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources\Api\V1;
 
+use App\Services\TeacherStatsService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -43,31 +44,8 @@ class StaffResource extends JsonResource
         $teacher = $this->resource->teacher ?? null;
         if (!$teacher) return null;
 
-        $baseAll = \DB::table('sessions')
-            ->where('teacher_id', $this->id)
-            ->where('status', 'completed');
-
-        // sessions_count: since last sessions reset
-        $baseSessions = (clone $baseAll);
-        if ($teacher->sessions_count_reset_at) {
-            $baseSessions->where('ended_at', '>', $teacher->sessions_count_reset_at);
-        }
-        $sessionsCount = (clone $baseSessions)->where('attendance_status', 'attended')->count();
-
-        // absences_count: since last absences reset
-        $baseAbsences = (clone $baseAll);
-        if ($teacher->absences_reset_at) {
-            $baseAbsences->where('ended_at', '>', $teacher->absences_reset_at);
-        }
-        $absencesCount = (clone $baseAbsences)->where('attendance_status', 'teacher_absent')->count();
-
-        // balance: sessions since last balance reset × commission_rate
         $commissionRate = (float) $teacher->commission_rate;
-        $baseBalance    = (clone $baseAll)->where('attendance_status', 'attended');
-        if ($teacher->balance_reset_at) {
-            $baseBalance->where('ended_at', '>', $teacher->balance_reset_at);
-        }
-        $balance = (clone $baseBalance)->count() * $commissionRate;
+        $stats = app(TeacherStatsService::class)->forTeacher($teacher);
 
         $avgRating = \DB::table('session_ratings')->where('teacher_id', $this->id)->avg('rating');
 
@@ -77,10 +55,19 @@ class StaffResource extends JsonResource
             'specialization'          => $teacher->specialization,
             'profile_photo'           => $teacher->profile_photo,
             'commission_rate'         => $commissionRate,
-            'balance'                 => $balance,
+            'balance'                 => $stats['balance'],
+            'session_commission'      => $stats['session_commission'],
+            'conversion_commission'   => $stats['conversion_commission'],
+            'conversion_commission_rate' => (float) $teacher->conversion_commission_rate,
+            'group_commission'        => $stats['group_commission'],
+            'group_commission_rate'   => (float) $teacher->group_commission_rate,
             'is_active'               => $teacher->is_active,
-            'sessions_count'          => $sessionsCount,
-            'absences_count'          => $absencesCount,
+            'sessions_count'          => $stats['sessions_count'],      // trial + regular
+            'trial_sessions'          => $stats['trial_sessions'],
+            'regular_sessions'        => $stats['regular_sessions'],
+            'conversion_points'       => $stats['conversion_points'],
+            'group_sessions'          => $stats['group_sessions'],
+            'absences_count'          => $stats['absences_count'],
             'avg_rating'              => $avgRating ? round($avgRating, 1) : null,
             'sessions_count_reset_at' => $teacher->sessions_count_reset_at?->toDateTimeString(),
             'balance_reset_at'        => $teacher->balance_reset_at?->toDateTimeString(),

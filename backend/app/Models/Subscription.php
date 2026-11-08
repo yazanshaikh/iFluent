@@ -16,6 +16,12 @@ class Subscription extends Model
     const STATUS_EXPIRED            = 'expired';
     const STATUS_CANCELLED          = 'cancelled';
 
+    /** An active package with this many lessons left (or fewer) is flagged as ending soon. */
+    const NEAR_END_LESSONS = 3;
+
+    /** Days a no-longer-subscribed student stays on the Paid Students list. */
+    const NOT_SUBSCRIBED_GRACE_DAYS = 3;
+
     protected $fillable = [
         'invoice_uuid',
         'student_id',

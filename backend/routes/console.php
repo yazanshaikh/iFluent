@@ -3,7 +3,7 @@
 use App\Console\Commands\ExpireDemoBookings;
 use App\Console\Commands\ExpireSessionsCommand;
 use App\Console\Commands\ExpireStudentBookings;
-use App\Console\Commands\MoveLeadsToOpenSea;
+use App\Console\Commands\ExpireSubscriptions;
 use App\Console\Commands\SendSessionReminders;
 use Illuminate\Support\Facades\Schedule;
 
@@ -16,8 +16,13 @@ Schedule::command(ExpireStudentBookings::class)->everyFifteenMinutes();
 // Auto-complete stale sessions + purge records older than 24h — every 5 min
 Schedule::command(ExpireSessionsCommand::class)->everyFiveMinutes();
 
-// Move stale leads (5 days with no action) to Open Sea — midnight Jordan time (UTC+3 = 21:00 UTC)
-Schedule::command(MoveLeadsToOpenSea::class)->dailyAt('21:00');
+// Stale leads (5 days with no action) are NO LONGER moved to the Open Sea
+// automatically — they get a red "ترحيل" flag in the CRM and staff confirm the
+// move (LeadController::moveToSea). The ifluent:open-sea command still exists
+// for a manual bulk run but is not scheduled.
+
+// Expire subscriptions past their end date with no lessons left — hourly
+Schedule::command(ExpireSubscriptions::class)->hourly();
 
 // Send push reminder ~10 min before each session — every minute
 Schedule::command(SendSessionReminders::class)->everyMinute();

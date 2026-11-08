@@ -12,9 +12,17 @@ class AssignLeadRequest extends FormRequest
     public function rules(): array
     {
         return [
-            // The staff member to assign to — must be CC or SS
+            // Leads are assigned to an ACTIVE CC only. (Paid students go to LP
+            // through PaidStudentController::assign, which keeps their status.)
             'user_id' => ['required', 'integer',
-                Rule::exists('users', 'id')->whereIn('role', ['cc', 'ss'])],
+                Rule::exists('users', 'id')->where('role', 'cc')->whereNull('deleted_at')],
+        ];
+    }
+
+    public function messages(): array
+    {
+        return [
+            'user_id.exists' => 'يمكن تعيين الليدة لموظف CC فعّال فقط.',
         ];
     }
 }

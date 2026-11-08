@@ -143,8 +143,20 @@ class RequestController extends Controller
             'nearpod_pin' => ['sometimes', 'nullable', 'string', 'max:20'],
         ]);
 
+        // Older trial bookings were saved without a lesson; give them the default
+        // trial lesson so they can still be accepted.
+        $fallbackLessonId = $sessionRequest->lesson_id
+            ? null
+            : ($sessionRequest->type === SessionRequest::TYPE_DEMO
+                ? \App\Models\Lesson::defaultAssessment()->first()?->id
+                : null);
+
+        if (!$sessionRequest->lesson_id && !$fallbackLessonId) {
+            return response()->json(['message' => 'No lesson is available for this request.'], 422);
+        }
+
         // Use a DB transaction + lock to prevent double-acceptance from pool
-        $session = DB::transaction(function () use ($sessionRequest, $teacher, $validated) {
+        $session = DB::transaction(function () use ($sessionRequest, $teacher, $validated, $fallbackLessonId) {
             // Re-fetch with lock to prevent race condition on pool requests
             $locked = SessionRequest::lockForUpdate()->find($sessionRequest->id);
 
@@ -153,7 +165,7 @@ class RequestController extends Controller
             }
 
             $session = Session::create([
-                'lesson_id'    => $locked->lesson_id,
+                'lesson_id'    => $locked->lesson_id ?? $fallbackLessonId,
                 'teacher_id'   => $teacher->id,
                 'student_id'   => $locked->student_id,   // null for a lead-only trial
                 'lead_id'      => $locked->lead_id,       // keep the lead link so they can join
@@ -175,6 +187,7 @@ class RequestController extends Controller
                 'assigned_teacher_id' => $teacher->id,
                 'confirmed_at'        => now(),
                 'session_id'          => $session->id,
+                'lesson_id'           => $session->lesson_id,
             ]);
 
             return $session;

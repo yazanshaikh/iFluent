@@ -11,7 +11,9 @@ use App\Models\Lead;
 use App\Models\LeadRemark;
 use App\Models\SessionRequest;
 use App\Models\Teacher;
+use App\Models\CcLedgerEntry;
 use App\Models\User;
+use App\Services\CcSalesService;
 use App\Services\TeacherCodeGenerator;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -35,6 +37,23 @@ class StaffController extends Controller
             ->latest();
 
         return StaffResource::collection($query->paginate(20));
+    }
+
+    // ─── Assignable staff ─────────────────────────────────────────────────────
+    /**
+     * GET /admin/staff/assignable?role=cc|ss — every ACTIVE staff member of that
+     * role (no pagination). Feeds the assign pickers: leads → CC only,
+     * paid students → LP (ss) only.
+     */
+    public function assignable(Request $request): JsonResponse
+    {
+        $data = $request->validate(['role' => ['nullable', 'in:cc,ss']]);
+
+        return response()->json([
+            'data' => User::where('role', $data['role'] ?? User::ROLE_CC)
+                ->orderBy('name')
+                ->get(['id', 'name', 'role']),
+        ]);
     }
 
     // ─── Show One Staff Member ────────────────────────────────────────────────
@@ -195,6 +214,81 @@ class StaffController extends Controller
             'absences_reset_at'       => $now,   // reset absences together with sessions
         ]);
         return response()->json(['message' => 'Sessions count reset.', 'reset_at' => $now->toDateTimeString()]);
+    }
+
+    /** GET /admin/staff/{id}/sales — a CC's sales since the counter last started */
+    public function sales(int $id, CcSalesService $sales): JsonResponse
+    {
+        $cc = $this->findCc($id);
+
+        return response()->json([...$sales->forUser($cc), ...$sales->ledger($cc)]);
+    }
+
+    /** POST /admin/staff/{id}/due { amount } — add to what the CC is due */
+    public function addDue(int $id, Request $request, CcSalesService $sales): JsonResponse
+    {
+        return $this->addLedgerEntry($id, CcLedgerEntry::TYPE_DUE, $request, $sales);
+    }
+
+    /** POST /admin/staff/{id}/refunds { amount } — record a refund against the CC */
+    public function addRefund(int $id, Request $request, CcSalesService $sales): JsonResponse
+    {
+        return $this->addLedgerEntry($id, CcLedgerEntry::TYPE_REFUND, $request, $sales);
+    }
+
+    /** POST /admin/staff/{id}/reset-due */
+    public function resetDue(int $id, CcSalesService $sales): JsonResponse
+    {
+        return $this->settleLedger($id, CcLedgerEntry::TYPE_DUE, $sales);
+    }
+
+    /** POST /admin/staff/{id}/reset-refunds */
+    public function resetRefunds(int $id, CcSalesService $sales): JsonResponse
+    {
+        return $this->settleLedger($id, CcLedgerEntry::TYPE_REFUND, $sales);
+    }
+
+    private function addLedgerEntry(int $id, string $type, Request $request, CcSalesService $sales): JsonResponse
+    {
+        $data = $request->validate([
+            'amount' => ['required', 'numeric', 'gt:0', 'max:99999999.99', 'decimal:0,2'],
+        ]);
+        $cc = $this->findCc($id);
+
+        CcLedgerEntry::create([
+            'user_id'    => $cc->id,
+            'type'       => $type,
+            'amount'     => $data['amount'],
+            'created_by' => $request->user()->id,
+        ]);
+
+        return response()->json([...$sales->forUser($cc), ...$sales->ledger($cc)], 201);
+    }
+
+    private function settleLedger(int $id, string $type, CcSalesService $sales): JsonResponse
+    {
+        $cc = $this->findCc($id);
+
+        CcLedgerEntry::where('user_id', $cc->id)->where('type', $type)->open()
+            ->update(['settled_at' => now()]);
+
+        return response()->json([...$sales->forUser($cc), ...$sales->ledger($cc)]);
+    }
+
+    /** POST /admin/staff/{id}/reset-sales — start a CC's sales counter again from now */
+    public function resetSales(int $id, CcSalesService $sales): JsonResponse
+    {
+        $cc = $this->findCc($id);
+        $cc->update(['sales_reset_at' => now()]);
+
+        $cc = $cc->fresh();
+
+        return response()->json([...$sales->forUser($cc), ...$sales->ledger($cc)]);
+    }
+
+    private function findCc(int $id): User
+    {
+        return User::withTrashed()->where('role', User::ROLE_CC)->findOrFail($id);
     }
 
     public function resetBalance(int $id): JsonResponse

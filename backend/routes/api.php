@@ -11,10 +11,12 @@ use App\Http\Controllers\Api\V1\Admin\StudentEnrollmentController;
 use App\Http\Controllers\Api\V1\Admin\SubscriptionController as AdminSubscriptionController;
 use App\Http\Controllers\Api\V1\Auth\CrmAuthController;
 use App\Http\Controllers\Api\V1\Auth\StudentAuthController;
+use App\Http\Controllers\Api\V1\Crm\CancellationRequestController;
 use App\Http\Controllers\Api\V1\Crm\CheckoutController;
 use App\Http\Controllers\Api\V1\Crm\DashboardController;
 use App\Http\Controllers\Api\V1\Crm\PaidStudentController;
 use App\Http\Controllers\Api\V1\Crm\ProcessOrderController;
+use App\Http\Controllers\Api\V1\Crm\TeacherStudentController;
 use App\Http\Controllers\Api\V1\Crm\DemoBookingController;
 use App\Http\Controllers\Api\V1\Crm\LeadController;
 use App\Http\Controllers\Api\V1\Crm\LeadRemarkController;
@@ -107,6 +109,7 @@ Route::middleware(['auth:sanctum', 'role:super_admin,cc,ss'])
         Route::post('leads/{lead}/recall',         [LeadController::class, 'recall']);
         Route::post('leads/{lead}/small-treasure', [LeadController::class, 'toggleSmallTreasure']);
         Route::post('leads/{lead}/pull-from-sea',  [LeadController::class, 'pullFromSea']);
+        Route::post('leads/{lead}/move-to-sea',    [LeadController::class, 'moveToSea']);   // manual "ترحيل" 
 
         // ── Remarks ────────────────────────────────────────────────────────────
         Route::post('leads/{lead}/remarks', [LeadRemarkController::class, 'store']);
@@ -140,6 +143,36 @@ Route::middleware(['auth:sanctum', 'role:super_admin,cc,ss'])
         Route::get('lessons',            [AdminLessonController::class, 'index']);        // lesson-range picker
     });
 
+// ─── CRM — CC only: own sales counter (My Profile) ───────────────────────────
+Route::middleware(['auth:sanctum', 'role:cc'])
+    ->prefix('crm')
+    ->group(function () {
+        Route::get('me/sales', [DashboardController::class, 'mySales']);
+    });
+
+// ─── CRM — Admin + SS (LP): teachers and the students assigned to them ───────
+Route::middleware(['auth:sanctum', 'role:super_admin,ss'])
+    ->prefix('crm')
+    ->group(function () {
+        Route::get   ('paid-students/near-end-count',          [PaidStudentController::class, 'nearEndCount']);
+        Route::get   ('teachers',                              [TeacherStudentController::class, 'index']);
+        Route::get   ('teachers/unassigned-students',          [TeacherStudentController::class, 'unassigned']);
+        Route::get   ('teachers/{id}',                         [TeacherStudentController::class, 'show'])->whereNumber('id');
+        Route::get   ('teachers/{id}/students',                [TeacherStudentController::class, 'students'])->whereNumber('id');
+        Route::post  ('teachers/{id}/students',                [TeacherStudentController::class, 'assign'])->whereNumber('id');
+        Route::delete('teachers/{id}/students/{student}',      [TeacherStudentController::class, 'unassign'])->whereNumber('id');
+    });
+
+// ─── CRM — SS (LP) only: subscription cancellation requests ──────────────────
+// Staff can only REQUEST a cancellation; super_admin approves / rejects it below.
+Route::middleware(['auth:sanctum', 'role:ss'])
+    ->prefix('crm')
+    ->group(function () {
+        Route::post('subscriptions/{subscription}/cancellation-requests', [CancellationRequestController::class, 'store']);
+        Route::get ('cancellation-requests/mine',                         [CancellationRequestController::class, 'mine']);
+        Route::post('cancellation-requests/{cancellationRequest}/withdraw', [CancellationRequestController::class, 'withdraw']);
+    });
+
 // ─── Admin Only ───────────────────────────────────────────────────────────────
 Route::middleware(['auth:sanctum', 'role:super_admin'])
     ->prefix('admin')
@@ -148,6 +181,7 @@ Route::middleware(['auth:sanctum', 'role:super_admin'])
         // ── Staff Management ───────────────────────────────────────────────────
         Route::get ('staff',                       [StaffController::class, 'index']);
         Route::get ('staff/performance',           [StaffController::class, 'performance']);
+        Route::get ('staff/assignable',            [StaffController::class, 'assignable']);
         Route::get ('staff/{id}',                  [StaffController::class, 'show']);
         Route::post('staff/crm',                   [StaffController::class, 'createCrmStaff']);
         Route::post('staff/teachers',              [StaffController::class, 'createTeacher']);
@@ -156,6 +190,12 @@ Route::middleware(['auth:sanctum', 'role:super_admin'])
         Route::post('staff/{id}/toggle-status',    [StaffController::class, 'toggleStatus']);
         Route::post('staff/{id}/reset-sessions',   [StaffController::class, 'resetSessionsCount']);
         Route::post('staff/{id}/reset-balance',    [StaffController::class, 'resetBalance']);
+        Route::get ('staff/{id}/sales',            [StaffController::class, 'sales']);
+        Route::post('staff/{id}/reset-sales',      [StaffController::class, 'resetSales']);
+        Route::post('staff/{id}/due',              [StaffController::class, 'addDue']);
+        Route::post('staff/{id}/reset-due',        [StaffController::class, 'resetDue']);
+        Route::post('staff/{id}/refunds',          [StaffController::class, 'addRefund']);
+        Route::post('staff/{id}/reset-refunds',    [StaffController::class, 'resetRefunds']);
         Route::get ('staff/{id}/demo-bookings',    [StaffController::class, 'teacherDemoBookings']);
 
         // ── Subscription Approvals ─────────────────────────────────────────────
@@ -166,6 +206,14 @@ Route::middleware(['auth:sanctum', 'role:super_admin'])
         Route::post('subscriptions/{subscription}/cancel-subscription', [AdminSubscriptionController::class, 'cancelSubscription']);
         Route::get ('subscriptions/{subscription}/screenshot',          [AdminSubscriptionController::class, 'screenshot'])
             ->name('admin.subscription.screenshot');
+
+        // ── Paid Students: assign to a follow-up (LP) staff member ─────────────
+        Route::post('paid-students/{lead}/assign', [PaidStudentController::class, 'assign']);
+
+        // ── Subscription Cancellation Requests (raised by LP) ──────────────────
+        Route::get ('cancellation-requests',                                [CancellationRequestController::class, 'index']);
+        Route::post('cancellation-requests/{cancellationRequest}/approve',  [CancellationRequestController::class, 'approve']);
+        Route::post('cancellation-requests/{cancellationRequest}/reject',   [CancellationRequestController::class, 'reject']);
 
         // ── Student Unit Enrollment ────────────────────────────────────────────
         Route::get ('students/{student}/units',         [StudentEnrollmentController::class, 'index']);

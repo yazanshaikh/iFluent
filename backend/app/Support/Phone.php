@@ -61,6 +61,30 @@ class Phone
     }
 
     /**
+     * Digits to LIKE-search stored E.164 phones with, from whatever staff typed:
+     * "0786 314 292", "786314292", "+962786314292", "00962…" or Arabic digits
+     * all reduce to a fragment that matches "+962786314292". Null when the input
+     * holds no digits (i.e. it's a name search).
+     */
+    public static function searchFragment(?string $input): ?string
+    {
+        if ($input === null) {
+            return null;
+        }
+        $digits = preg_replace('/\D/', '', strtr($input, [
+            '٠' => '0', '١' => '1', '٢' => '2', '٣' => '3', '٤' => '4',
+            '٥' => '5', '٦' => '6', '٧' => '7', '٨' => '8', '٩' => '9',
+            '۰' => '0', '۱' => '1', '۲' => '2', '۳' => '3', '۴' => '4',
+            '۵' => '5', '۶' => '6', '۷' => '7', '۸' => '8', '۹' => '9',
+        ]));
+        if (str_starts_with($digits, '00')) {
+            $digits = substr($digits, 2);      // 00962… → 962…
+        }
+        $digits = ltrim($digits, '0');         // local 07… → 7…
+        return $digits === '' ? null : $digits;
+    }
+
+    /**
      * Normalise, falling back to the trimmed original when normalisation fails
      * (so non-standard data is never silently dropped on save).
      */

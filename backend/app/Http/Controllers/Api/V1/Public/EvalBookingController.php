@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1\Public;
 
 use App\Http\Controllers\Controller;
 use App\Models\Lead;
+use App\Models\Lesson;
 use App\Models\SessionRequest;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -69,6 +70,8 @@ class EvalBookingController extends Controller
         SessionRequest::create([
             'type'             => SessionRequest::TYPE_DEMO,
             'lead_id'          => $lead->id,
+            // A session can't exist without a lesson, so attach the trial lesson now
+            'lesson_id'        => Lesson::defaultAssessment()->first()?->id,
             'requested_at_utc' => $validated['scheduled_at'],
             'status'           => SessionRequest::STATUS_PENDING,
         ]);

@@ -88,6 +88,51 @@ class Lead extends Model
             ->latest('requested_at_utc');
     }
 
+    // ─── Open Sea transfer (manual) ───────────────────────────────────────────
+
+    /** Days without any update after which a lead is flagged "ترحيل" (move to Open Sea). */
+    const OPEN_SEA_STALE_DAYS = 5;
+
+    /** Statuses a lead can be moved to the Open Sea from. */
+    const OPEN_SEA_ELIGIBLE_STATUSES = [
+        self::STATUS_NEW,
+        self::STATUS_NO_ANSWER,
+        self::STATUS_INTERESTED,
+        self::STATUS_NOT_INTERESTED,
+        self::STATUS_POSTPONED,
+    ];
+
+    /**
+     * Subscribed = status "subscriber" OR the student has an active subscription.
+     * Subscribed students never appear in the Lead Pool / Open Sea.
+     */
+    public function scopeNotSubscribed($query)
+    {
+        return $query->where('status', '!=', self::STATUS_SUBSCRIBER)
+            ->whereDoesntHave('student.subscriptions', fn ($s) => $s->where('status', Subscription::STATUS_ACTIVE));
+    }
+
+    /**
+     * Stale lead waiting for a manual "ترحيل": eligible status, not Small Treasure,
+     * not subscribed, untouched for OPEN_SEA_STALE_DAYS. (No longer moved automatically.)
+     */
+    public function scopeStaleForOpenSea($query)
+    {
+        return $query->whereIn('status', self::OPEN_SEA_ELIGIBLE_STATUSES)
+            ->where(fn ($q) => $q->where('is_small_treasure', false)->orWhereNull('is_small_treasure'))
+            ->where('updated_at', '<=', now()->subDays(self::OPEN_SEA_STALE_DAYS))
+            ->notSubscribed();
+    }
+
+    public function isStaleForOpenSea(): bool
+    {
+        return in_array($this->status, self::OPEN_SEA_ELIGIBLE_STATUSES, true)
+            && !$this->is_small_treasure
+            && $this->updated_at !== null
+            && $this->updated_at->lte(now()->subDays(self::OPEN_SEA_STALE_DAYS))
+            && static::whereKey($this->id)->notSubscribed()->exists();
+    }
+
     // ─── Helpers ──────────────────────────────────────────────────────────────
 
     public function isInOpenSea(): bool

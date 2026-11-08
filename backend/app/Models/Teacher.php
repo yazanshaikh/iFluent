@@ -17,6 +17,8 @@ class Teacher extends Model
         'specialization',
         'profile_photo',
         'commission_rate',
+        'conversion_commission_rate',
+        'group_commission_rate',
         'balance',
         'is_active',
         'zoom_user_id',
@@ -29,6 +31,8 @@ class Teacher extends Model
     {
         return [
             'commission_rate'         => 'decimal:2',
+            'conversion_commission_rate' => 'decimal:2',
+            'group_commission_rate'   => 'decimal:2',
             'balance'                 => 'decimal:2',
             'is_active'               => 'boolean',
             'sessions_count_reset_at' => 'datetime',

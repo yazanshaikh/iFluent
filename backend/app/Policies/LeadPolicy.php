@@ -18,7 +18,16 @@ class LeadPolicy
     public function view(User $user, Lead $lead): bool
     {
         if ($user->isSuperAdmin()) return true;
-        return in_array($user->role, ['cc', 'ss']) && $lead->assigned_to === $user->id;
+        if (in_array($user->role, ['cc', 'ss']) && $lead->assigned_to === $user->id) return true;
+
+        // CC can open ANY paid student (converted lead) — limited actions only,
+        // see addRemark() / updateStatus().
+        if ($user->isCC() && $lead->converted_at !== null) return true;
+
+        // LP (SS) sees every Trial Booking like the admin, so they can open the
+        // lead profile behind any booking (read access only — update() is unchanged).
+        return $user->isSS()
+            && $lead->sessionRequests()->where('type', \App\Models\SessionRequest::TYPE_DEMO)->exists();
     }
 
     public function create(User $user): bool
@@ -65,6 +74,19 @@ class LeadPolicy
     public function addRemark(User $user, Lead $lead): bool
     {
         if ($user->isSuperAdmin()) return true;
-        return in_array($user->role, ['cc', 'ss']) && $lead->assigned_to === $user->id;
+        if (in_array($user->role, ['cc', 'ss']) && $lead->assigned_to === $user->id) return true;
+
+        // CC on a paid student they don't own: may add remarks
+        return $user->isCC() && $lead->converted_at !== null;
+    }
+
+    /**
+     * Change ONLY the status. Owners/admin via update(); CC may also do it on
+     * any paid student (converted lead) they don't own.
+     */
+    public function updateStatus(User $user, Lead $lead): bool
+    {
+        if ($this->update($user, $lead)) return true;
+        return $user->isCC() && $lead->converted_at !== null;
     }
 }

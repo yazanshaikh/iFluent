@@ -29,6 +29,7 @@ class User extends Authenticatable
         'role',
         'timezone',
         'fcm_token',
+        'sales_reset_at',
     ];
 
     protected $hidden = [
@@ -41,6 +42,7 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password'          => 'hashed',
+            'sales_reset_at'    => 'datetime',
         ];
     }
 
@@ -112,6 +114,12 @@ class User extends Authenticatable
     }
 
     // Leads this CC staff member is assigned to
+    /** Students assigned to this user as their teacher (students.teacher_user_id). */
+    public function taughtStudents(): HasMany
+    {
+        return $this->hasMany(Student::class, 'teacher_user_id');
+    }
+
     public function assignedLeads(): HasMany
     {
         return $this->hasMany(Lead::class, 'assigned_to');

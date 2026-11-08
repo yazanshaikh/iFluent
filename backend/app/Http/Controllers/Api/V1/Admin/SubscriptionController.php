@@ -8,6 +8,8 @@ use App\Models\Lead;
 use App\Models\Subscription;
 use App\Notifications\SubscriptionActivated;
 use App\Notifications\SubscriptionRejected;
+use App\Services\SubscriptionCancellationService;
+use App\Services\TeacherConversionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -134,6 +136,9 @@ class SubscriptionController extends Controller
                 'units_enrolled'  => $newUnits,
             ]);
 
+            // First subscription → one point for the student's last trial teacher
+            app(TeacherConversionService::class)->awardForApprovedSubscription($subscription);
+
             // Update lead → subscriber + add remark with subscription details
             $lead = $subscription->student->lead;
             if ($lead) {
@@ -221,7 +226,11 @@ class SubscriptionController extends Controller
      *   - reverts lead status from subscriber → no_answer
      *   - saves cancellation reason as a lead remark
      */
-    public function cancelSubscription(Request $request, Subscription $subscription): JsonResponse
+    public function cancelSubscription(
+        Request $request,
+        Subscription $subscription,
+        SubscriptionCancellationService $cancellation,
+    ): JsonResponse
     {
         $request->validate([
             'reason' => ['required', 'string', 'min:5', 'max:500'],
@@ -231,31 +240,7 @@ class SubscriptionController extends Controller
             return response()->json(['message' => 'الاشتراك غير نشط.'], 422);
         }
 
-        DB::transaction(function () use ($request, $subscription) {
-            $student = $subscription->student()->with('user')->first();
-
-            // 1. Cancel ALL active subscriptions for this student (not just the clicked one)
-            Subscription::where('student_id', $student->id)
-                ->where('status', Subscription::STATUS_ACTIVE)
-                ->update(['status' => Subscription::STATUS_CANCELLED]);
-
-            // 2. Zero out ALL lesson credits — direct DB query to avoid cache issues
-            DB::table('users')
-                ->where('id', $student->user_id)
-                ->update(['lesson_credits' => 0]);
-
-            // 3. Revert lead status → no_answer (back in pipeline)
-            $lead = $student->lead;
-            if ($lead) {
-                $lead->update(['status' => Lead::STATUS_NO_ANSWER]);
-
-                // 4. Save reason as a lead remark
-                $lead->remarks()->create([
-                    'content'  => '❌ تم إلغاء الاشتراك — السبب: ' . $request->reason,
-                    'staff_id' => $request->user()->id,
-                ]);
-            }
-        });
+        $cancellation->cancel($subscription, $request->user(), $request->reason);
 
         return response()->json(['message' => 'تم إلغاء الاشتراك بنجاح.']);
     }

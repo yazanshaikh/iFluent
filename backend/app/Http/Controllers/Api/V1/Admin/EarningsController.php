@@ -61,16 +61,20 @@ class EarningsController extends Controller
     public function updateRate(int $id, Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'commission_rate' => ['required', 'numeric', 'min:0', 'max:9999.99'],
+            'commission_rate'            => ['required_without_all:conversion_commission_rate,group_commission_rate', 'numeric', 'min:0', 'max:9999.99'],
+            'conversion_commission_rate' => ['sometimes', 'numeric', 'min:0', 'max:9999.99'],
+            'group_commission_rate'      => ['sometimes', 'numeric', 'min:0', 'max:9999.99'],
         ]);
 
         // $id can be either Teacher.id or Teacher.user_id — support both
         $teacher = Teacher::where('user_id', $id)->orWhere('id', $id)->firstOrFail();
-        $teacher->update(['commission_rate' => $validated['commission_rate']]);
+        $teacher->update($validated);
 
         return response()->json([
             'message'         => 'Commission rate updated.',
             'commission_rate' => $teacher->commission_rate,
+            'conversion_commission_rate' => $teacher->conversion_commission_rate,
+            'group_commission_rate'      => $teacher->group_commission_rate,
         ]);
     }
 }

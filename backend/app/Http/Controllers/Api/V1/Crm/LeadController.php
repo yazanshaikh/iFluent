@@ -10,6 +10,7 @@ use App\Http\Resources\Api\V1\LeadResource;
 use App\Models\Lead;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
+use App\Support\Phone;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\DB;
@@ -53,6 +54,10 @@ class LeadController extends Controller
                 });
             }
         }
+        // exclude_subscribed=1 → Lead Pool: subscribed students don't stay there
+        if ($request->boolean('exclude_subscribed')) {
+            $query->notSubscribed();
+        }
         // unassigned=1 → فلتر بدون موظف (لعرض الـ pool غير المعيّن للمدير)
         if ($request->boolean('unassigned')) {
             $query->whereNull('assigned_to');
@@ -67,13 +72,25 @@ class LeadController extends Controller
             $query->where('assigned_to', $request->assigned_to);
         }
         if ($request->filled('search')) {
-            $query->where(function ($q) use ($request) {
-                $q->where('name', 'ilike', "%{$request->search}%")
-                  ->orWhere('phone', 'like', "%{$request->search}%");
+            // Name (case-insensitive) OR phone in any typed format (07…, 7…, +962…)
+            $term  = trim($request->search);
+            $phone = Phone::searchFragment($term);
+            $query->where(function ($q) use ($term, $phone) {
+                $q->where('name', 'ilike', "%{$term}%");
+                if ($phone !== null) {
+                    $q->orWhere('phone', 'like', "%{$phone}%");
+                }
             });
         }
         if ($request->filled('date')) {
             $query->whereDate('created_at', $request->date);
+        }
+        // date_from / date_to → range on the date the lead was added
+        if ($request->filled('date_from')) {
+            $query->whereDate('created_at', '>=', $request->date_from);
+        }
+        if ($request->filled('date_to')) {
+            $query->whereDate('created_at', '<=', $request->date_to);
         }
 
         return LeadResource::collection($query->paginate(20));
@@ -248,7 +265,7 @@ class LeadController extends Controller
     {
         $this->authorize('view', $lead);
 
-        $lead->load(['assignedTo', 'remarks.staff', 'latestDemoSession', 'student.subscriptions.activatedBy']);
+        $lead->load(['assignedTo', 'remarks.staff', 'latestDemoSession', 'student.subscriptions.activatedBy', 'student.teacher:id,name,deleted_at']);
 
         return new LeadResource($lead);
     }
@@ -277,7 +294,10 @@ class LeadController extends Controller
     // ─── Update Lead ──────────────────────────────────────────────────────────
     public function update(UpdateLeadRequest $request, Lead $lead): LeadResource|JsonResponse
     {
-        $this->authorize('update', $lead);
+        // Full edit for owner/admin; a status-only change is also allowed for
+        // CC on any paid student (LeadPolicy::updateStatus).
+        $statusOnly = array_keys($request->validated()) === ['status'];
+        $this->authorize($statusOnly ? 'updateStatus' : 'update', $lead);
 
         // المشترك محمي — حالته لا تتغير يدوياً أبداً (تتحكم بها الاشتراكات فقط)
         if ($lead->status === Lead::STATUS_SUBSCRIBER && $request->has('status')) {
@@ -369,13 +389,28 @@ class LeadController extends Controller
         $perPage = min((int) ($request->query('per_page', 10)), 100);
 
         $query = Lead::where('status', Lead::STATUS_OPEN_SEA)
+            ->notSubscribed()   // a subscribed student never sits in the Open Sea
             ->withCount('remarks')
             ->with(['assignedTo', 'remarks.staff'])
-            ->orderBy('moved_to_open_sea_at');
+            ->orderByDesc('moved_to_open_sea_at')   // newest in the sea first
+            ->orderByDesc('id');
 
         // بحث برقم الجوال
-        if ($request->filled('phone')) {
-            $query->where('phone', 'like', "%{$request->phone}%");
+        // search → name or phone (any format); phone → phone only (kept for old clients)
+        if ($request->filled('search')) {
+            $term  = trim($request->search);
+            $phone = Phone::searchFragment($term);
+            $query->where(function ($q) use ($term, $phone) {
+                $q->where('name', 'ilike', "%{$term}%");
+                if ($phone !== null) {
+                    $q->orWhere('phone', 'like', "%{$phone}%");
+                }
+            });
+        } elseif ($request->filled('phone')) {
+            $phone = Phone::searchFragment($request->phone);
+            if ($phone !== null) {
+                $query->where('phone', 'like', "%{$phone}%");
+            }
         }
 
         // فلتر نطاق التاريخ — تاريخ دخول البحر المفتوح
@@ -387,6 +422,35 @@ class LeadController extends Controller
         }
 
         return LeadResource::collection($query->paginate($perPage));
+    }
+
+    // ─── Move to Open Sea (manual "ترحيل") ─────────────────────────────────────
+    /**
+     * POST /crm/leads/{lead}/move-to-sea
+     * Leads are no longer moved automatically after 5 days — they get a red
+     * "ترحيل" flag and the admin or the owner confirms the move from here.
+     */
+    public function moveToSea(Lead $lead): LeadResource|JsonResponse
+    {
+        $this->authorize('update', $lead);
+
+        return DB::transaction(function () use ($lead) {
+            $lead = Lead::lockForUpdate()->findOrFail($lead->id);
+
+            if (!$lead->isStaleForOpenSea()) {
+                return response()->json([
+                    'message' => 'هذه الليدة غير قابلة للترحيل (لم يمرّ عليها 5 أيام، أو محمية، أو مشتركة).',
+                ], 422);
+            }
+
+            $lead->update([
+                'status'               => Lead::STATUS_OPEN_SEA,
+                'assigned_to'          => null,
+                'moved_to_open_sea_at' => now(),
+            ]);
+
+            return new LeadResource($lead->load('assignedTo'));
+        });
     }
 
     // ─── Pull from Open Sea ───────────────────────────────────────────────────

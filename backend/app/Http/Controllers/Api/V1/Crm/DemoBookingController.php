@@ -229,7 +229,7 @@ class DemoBookingController extends Controller
         ], 201);
     }
 
-    // ─── All Demo Bookings (CC sees own leads; admin sees all) ───────────────
+    // ─── All Demo Bookings (CC sees own leads; admin + SS/LP see all) ───────
 
     public function all(Request $request): JsonResponse
     {
@@ -255,8 +255,8 @@ class DemoBookingController extends Controller
             })
             ->orderByDesc('requested_at_utc');
 
-        // CC / SS — only see bookings for leads assigned to them
-        if (!in_array($staff->role, ['super_admin'])) {
+        // super_admin + SS (LP) see ALL bookings; CC only sees bookings for leads assigned to them
+        if (!in_array($staff->role, ['super_admin', 'ss'])) {
             $query->whereHas('lead', fn ($q) => $q->where('assigned_to', $staff->id));
         }
 
@@ -265,9 +265,11 @@ class DemoBookingController extends Controller
         }
 
         if ($search) {
-            $query->whereHas('lead', function ($q) use ($search) {
-                $q->where('name', 'ilike', "%{$search}%")
-                  ->orWhere('phone', 'like', "%{$search}%");
+            $search = trim($search);
+            $phone  = \App\Support\Phone::searchFragment($search);
+            $query->whereHas('lead', function ($q) use ($search, $phone) {
+                $q->where(fn ($w) => $w->where('name', 'ilike', "%{$search}%")
+                    ->when($phone !== null, fn ($p) => $p->orWhere('phone', 'like', "%{$phone}%")));
             });
         }
 

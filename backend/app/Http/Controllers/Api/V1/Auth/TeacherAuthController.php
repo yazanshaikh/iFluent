@@ -82,30 +82,7 @@ class TeacherAuthController extends Controller
             ];
         }
 
-        $baseAll = \DB::table('sessions')
-            ->where('teacher_id', $user->id)
-            ->where('status', 'completed');
-
-        // sessions_count: since last sessions reset
-        $baseSessions = (clone $baseAll);
-        if ($teacher->sessions_count_reset_at) {
-            $baseSessions->where('ended_at', '>', $teacher->sessions_count_reset_at);
-        }
-        $sessionsCount = (clone $baseSessions)->where('attendance_status', 'attended')->count();
-
-        // absences_count: since last absences reset
-        $baseAbsences = (clone $baseAll);
-        if ($teacher->absences_reset_at) {
-            $baseAbsences->where('ended_at', '>', $teacher->absences_reset_at);
-        }
-        $absencesCount = (clone $baseAbsences)->where('attendance_status', 'teacher_absent')->count();
-
-        // balance: sessions since last balance reset × commission_rate
-        $baseBalance = (clone $baseAll)->where('attendance_status', 'attended');
-        if ($teacher->balance_reset_at) {
-            $baseBalance->where('ended_at', '>', $teacher->balance_reset_at);
-        }
-        $balance = (clone $baseBalance)->count() * $commissionRate;
+        $stats = app(\App\Services\TeacherStatsService::class)->forTeacher($teacher);
 
         return [
             'id'              => $user->id,
@@ -113,11 +90,11 @@ class TeacherAuthController extends Controller
             'email'           => $user->email,
             'role'            => $user->role,
             'teacher_code'    => $teacher?->teacher_code,
-            'balance'         => $balance,
+            'balance'         => $stats['balance'],
             'commission_rate' => $commissionRate,
             'avg_rating'      => $avgRating ?: null,
-            'sessions_count'  => $sessionsCount,
-            'absences_count'  => $absencesCount,
+            'sessions_count'  => $stats['sessions_count'],
+            'absences_count'  => $stats['absences_count'],
         ];
     }
 }

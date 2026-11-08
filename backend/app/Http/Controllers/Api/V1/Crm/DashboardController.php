@@ -5,7 +5,10 @@ namespace App\Http\Controllers\Api\V1\Crm;
 use App\Http\Controllers\Controller;
 use App\Models\Lead;
 use App\Models\Subscription;
+use App\Models\Teacher;
 use App\Models\User;
+use App\Services\CcSalesService;
+use App\Services\TeacherStatsService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -26,6 +29,12 @@ class DashboardController extends Controller
             User::ROLE_SS          => $this->ssDashboard(),
             default                => response()->json(['message' => 'Forbidden.'], 403),
         };
+    }
+
+    /** GET /crm/me/sales — the CC's own sales counter (My Profile) */
+    public function mySales(Request $request, CcSalesService $sales): JsonResponse
+    {
+        return response()->json($sales->forUser($request->user()));
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -56,6 +65,11 @@ class DashboardController extends Controller
                                             : 0,
             'revenue_this_month'      => (float) $revenueThisMonth,
             'pending_approvals'       => Subscription::where('status', Subscription::STATUS_PENDING)->count(),
+            // What is owed right now: every teacher's balance since their last balance reset
+            'teachers_due'            => (float) Teacher::all()
+                                            ->sum(fn (Teacher $t) => app(TeacherStatsService::class)->forTeacher($t)['balance']),
+            // Amounts the admin has added for CC staff and not yet reset
+            'cc_dues'                 => app(CcSalesService::class)->totalDue(),
         ];
 
         // ── Staff Performance (CC only) ───────────────────────────────────────
@@ -83,7 +97,15 @@ class DashboardController extends Controller
             ->groupBy('activated_by')
             ->pluck('cnt', 'activated_by');
 
-        $leaderboard = $ccUsers->map(function ($staff) use ($leadsThisMonth, $totalLeads, $conversionsThisMonth) {
+        // Amount sold this month: same subscriptions as the conversions above
+        $salesThisMonth = Subscription::select('activated_by', DB::raw('sum(amount_paid) as total'))
+            ->whereIn('activated_by', $ccIds)
+            ->whereIn('status', [Subscription::STATUS_ACTIVE, Subscription::STATUS_EXPIRED])
+            ->whereBetween('activated_at', [$start, $end])
+            ->groupBy('activated_by')
+            ->pluck('total', 'activated_by');
+
+        $leaderboard = $ccUsers->map(function ($staff) use ($leadsThisMonth, $totalLeads, $conversionsThisMonth, $salesThisMonth) {
             $leads       = $leadsThisMonth[$staff->id]       ?? 0;
             $conversions = $conversionsThisMonth[$staff->id] ?? 0;
             return [
@@ -92,6 +114,7 @@ class DashboardController extends Controller
                 'leads_this_month'       => $leads,
                 'conversions_this_month' => $conversions,
                 'total_leads'            => $totalLeads[$staff->id] ?? 0,
+                'sales_this_month'       => (float) ($salesThisMonth[$staff->id] ?? 0),
                 'conversion_rate'        => $leads > 0 ? round(($conversions / $leads) * 100, 1) : 0,
             ];
         })->sortByDesc('conversions_this_month')->values();
