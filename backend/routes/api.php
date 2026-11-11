@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\V1\Auth\CrmAuthController;
 use App\Http\Controllers\Api\V1\Auth\StudentAuthController;
 use App\Http\Controllers\Api\V1\Crm\CancellationRequestController;
 use App\Http\Controllers\Api\V1\Crm\CheckoutController;
+use App\Http\Controllers\Api\V1\Crm\GroupClassController as CrmGroupClassController;
 use App\Http\Controllers\Api\V1\Crm\DashboardController;
 use App\Http\Controllers\Api\V1\Crm\PaidStudentController;
 use App\Http\Controllers\Api\V1\Crm\ProcessOrderController;
@@ -207,6 +208,13 @@ Route::middleware(['auth:sanctum', 'role:super_admin'])
         Route::get ('subscriptions/{subscription}/screenshot',          [AdminSubscriptionController::class, 'screenshot'])
             ->name('admin.subscription.screenshot');
 
+        // ── Group Classes (scheduled by admin, run by the teacher) ─────────────
+        Route::get ('group-classes',                    [CrmGroupClassController::class, 'index']);
+        Route::post('group-classes',                    [CrmGroupClassController::class, 'store']);
+        Route::get ('group-classes/{groupClass}',       [CrmGroupClassController::class, 'show']);
+        Route::put ('group-classes/{groupClass}',       [CrmGroupClassController::class, 'update']);
+        Route::post('group-classes/{groupClass}/cancel',[CrmGroupClassController::class, 'cancel']);
+
         // ── Paid Students: assign to a follow-up (LP) staff member ─────────────
         Route::post('paid-students/{lead}/assign', [PaidStudentController::class, 'assign']);
 
@@ -311,6 +319,7 @@ Route::middleware(['auth:sanctum', 'role:student'])
         // ── Group Classes ──────────────────────────────────────────────────────
         Route::get ('group-classes',                        [StudentGroupClassController::class, 'index']);
         Route::get ('group-classes/mine',                   [StudentGroupClassController::class, 'mine']);
+        Route::get ('group-classes/{groupClass}',           [StudentGroupClassController::class, 'show']);
         Route::post('group-classes/{groupClass}/register',  [StudentGroupClassController::class, 'register']);
         Route::post('group-classes/{groupClass}/leave',     [StudentGroupClassController::class, 'leave']);
         Route::get ('group-classes/{groupClass}/join',      [StudentGroupClassController::class, 'join']);
@@ -373,10 +382,10 @@ Route::middleware(['auth:sanctum', 'role:teacher'])
 
         // ── Group Classes ──────────────────────────────────────────────────────
         Route::get  ('group-classes',                    [TeacherGroupClassController::class, 'index']);
-        Route::post ('group-classes',                    [TeacherGroupClassController::class, 'store']);
         Route::get  ('group-classes/{groupClass}',       [TeacherGroupClassController::class, 'show']);
-        Route::patch('group-classes/{groupClass}',       [TeacherGroupClassController::class, 'update']);
         Route::post ('group-classes/{groupClass}/start', [TeacherGroupClassController::class, 'start']);
+        Route::get  ('group-classes/{groupClass}/room',  [TeacherGroupClassController::class, 'room']);
+        Route::patch('group-classes/{groupClass}/pin',   [TeacherGroupClassController::class, 'pin']);
         Route::post ('group-classes/{groupClass}/end',   [TeacherGroupClassController::class, 'end']);
         Route::post ('group-classes/{groupClass}/cancel',[TeacherGroupClassController::class, 'cancel']);
 

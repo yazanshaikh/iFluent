@@ -9,6 +9,8 @@ use App\Models\SessionRequest;
 use App\Models\Student;
 use App\Models\Subscription;
 use App\Models\User;
+use App\Services\BookingSequenceService;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -24,7 +26,7 @@ use Illuminate\Support\Facades\DB;
  * Guards:
  *   - Student must have lesson credits (lesson_credits > 0)
  *   - If lesson_id provided: student must be enrolled in the lesson's unit
- *   - No duplicate pending request for the same time window
+ *   - Up to four upcoming regular lessons, 30 minutes apart; one trial at a time
  */
 class BookingController extends Controller
 {
@@ -47,37 +49,30 @@ class BookingController extends Controller
         $scheduledUtc = \Carbon\Carbon::parse($validated['scheduled_at'], 'Asia/Amman')
             ->utc();
 
-        // ── Jordan working hours check: 09:00–00:00 ──────────────────────────
-        $jordanHour = (int) $scheduledUtc->copy()->setTimezone('Asia/Amman')->format('H');
+        if ($scheduledUtc->isPast()) {
+            return response()->json(['message' => 'لا يمكن الحجز في موعد سابق.'], 422);
+        }
 
-        if ($jordanHour < 9 || $jordanHour >= 24) {
+        // ── Jordan booking hours: 09:00 through 01:00 the following morning ──
+        $jordanTime = $scheduledUtc->copy()->setTimezone('Asia/Amman');
+        $minuteOfDay = $jordanTime->hour * 60 + $jordanTime->minute;
+
+        if ($minuteOfDay > 60 && $minuteOfDay < 9 * 60) {
             return response()->json([
-                'message' => 'يُقبل الحجز فقط بين الساعة ٩ صباحاً و١٢ منتصف الليل بتوقيت الأردن.',
+                'message' => 'يُقبل الحجز فقط من الساعة ٩ صباحاً حتى ٢ بعد منتصف الليل بتوقيت الأردن.',
             ], 422);
+        }
+
+        // ── Booking window, counted in nights: 00:00–01:59 belongs to the day before ──
+        $lastBookableDay = now('Asia/Amman')->subHours(2)->startOfDay()
+            ->addDays(BookingSequenceService::WINDOW_DAYS - 1);
+
+        if ($jordanTime->copy()->subHours(2)->startOfDay()->gt($lastBookableDay)) {
+            return response()->json(['message' => 'يمكن الحجز خلال الأسبوعين القادمين فقط.'], 422);
         }
 
         // Overwrite validated value with the UTC version for consistent storage
         $validated['scheduled_at'] = $scheduledUtc->toDateTimeString();
-
-        // ── GLOBAL GUARD: only ONE active booking at a time ───────────────────
-        // Block if the student already has:
-        //   • a pending/confirmed request whose time hasn't passed yet, OR
-        //   • a waiting/active session
-        // This is the single source of truth for "you already have a booking".
-        $hasActiveRequest = SessionRequest::where('student_id', $student->id)
-            ->whereIn('status', [SessionRequest::STATUS_PENDING, SessionRequest::STATUS_CONFIRMED])
-            ->where('requested_at_utc', '>', now())
-            ->exists();
-
-        $hasLiveSession = \App\Models\Session::where('student_id', $student->id)
-            ->whereIn('status', ['waiting', 'active'])
-            ->exists();
-
-        if ($hasActiveRequest || $hasLiveSession) {
-            return response()->json([
-                'message' => 'لا يمكنك حجز حصة جديدة — لديك حصة محجوزة بالفعل. يرجى إكمالها أو إلغاؤها أولاً.',
-            ], 422);
-        }
 
         // ── Lesson-specific booking ───────────────────────────────────────────
         // If lesson_id = 'assessment' or not provided and student has no credits,
@@ -134,13 +129,16 @@ class BookingController extends Controller
                 }
             }
 
-            $alreadyPending = SessionRequest::where('student_id', $student->id)
-                ->where('lesson_id', $lesson->id)
-                ->where('status', SessionRequest::STATUS_PENDING)
-                ->exists();
+            // Regular lessons are assigned by BookingSequenceService below.
+            if ($lesson->is_assessment) {
+                $alreadyPending = SessionRequest::where('student_id', $student->id)
+                    ->where('lesson_id', $lesson->id)
+                    ->where('status', SessionRequest::STATUS_PENDING)
+                    ->exists();
 
-            if ($alreadyPending) {
-                return response()->json(['message' => 'You already have a pending booking for this lesson.'], 422);
+                if ($alreadyPending) {
+                    return response()->json(['message' => 'You already have a pending booking for this lesson.'], 422);
+                }
             }
         } else {
             // Quick booking (no lesson_id) always requires credits
@@ -178,38 +176,10 @@ class BookingController extends Controller
                 ], 403);
             }
 
-            if ($activeSubscription && $activeSubscription->hasRemainingLessons()) {
-                $lesson = $activeSubscription->currentLesson;
-
-                if ($lesson) {
-                    // Prevent duplicate pending booking for same lesson
-                    $alreadyPending = SessionRequest::where('student_id', $student->id)
-                        ->where('lesson_id', $lesson->id)
-                        ->where('status', SessionRequest::STATUS_PENDING)
-                        ->exists();
-
-                    if ($alreadyPending) {
-                        return response()->json([
-                            'message' => 'لديك حجز نشط بالفعل لهذا الدرس. يرجى انتظار تأكيد الموعد الحالي.',
-                        ], 422);
-                    }
-                }
-            } else {
-                $lesson = null;
-
-                // No subscription lesson range — fall back to plain quick booking
-                $alreadyPending = SessionRequest::where('student_id', $student->id)
-                    ->whereIn('type', [SessionRequest::TYPE_CORE, SessionRequest::TYPE_PRIVATE])
-                    ->where('status', SessionRequest::STATUS_PENDING)
-                    ->where('requested_at_utc', '>', now())
-                    ->exists();
-
-                if ($alreadyPending) {
-                    return response()->json([
-                        'message' => 'لديك حجز حصة نشط بالفعل. يرجى انتظار تأكيد الموعد الحالي.',
-                    ], 422);
-                }
-            }
+            // Starting point only: the sequence below sets the lesson by date.
+            $lesson = $activeSubscription && $activeSubscription->hasRemainingLessons()
+                ? $activeSubscription->currentLesson
+                : null;
         }
 
         // ── Resolve teacher (private mode) ────────────────────────────────────
@@ -242,19 +212,42 @@ class BookingController extends Controller
         // transaction to stop two concurrent requests from spending the same
         // credit (double-spend). If insufficient, abort with 403 (rolls back).
         $sessionRequest = DB::transaction(function () use (
-            $student, $lesson, $type, $targetTeacherId, $validated
+            $student, $lesson, $type, $targetTeacherId, $validated, $scheduledUtc
         ) {
             $isPaid = ! $lesson?->is_assessment;
 
+            // Lock the student first so a double tap can't pass these checks twice.
+            $locked = User::whereKey($student->id)->lockForUpdate()->first();
+            $deny   = fn (string $message, int $status = 422) => throw new HttpResponseException(
+                response()->json(['message' => $message], $status)
+            );
+
+            $upcoming = BookingSequenceService::upcomingCount($student->id);
+
+            // A trial lesson stays one at a time; regular lessons allow up to four.
+            if (! $isPaid && $upcoming > 0) {
+                $deny('لا يمكنك حجز حصة جديدة — لديك حصة محجوزة بالفعل. يرجى إكمالها أو إلغاؤها أولاً.');
+            }
+
+            if ($upcoming >= BookingSequenceService::MAX_UPCOMING) {
+                $deny('لا يمكن أن يتجاوز عدد حصصك القادمة ٤ حصص. يرجى إكمال إحداها أو إلغاؤها أولاً.');
+            }
+
+            if (BookingSequenceService::hasConflict($student->id, $scheduledUtc)) {
+                $deny('لديك حصة أخرى ضمن نصف ساعة من هذا الموعد. يجب أن يفصل بين الحصص نصف ساعة على الأقل.');
+            }
+
             if ($isPaid) {
-                // Lock the balance row; re-verify after acquiring the lock.
-                $locked = User::whereKey($student->id)->lockForUpdate()->first();
+                if (Subscription::activeTypeForUser($student->id) === Subscription::TYPE_GROUP) {
+                    $deny('اشتراكك الحالي يشمل الحصص الجماعية فقط.', 403);
+                }
+
                 if (! $locked || $locked->lesson_credits < 1) {
-                    throw new \Illuminate\Http\Exceptions\HttpResponseException(
-                        response()->json([
-                            'message' => 'لا توجد حصص متاحة حالياً. يرجى التواصل مع مركزك التعليمي.',
-                        ], 403)
-                    );
+                    $deny('لا توجد حصص متاحة حالياً. يرجى التواصل مع مركزك التعليمي.', 403);
+                }
+
+                if (BookingSequenceService::allLessonsReserved($student->id)) {
+                    $deny('تم حجز جميع الدروس المتبقية في خطتك الدراسية الحالية.');
                 }
             }
 
@@ -295,6 +288,11 @@ class BookingController extends Controller
                 if ($studentProfile && !$studentProfile->lead_id) {
                     $studentProfile->update(['lead_id' => $lead->id]);
                 }
+            }
+
+            if ($isPaid) {
+                BookingSequenceService::resequence($student->id);
+                $sessionRequest->refresh();
             }
 
             return $sessionRequest;
@@ -491,6 +489,9 @@ class BookingController extends Controller
         if (! $cancelled) {
             return response()->json(['message' => 'Only pending requests can be cancelled.'], 422);
         }
+
+        // The cancelled lesson goes to the next booking; its time stays the same.
+        BookingSequenceService::resequenceMany([$sessionRequest->student_id]);
 
         return response()->json(['message' => 'Booking request cancelled.']);
     }

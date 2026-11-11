@@ -81,7 +81,9 @@ class StudentAuthController extends Controller
         //     see the real client IP — configure a trusted proxy / real_ip in prod.)
         $limits = [
             ['key' => 'otp:phone:' . $normalized,   'max' => 3],
-            ['key' => 'otp:ip:' . $request->ip(),   'max' => 10],
+            // Behind Cloudflare ip() is a shared edge address, so unrelated students
+            // would use up one limit between them. Use the visitor's real address.
+            ['key' => 'otp:ip:' . ($request->header('CF-Connecting-IP') ?: $request->ip()), 'max' => 10],
         ];
 
         foreach ($limits as $l) {

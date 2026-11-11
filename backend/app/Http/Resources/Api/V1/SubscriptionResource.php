@@ -14,6 +14,7 @@ class SubscriptionResource extends JsonResource
             'invoice_uuid' => $this->invoice_uuid,
             'invoice_url'  => $this->invoice_uuid ? "/pay/{$this->invoice_uuid}" : null,
             'status'          => $this->status,
+            'subscription_type' => $this->subscription_type,
             'lessons_count'   => $this->lessons_count,
             'months_count'    => $this->months_count,
             'amount_paid'     => $this->amount_paid,

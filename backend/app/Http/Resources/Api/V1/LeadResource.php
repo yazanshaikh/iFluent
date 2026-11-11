@@ -77,6 +77,7 @@ class LeadResource extends JsonResource
                         'id'             => $sub->id,
                         'activated_at'   => $sub->activated_at?->setTimezone('Asia/Amman')->toDateTimeString(),
                         'amount_paid'    => $sub->amount_paid,
+                        'subscription_type' => $sub->subscription_type,
                         'lessons_count'  => $sub->lessons_count,
                         'remaining_lessons' => (int) ($this->student->user?->lesson_credits ?? 0),
                         'is_near_end' => $viewer && !$viewer->isCC()

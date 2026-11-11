@@ -16,6 +16,9 @@ class Subscription extends Model
     const STATUS_EXPIRED            = 'expired';
     const STATUS_CANCELLED          = 'cancelled';
 
+    const TYPE_INDIVIDUAL = 'individual';
+    const TYPE_GROUP      = 'group';
+
     /** An active package with this many lessons left (or fewer) is flagged as ending soon. */
     const NEAR_END_LESSONS = 3;
 
@@ -35,6 +38,7 @@ class Subscription extends Model
         'activated_by',
         'approved_by',
         'status',
+        'subscription_type',
         'amount_paid',
         'payment_method',
         'payment_reference',
@@ -199,6 +203,70 @@ class Subscription extends Model
         return $toEnroll->count();
     }
 
+    /** All lessons in the plan's range, ordered by curriculum position. */
+    public function lessonsInRange(): \Illuminate\Support\Collection
+    {
+        return Lesson::whereBetween('id', [
+                min($this->from_lesson_id, $this->to_lesson_id),
+                max($this->from_lesson_id, $this->to_lesson_id),
+            ])
+            ->with(['unit.level'])
+            ->get()
+            ->sortBy(fn($l) => [
+                $l->unit->level->order ?? 999,
+                $l->unit->order        ?? 999,
+                $l->order              ?? 999,
+            ])
+            ->values()
+            ->toBase();
+    }
+
+    /** Lesson ids still to be taught: current_lesson_id through to_lesson_id, in order. */
+    public function remainingLessonIds(): \Illuminate\Support\Collection
+    {
+        return $this->current_lesson_id
+            ? $this->lessonIdsFrom($this->current_lesson_id)
+            : collect();
+    }
+
+    /** Every lesson id on this plan, in teaching order. */
+    public function planLessonIds(): \Illuminate\Support\Collection
+    {
+        return $this->from_lesson_id
+            ? $this->lessonIdsFrom($this->from_lesson_id)
+            : collect();
+    }
+
+    private function lessonIdsFrom(int $startId): \Illuminate\Support\Collection
+    {
+        if (!$this->hasLessonRange()) {
+            return collect();
+        }
+
+        $ids   = $this->lessonsInRange()->pluck('id')->values();
+        $start = $ids->search($startId);
+        $last  = $ids->search($this->to_lesson_id);
+
+        if ($start === false || $last === false || $last < $start) {
+            return collect();
+        }
+
+        return $ids->slice($start, $last - $start + 1)->values();
+    }
+
+    /** The type of the student's latest active plan, or null when they have none. */
+    public static function activeTypeForUser(int $userId): ?string
+    {
+        $student = Student::where('user_id', $userId)->first();
+
+        return $student
+            ? self::where('student_id', $student->id)
+                ->where('status', self::STATUS_ACTIVE)
+                ->latest('activated_at')
+                ->value('subscription_type')
+            : null;
+    }
+
     /**
      * Advance current_lesson_id to the next lesson within the range.
      *
@@ -223,19 +291,7 @@ class Subscription extends Model
             return null;
         }
 
-        // Fetch all lessons in range ordered by curriculum position
-        $lessonsInRange = Lesson::whereBetween('id', [
-                min($this->from_lesson_id, $this->to_lesson_id),
-                max($this->from_lesson_id, $this->to_lesson_id),
-            ])
-            ->with(['unit.level'])
-            ->get()
-            ->sortBy(fn($l) => [
-                $l->unit->level->order ?? 999,
-                $l->unit->order        ?? 999,
-                $l->order              ?? 999,
-            ])
-            ->values();
+        $lessonsInRange = $this->lessonsInRange();
 
         // Find position of current lesson in the ordered list
         $currentIndex = $lessonsInRange->search(fn($l) => $l->id === $this->current_lesson_id);

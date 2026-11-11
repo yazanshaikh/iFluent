@@ -32,7 +32,12 @@ class ExpireSubscriptions extends Command
                 ->whereNotExists(fn ($q) => $q->select(DB::raw(1))
                     ->from('sessions')
                     ->whereColumn('sessions.student_id', 'students.user_id')
-                    ->whereIn('sessions.status', [Session::STATUS_WAITING, Session::STATUS_ACTIVE])))
+                    ->whereIn('sessions.status', [Session::STATUS_WAITING, Session::STATUS_ACTIVE]))
+                ->whereNotExists(fn ($q) => $q->select(DB::raw(1))
+                    ->from('group_class_registrations')
+                    ->join('group_classes', 'group_classes.id', '=', 'group_class_registrations.group_class_id')
+                    ->whereColumn('group_class_registrations.student_id', 'students.user_id')
+                    ->whereIn('group_classes.status', ['scheduled', 'active'])))
             ->update(['status' => Subscription::STATUS_EXPIRED]);
 
         // Once a student has dropped off Paid Students, put them back in the Lead Pool.

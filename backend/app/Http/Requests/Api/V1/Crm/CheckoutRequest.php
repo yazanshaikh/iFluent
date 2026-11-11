@@ -11,6 +11,7 @@ class CheckoutRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'subscription_type' => ['required', 'in:individual,group'],
             'lessons_count'   => ['required', 'integer', 'min:1', 'max:252'],
             'amount_paid'     => ['required', 'numeric', 'min:0'],
             'from_lesson_id'  => ['nullable', 'integer', 'exists:lessons,id'],
@@ -21,6 +22,7 @@ class CheckoutRequest extends FormRequest
     public function messages(): array
     {
         return [
+            'subscription_type.required' => 'يجب اختيار نوع الاشتراك.',
             'lessons_count.required' => 'يجب تحديد عدد الدروس.',
             'lessons_count.min'      => 'الحد الأدنى درس واحد.',
             'lessons_count.max'      => 'الحد الأقصى 252 درساً.',

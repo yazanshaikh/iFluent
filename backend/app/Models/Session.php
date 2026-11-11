@@ -132,7 +132,8 @@ class Session extends Model
      */
     public function refundCreditOnce(): bool
     {
-        if (! $this->student_id) {
+        // Trial lessons never held a credit, so there is nothing to return.
+        if (! $this->student_id || $this->lesson?->is_assessment) {
             return false;
         }
 

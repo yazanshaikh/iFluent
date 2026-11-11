@@ -117,7 +117,7 @@ class RequestController extends Controller
             return response()->json(['message' => 'This request is directed to another teacher.'], 403);
         }
 
-        // ── 1-hour gap rule ───────────────────────────────────────────────────
+        // ── 30-minute gap rule ───────────────────────────────────────────────────
         // Block if the teacher already has a session within 1 hour of this slot.
         $slot = $sessionRequest->requested_at_utc;
         if ($slot) {
@@ -127,14 +127,14 @@ class RequestController extends Controller
                     \App\Models\Session::STATUS_ACTIVE,
                 ])
                 ->whereBetween('scheduled_at', [
-                    $slot->copy()->subMinutes(59),
-                    $slot->copy()->addMinutes(59),
+                    $slot->copy()->subMinutes(\App\Services\BookingSequenceService::MIN_GAP_MINUTES),
+                    $slot->copy()->addMinutes(\App\Services\BookingSequenceService::MIN_GAP_MINUTES),
                 ])
                 ->exists();
 
-            if ($conflict) {
+            if ($conflict || \App\Services\GroupClassService::teacherIsBusy($teacher->id, $slot)) {
                 return response()->json([
-                    'message' => 'لديك حصة أخرى ضمن ساعة من هذا الموعد. يجب أن يفصل بين الحصص ساعة على الأقل.',
+                    'message' => 'لديك حصة أخرى ضمن نصف ساعة من هذا الموعد. يجب أن يفصل بين الحصص نصف ساعة على الأقل.',
                 ], 422);
             }
         }
@@ -238,11 +238,22 @@ class RequestController extends Controller
         ]);
 
         if ($sessionRequest->type === SessionRequest::TYPE_PRIVATE) {
-            // Private rejection: mark as rejected, student/staff notified
-            $sessionRequest->update([
-                'status'           => SessionRequest::STATUS_REJECTED,
-                'rejection_reason' => $validated['reason'] ?? null,
-            ]);
+            // Private rejection: mark as rejected and return the held credit.
+            // The conditional UPDATE lets only one caller reject, so one refund.
+            DB::transaction(function () use ($sessionRequest, $validated) {
+                $rejected = SessionRequest::whereKey($sessionRequest->id)
+                    ->where('status', SessionRequest::STATUS_PENDING)
+                    ->update([
+                        'status'           => SessionRequest::STATUS_REJECTED,
+                        'rejection_reason' => $validated['reason'] ?? null,
+                    ]);
+
+                if ($rejected && $sessionRequest->student_id) {
+                    $sessionRequest->student()->increment('lesson_credits');
+                }
+            });
+
+            \App\Services\BookingSequenceService::resequenceMany([$sessionRequest->student_id]);
 
             return response()->json(['message' => 'Private session request rejected.']);
         }

@@ -5,6 +5,9 @@ namespace App\Console\Commands;
 use App\Models\Session;
 use App\Models\SessionRequest;
 use App\Models\User;
+use App\Services\BookingSequenceService;
+use App\Services\DailyCoService;
+use App\Services\GroupClassService;
 use App\Services\SessionAttendanceService;
 use Illuminate\Console\Command;
 
@@ -100,6 +103,14 @@ class ExpireSessionsCommand extends Command
 
             try { broadcast(new \App\Events\SessionEnded($session, $attendance)); } catch (\Throwable) {}
         }
+
+        BookingSequenceService::resequenceMany(
+            $expiredRequests->pluck('student_id')
+                ->merge($waitingSessions->pluck('student_id'))
+                ->merge($activeSessions->pluck('student_id'))
+        );
+
+        app(GroupClassService::class)->expireOverdue(app(DailyCoService::class));
 
         $this->info("✓ requests_expired={$expiredRequests->count()} waiting_expired={$waitingSessions->count()} active_expired={$activeSessions->count()}");
 

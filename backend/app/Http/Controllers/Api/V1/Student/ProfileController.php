@@ -32,6 +32,8 @@ class ProfileController extends Controller
                 'phone'             => $user->phone,
                 'timezone'          => $user->timezone,
                 'lesson_credits'    => (int) $user->lesson_credits,
+                'is_subscribed'     => (bool) $user->student?->activeSubscription()->exists(),
+                'subscription_type' => \App\Models\Subscription::activeTypeForUser($user->id),
                 'completed_lessons' => $completedLessons,
                 'passed_quizzes'    => $passedQuizzes,
                 'enrolled_units'    => $user->enrolledUnits()->where('status', 'active')->count(),

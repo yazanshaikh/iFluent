@@ -187,6 +187,12 @@ class SessionAttendanceService
             ]);
         }
 
+        BookingSequenceService::resequenceMany(
+            $expiredWaiting->pluck('student_id')
+                ->merge($expiredActive->pluck('student_id'))
+                ->merge($expiredRequests->pluck('student_id'))
+        );
+
         $total = $expiredWaiting->count() + $expiredActive->count();
         if ($total > 0) {
             Log::info("[AutoExpiry] Done: {$expiredWaiting->count()} waiting + {$expiredActive->count()} active expired");

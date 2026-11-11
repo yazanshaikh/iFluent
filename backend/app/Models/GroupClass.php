@@ -19,7 +19,7 @@ class GroupClass extends Model
     protected $fillable = [
         'teacher_id', 'title', 'description', 'lesson_id',
         'scheduled_at', 'max_seats', 'registered_count',
-        'status', 'daily_room_name', 'daily_room_url',
+        'status', 'daily_room_name', 'daily_room_url', 'nearpod_pin',
         'started_at', 'ended_at',
     ];
 

@@ -441,6 +441,8 @@ class SessionController extends Controller
             // No need to store it — skip balance increment
         });
 
+        \App\Services\BookingSequenceService::resequenceMany([$session->student_id]);
+
         // Broadcast session end to student in real-time (best-effort — must never
         // fail the end request if Reverb is unreachable).
         try {
@@ -540,10 +542,16 @@ class SessionController extends Controller
             return response()->json(['message' => 'Only waiting sessions can be cancelled.'], 422);
         }
 
-        $session->update([
-            'status'   => Session::STATUS_CANCELLED,
-            'ended_at' => now(),
-        ]);
+        DB::transaction(function () use ($session) {
+            $session->update([
+                'status'   => Session::STATUS_CANCELLED,
+                'ended_at' => now(),
+            ]);
+
+            $session->refundCreditOnce();
+        });
+
+        \App\Services\BookingSequenceService::resequenceMany([$session->student_id]);
 
         return response()->json(['message' => 'Session cancelled successfully.']);
     }
@@ -588,6 +596,8 @@ class SessionController extends Controller
                 ]);
         });
 
+        \App\Services\BookingSequenceService::resequenceMany([$session->student_id]);
+
         return response()->json(['message' => 'تم إلغاء السحب وإعادة الطلب للمجموعة.']);
     }
 
@@ -600,7 +610,8 @@ class SessionController extends Controller
             ->regular()   // is_assessment = false
             ->when($request->filled('level_id'), fn($q) => $q->where('level_id', $request->level_id))
             ->when($request->filled('unit_id'),  fn($q) => $q->where('unit_id', $request->unit_id))
-            ->paginate(20);
+            ->orderBy('id')
+            ->paginate(min($request->integer('per_page', 20), 300));
 
         return LessonResource::collection($lessons);
     }

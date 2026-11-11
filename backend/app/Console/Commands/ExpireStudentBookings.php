@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Models\SessionRequest;
 use App\Models\User;
+use App\Services\BookingSequenceService;
 use Illuminate\Console\Command;
 
 /**
@@ -57,6 +58,8 @@ class ExpireStudentBookings extends Command
                 User::whereKey($req->student_id)->increment('lesson_credits');
             }
         }
+
+        BookingSequenceService::resequenceMany($requests->pluck('student_id'));
 
         $this->info("✓ Expired {$expired} student booking request(s) past their scheduled time.");
 

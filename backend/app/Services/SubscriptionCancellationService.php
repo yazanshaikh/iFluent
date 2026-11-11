@@ -17,6 +17,7 @@ class SubscriptionCancellationService
     /**
      *   - marks ALL of the student's active subscriptions as cancelled
      *   - zeroes the student's lesson_credits
+     *   - cancels upcoming regular lessons that have not started
      *   - reverts lead status → no_answer
      *   - saves the reason as a lead remark (authored by $by)
      */
@@ -34,6 +35,10 @@ class SubscriptionCancellationService
             DB::table('users')
                 ->where('id', $student->user_id)
                 ->update(['lesson_credits' => 0]);
+
+            // Lessons that haven't started go with the subscription, so a later
+            // expiry can't hand credits back to a cancelled student.
+            BookingSequenceService::cancelUpcoming($student->user_id, 'تم إلغاء الاشتراك');
 
             // 3. Revert lead status → no_answer (back in pipeline)
             $lead = $student->lead;

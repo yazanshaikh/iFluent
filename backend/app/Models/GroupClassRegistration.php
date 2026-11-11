@@ -7,11 +7,12 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class GroupClassRegistration extends Model
 {
-    protected $fillable = ['group_class_id', 'student_id', 'registered_at', 'joined_at'];
+    protected $fillable = ['group_class_id', 'student_id', 'registered_at', 'joined_at', 'credit_refunded_at'];
 
     protected $casts = [
         'registered_at' => 'datetime',
         'joined_at'     => 'datetime',
+        'credit_refunded_at' => 'datetime',
     ];
 
     public function groupClass(): BelongsTo { return $this->belongsTo(GroupClass::class); }

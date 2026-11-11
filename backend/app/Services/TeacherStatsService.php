@@ -83,13 +83,20 @@ class TeacherStatsService
         return [$trial, $regular];
     }
 
-    /** Completed group classes that had at least one registered student. */
+    /**
+     * Completed group classes where at least one student attended — joined and
+     * stayed 10+ minutes, the same rule as individual lessons.
+     */
     private function groupClasses(int $teacherUserId, $since): int
     {
         return DB::table('group_classes')
             ->where('teacher_id', $teacherUserId)
             ->where('status', 'completed')
-            ->where('registered_count', '>', 0)
+            ->whereExists(fn ($q) => $q->select(DB::raw(1))
+                ->from('group_class_registrations')
+                ->whereColumn('group_class_registrations.group_class_id', 'group_classes.id')
+                ->whereNotNull('group_class_registrations.joined_at')
+                ->whereRaw("group_class_registrations.joined_at <= group_classes.ended_at - interval '" . \App\Models\Session::MIN_SESSION_MINUTES . " minutes'"))
             ->whereNull('deleted_at')
             ->when($since, fn ($q, $at) => $q->where('ended_at', '>', $at))
             ->count();

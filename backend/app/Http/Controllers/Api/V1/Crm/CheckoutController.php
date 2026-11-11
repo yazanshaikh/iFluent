@@ -10,6 +10,7 @@ use App\Models\PaymentAccount;
 use App\Models\Student;
 use App\Models\Subscription;
 use App\Models\User;
+use App\Services\BookingSequenceService;
 use App\Services\FcmService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -39,6 +40,19 @@ class CheckoutController extends Controller
             ])->exists()) {
             return response()->json([
                 'message' => 'هذا الطالب لديه فاتورة مفتوحة بالفعل.',
+            ], 422);
+        }
+
+        // ── One type at a time: the other type opens once this plan is used up ──
+        $student = $lead->student;
+        if ($student
+            && $student->subscriptions()
+                ->where('status', Subscription::STATUS_ACTIVE)
+                ->where('subscription_type', '!=', $request->subscription_type)
+                ->exists()
+            && ($student->user->lesson_credits > 0 || BookingSequenceService::upcomingCount($student->user_id) > 0)) {
+            return response()->json([
+                'message' => 'لا يمكن شراء هذا النوع قبل انتهاء رصيد الاشتراك الحالي وحصصه القادمة.',
             ], 422);
         }
 
@@ -87,6 +101,7 @@ class CheckoutController extends Controller
                 'payment_account_id' => $paymentAccount->id,
                 'activated_by'       => $request->user()->id,
                 'status'             => Subscription::STATUS_PENDING_SCREENSHOT,
+                'subscription_type'  => $request->subscription_type,
                 'lessons_count'      => $lessonsCount,
                 'months_count'       => $monthsCount,
                 'amount_paid'        => $request->amount_paid,
