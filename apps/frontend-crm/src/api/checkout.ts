@@ -8,7 +8,7 @@ export interface LessonOption {
   title: string;
   order: number;
   unit:  { id: number; name: string };
-  level: { id: number; code: string; name: string };
+  level?: { id: number; code: string; name: string } | null;
 }
 
 export type SubscriptionType = 'individual' | 'group';

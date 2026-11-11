@@ -688,7 +688,7 @@ export default function ProcessOrdersPage() {
                               <option value="">— من درس —</option>
                               {allLessons.map((l) => (
                                 <option key={l.id} value={String(l.id)}>
-                                  {l.level.code} · {l.title}
+                                  {l.level?.code ? `${l.level.code} · ` : ''}{l.title}
                                 </option>
                               ))}
                             </select>
@@ -706,7 +706,7 @@ export default function ProcessOrdersPage() {
                                 .filter((l) => !range.from || l.id >= Number(range.from))
                                 .map((l) => (
                                   <option key={l.id} value={String(l.id)}>
-                                    {l.level.code} · {l.title}
+                                    {l.level?.code ? `${l.level.code} · ` : ''}{l.title}
                                   </option>
                                 ))}
                             </select>

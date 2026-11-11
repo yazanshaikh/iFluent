@@ -28,7 +28,7 @@ class LessonController extends Controller
      */
     public function index(): AnonymousResourceCollection
     {
-        $lessons = Lesson::with(['unit.level'])
+        $lessons = Lesson::with(['unit.level', 'level'])
             ->active()
             ->regular()
             ->get()
