@@ -1,45 +1,17 @@
 /**
- * Group Virtual Classroom — teacher. Same split as the individual classroom
- * (video call + Nearpod control), with the group grid and mute controls.
+ * Group Virtual Classroom — teacher. Like the individual classroom: the video
+ * only (Nearpod runs in its own tab) and the class PIN beside the lesson name.
  */
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Platform, Linking } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { groupClassesApi } from '@/api/groupClasses';
 import { GroupCallPanel } from '@/components/GroupCallPanel';
-import { SplitCallLayout } from '@/components/SplitCallLayout';
 import { useAuthStore } from '@/stores/authStore';
 import { appAlert } from '@/lib/alert';
 import { C } from '@/theme';
-
-function NearpodControl({ nearpodUrl, pin }: { nearpodUrl: string; pin?: string | null }) {
-  const open = () => (Platform.OS === 'web'
-    ? window.open(nearpodUrl, '_blank', 'noopener,noreferrer')
-    : Linking.openURL(nearpodUrl));
-
-  return (
-    <View style={S.nearpod}>
-      <Text style={{ fontSize: 32 }}>📚</Text>
-      <Text style={S.nearpodTitle}>Nearpod</Text>
-      <Text style={S.nearpodHint}>
-        Nearpod does not allow embedding in the app.{'\n'}Open it in a new tab to control the lesson.
-      </Text>
-      <TouchableOpacity style={S.nearpodBtn} onPress={open}>
-        <Ionicons name="open-outline" size={18} color="#fff" />
-        <Text style={S.nearpodBtnTxt}>Open Nearpod in a new tab</Text>
-      </TouchableOpacity>
-      {pin && (
-        <View style={S.pinBox}>
-          <Text style={S.pinLabel}>Class PIN:</Text>
-          <Text style={S.pin}>{pin}</Text>
-          <Text style={S.pinNote}>Students use this PIN to join</Text>
-        </View>
-      )}
-    </View>
-  );
-}
 
 export default function GroupClassroomScreen() {
   const { id, roomUrl: paramRoomUrl } = useLocalSearchParams<{ id: string; roomUrl?: string }>();
@@ -80,7 +52,6 @@ export default function GroupClassroomScreen() {
 
   const roomUrl    = paramRoomUrl || room?.daily_room_url;
   const item       = data?.class;
-  const nearpodUrl = item?.lesson?.nearpod_url ?? 'https://nearpod.com/my-library';
 
   if (!roomUrl) {
     return (
@@ -110,7 +81,15 @@ export default function GroupClassroomScreen() {
           <Ionicons name="chevron-down" size={20} color="#fff" />
         </TouchableOpacity>
         <View style={S.topCenter}>
-          <Text style={S.topTitle} numberOfLines={1}>{item?.lesson?.title ?? item?.title ?? 'Group Class'}</Text>
+          <View style={S.titleRow}>
+            <Text style={S.topTitle} numberOfLines={1}>{item?.lesson?.title ?? item?.title ?? 'Group Class'}</Text>
+            {!!item?.nearpod_pin && (
+              <View style={S.pinChip}>
+                <Ionicons name="key-outline" size={12} color="#fff" />
+                <Text style={S.pinChipTxt}>{item.nearpod_pin.toUpperCase()}</Text>
+              </View>
+            )}
+          </View>
           <View style={S.liveBadge}>
             <View style={S.liveDot} />
             <Text style={S.liveTxt}>LIVE · {item?.registered_count ?? 0} students</Text>
@@ -121,10 +100,9 @@ export default function GroupClassroomScreen() {
         </TouchableOpacity>
       </View>
 
-      <SplitCallLayout
-        call={<GroupCallPanel roomUrl={roomUrl} userName={teacherName} moderator />}
-        content={<NearpodControl nearpodUrl={nearpodUrl} pin={item?.nearpod_pin} />}
-      />
+      <View style={{ flex: 1 }}>
+        <GroupCallPanel roomUrl={roomUrl} userName={teacherName} moderator />
+      </View>
     </View>
   );
 }
@@ -137,19 +115,13 @@ const S = StyleSheet.create({
   },
   topBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.1)', justifyContent: 'center', alignItems: 'center' },
   topCenter: { flex: 1, alignItems: 'center', gap: 2 },
-  topTitle: { color: '#fff', fontSize: 15, fontWeight: '800' },
+  topTitle: { color: '#fff', fontSize: 15, fontWeight: '800', flexShrink: 1 },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, maxWidth: '100%' },
+  pinChip: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#7c3aed', borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3 },
+  pinChipTxt: { color: '#fff', fontSize: 12, fontWeight: '900', letterSpacing: 1 },
   liveBadge: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   liveDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#ef4444' },
   liveTxt: { color: '#fca5a5', fontSize: 11, fontWeight: '800' },
   endBtn: { backgroundColor: C.error, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8, minWidth: 56, alignItems: 'center' },
   endTxt: { color: '#fff', fontWeight: '900', fontSize: 13 },
-  nearpod: { flex: 1, backgroundColor: '#0f172a', justifyContent: 'center', alignItems: 'center', gap: 12, padding: 16 },
-  nearpodTitle: { color: '#fff', fontSize: 18, fontWeight: '800' },
-  nearpodHint: { color: '#94a3b8', fontSize: 13, textAlign: 'center', lineHeight: 20 },
-  nearpodBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#7c3aed', borderRadius: 12, paddingHorizontal: 18, paddingVertical: 12 },
-  nearpodBtnTxt: { color: '#fff', fontSize: 15, fontWeight: '800' },
-  pinBox: { alignItems: 'center', gap: 4, backgroundColor: 'rgba(124,58,237,0.12)', borderRadius: 14, padding: 14 },
-  pinLabel: { color: '#94a3b8', fontSize: 12 },
-  pin: { color: '#7c3aed', fontSize: 28, fontWeight: '900', letterSpacing: 6 },
-  pinNote: { color: '#64748b', fontSize: 11 },
 });

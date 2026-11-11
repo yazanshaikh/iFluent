@@ -8,7 +8,9 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { myStudentsApi } from '@/api/myStudents';
+import { appAlert } from '@/lib/alert';
 import { useAuthStore } from '@/stores/authStore';
 import { authApi } from '@/api/auth';
 import { C, shadow } from '@/theme';
@@ -44,6 +46,29 @@ export default function ProfileScreen() {
   const user = freshProfile
     ? { ...storeUser, ...freshProfile }
     : storeUser;
+
+  const qc = useQueryClient();
+  const { data: students = [], isLoading: loadingStudents } = useQuery({
+    queryKey: ['my-students'],
+    queryFn:  myStudentsApi.list,
+    staleTime: 0,
+  });
+
+  const removeStudent = useMutation({
+    mutationFn: (studentId: number) => myStudentsApi.remove(studentId),
+    onSuccess:  () => qc.invalidateQueries({ queryKey: ['my-students'] }),
+    onError:    (e: any) => {
+      // The list may be out of date (e.g. the CRM already moved the student) — refresh it.
+      qc.invalidateQueries({ queryKey: ['my-students'] });
+      appAlert('Error', e?.response?.data?.message ?? 'Could not remove the student');
+    },
+  });
+
+  const confirmRemove = (studentId: number, name: string) =>
+    appAlert('Remove Student', `Remove ${name} from your students? The admin can assign them again from the CRM.`, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Remove', style: 'destructive', onPress: () => removeStudent.mutate(studentId) },
+    ]);
 
   const handleLogout = async () => {
     try { await authApi.logout(); } catch {}
@@ -148,6 +173,34 @@ export default function ProfileScreen() {
           </View>
         </Pressable>
 
+        {/* My students — assigned from the CRM */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>My Students ({students.length})</Text>
+          {loadingStudents ? (
+            <Text style={styles.emptyTxt}>Loading…</Text>
+          ) : students.length === 0 ? (
+            <Text style={styles.emptyTxt}>No students are assigned to you yet.</Text>
+          ) : students.map((student) => (
+            <View key={student.id} style={styles.studentRow}>
+              <TouchableOpacity
+                style={styles.removeBtn}
+                onPress={() => confirmRemove(student.id, student.name)}
+                disabled={removeStudent.isPending}
+                hitSlop={8}
+              >
+                <Ionicons name="person-remove-outline" size={18} color={C.error} />
+              </TouchableOpacity>
+              <View style={styles.infoText}>
+                <Text style={styles.infoValue}>{student.name}</Text>
+                <Text style={styles.infoLabel}>{student.remaining_lessons} lessons remaining</Text>
+              </View>
+              <View style={styles.infoIcon}>
+                <Ionicons name="school-outline" size={18} color={C.sky} />
+              </View>
+            </View>
+          ))}
+        </View>
+
         {/* Logout */}
         <Pressable
           style={({ pressed }) => [styles.logoutBtn, pressed && { opacity: 0.7 }]}
@@ -204,6 +257,16 @@ const styles = StyleSheet.create({
   infoText:  { flex: 1, alignItems: 'flex-end' },
   infoLabel: { fontSize: 11, color: C.grayMid },
   infoValue: { fontSize: 14, fontWeight: '700', color: C.grayDark, marginTop: 2 },
+
+  studentRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 10,
+    borderBottomWidth: 1, borderBottomColor: '#F3F4F6',
+  },
+  removeBtn: {
+    width: 36, height: 36, borderRadius: 10, backgroundColor: '#FFF5F5',
+    justifyContent: 'center', alignItems: 'center',
+  },
+  emptyTxt: { fontSize: 13, color: C.grayMid, textAlign: 'right' },
 
   logoutBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',

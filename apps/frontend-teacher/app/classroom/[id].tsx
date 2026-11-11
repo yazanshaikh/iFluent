@@ -16,11 +16,10 @@ import {
   View, Text, StyleSheet, TouchableOpacity,
   ActivityIndicator, StatusBar,
   BackHandler, TextInput, Modal,
-  PanResponder, Platform,
+  Platform,
 } from 'react-native';
 import { WebViewUniversal } from '@/components/WebViewUniversal';
 import { DailyCallPanel } from '@/components/DailyCallPanel';
-import { SplitCallLayout } from '@/components/SplitCallLayout';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -32,50 +31,6 @@ import { C } from '@/theme';
 import { appAlert } from '@/lib/alert';
 
 
-const DAILY_MIN_H    = 90;
-const DAILY_MAX_H    = 320;
-const DAILY_DEFAULT_H = 200;
-const HANDLE_H       = 28;
-
-// Nearpod control panel (teacher opens Nearpod in a browser — it blocks embedding)
-function NearpodControl({ nearpodUrl, pin }: { nearpodUrl: string; pin?: string | null }) {
-  return (
-    <View style={{ flex: 1, backgroundColor: '#0f172a', justifyContent: 'center', alignItems: 'center', gap: 20, padding: 16 }}>
-      <View style={{ alignItems: 'center', gap: 8 }}>
-        <Text style={{ fontSize: 32 }}>📚</Text>
-        <Text style={{ color: '#fff', fontSize: 18, fontWeight: '800' }}>Nearpod</Text>
-        <Text style={{ color: '#94a3b8', fontSize: 13, textAlign: 'center', lineHeight: 20, paddingHorizontal: 16 }}>
-          Nearpod does not allow embedding in the app.{'\n'}Open it in a new tab to control the lesson.
-        </Text>
-      </View>
-
-      <TouchableOpacity
-        style={S.nearpodOpenBtn}
-        onPress={() => {
-          if (Platform.OS === 'web') {
-            window.open(nearpodUrl, '_blank', 'noopener,noreferrer');
-          } else {
-            const { Linking } = require('react-native');
-            Linking.openURL(nearpodUrl);
-          }
-        }}
-      >
-        <Ionicons name="open-outline" size={18} color="#fff" />
-        <Text style={S.nearpodOpenTxt}>Open Nearpod in a new tab</Text>
-      </TouchableOpacity>
-
-      {pin && (
-        <View style={S.pinReminder}>
-          <Text style={{ color: '#94a3b8', fontSize: 12 }}>Current session PIN:</Text>
-          <Text style={{ color: '#7c3aed', fontSize: 28, fontWeight: '900', letterSpacing: 6 }}>{pin}</Text>
-          <Text style={{ color: '#64748b', fontSize: 11, textAlign: 'center' }}>
-            The student uses this PIN to join
-          </Text>
-        </View>
-      )}
-    </View>
-  );
-}
 
 export default function ClassroomScreen() {
   const router     = useRouter();
@@ -88,13 +43,10 @@ export default function ClassroomScreen() {
   const [pinInput,          setPinInput]          = useState('');
   const [signedRoomUrl,     setSignedRoomUrl]     = useState<string | null>(paramRoomUrl ?? null);
   const [orientationLocked, setOrientationLocked] = useState(false);
-  const [dailyH,            setDailyH]            = useState(DAILY_DEFAULT_H);
   const [handNotif,         setHandNotif]         = useState<{ name: string; at: string } | null>(null);
   const [evalVisible,       setEvalVisible]       = useState(false);
   const handNotifTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const dailyHRef    = useRef(DAILY_DEFAULT_H);
-  const dragStartRef = useRef(0);
 
   // ── Fetch session ──────────────────────────────────────────────────────────
   const { data: session, isLoading } = useQuery({
@@ -183,22 +135,6 @@ export default function ClassroomScreen() {
     onError: (e: any) => appAlert('Error', e?.response?.data?.message ?? 'Could not end the session'),
   });
 
-  // ── Drag handle — resize Daily panel ──────────────────────────────────────
-  const dragResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder:  () => true,
-      onPanResponderGrant: () => {
-        dragStartRef.current = dailyHRef.current;
-      },
-      onPanResponderMove: (_, g) => {
-        const newH = Math.max(DAILY_MIN_H, Math.min(DAILY_MAX_H, dragStartRef.current + g.dy));
-        dailyHRef.current = newH;
-        setDailyH(newH);
-      },
-    })
-  ).current;
-
   // ── Orientation lock (Web: Screen Orientation API / Mobile: stub) ─────────
   const toggleOrientationLock = useCallback(async () => {
     if (Platform.OS === 'web') {
@@ -269,8 +205,6 @@ export default function ClassroomScreen() {
   const dailyUrl = signedRoomUrl || paramRoomUrl || session.daily_room_url;
   const pin      = session.nearpod_pin;
 
-  // Teacher opens their Nearpod lesson URL (teacher control interface)
-  const nearpodUrl = session.lesson?.nearpod_url ?? 'https://nearpod.com/my-library';
 
   if (!dailyUrl) {
     return (
@@ -313,9 +247,15 @@ export default function ClassroomScreen() {
         </TouchableOpacity>
 
         <View style={S.topCenter}>
-          <Text style={S.topTitle} numberOfLines={1}>
-            {session.lesson?.title ?? 'Virtual Classroom'}
-          </Text>
+          <View style={S.titleRow}>
+            <Text style={S.topTitle} numberOfLines={1}>
+              {session.lesson?.title ?? 'Virtual Classroom'}
+            </Text>
+            <TouchableOpacity style={S.pinChip} onPress={() => setPinVisible(true)}>
+              <Ionicons name="key-outline" size={12} color="#fff" />
+              <Text style={S.pinChipTxt}>{pin ? pin.toUpperCase() : 'Set PIN'}</Text>
+            </TouchableOpacity>
+          </View>
           <View style={S.liveBadge}>
             <View style={S.liveDot} />
             <Text style={S.liveTxt}>LIVE</Text>
@@ -333,19 +273,6 @@ export default function ClassroomScreen() {
               size={17}
               color={orientationLocked ? '#FCD34D' : '#fff'}
             />
-          </TouchableOpacity>
-
-          {/* PIN */}
-          <TouchableOpacity
-            style={[S.topBtn, pin ? S.topBtnPin : null]}
-            onPress={() => setPinVisible(true)}
-          >
-            <Ionicons name="key-outline" size={17} color="#fff" />
-            {pin && (
-              <View style={S.pinBubble}>
-                <Text style={S.pinBubbleTxt} numberOfLines={1}>{pin}</Text>
-              </View>
-            )}
           </TouchableOpacity>
 
           {/* End */}
@@ -373,74 +300,20 @@ export default function ClassroomScreen() {
         </View>
       </View>
 
-      {Platform.OS === 'web' ? (
-        <>
-          {/* ── TOP: Daily.co — embedded iframe, resizable (web only) ──────── */}
-          <View style={[S.dailyPanel, { height: dailyH }]}>
-            <WebViewUniversal
-              key={`daily-teacher-${sessionId}`}
-              uri={dailyUrl}
-              style={StyleSheet.absoluteFillObject}
-              loadingColor={C.sky}
-              mediaCapturePermissionGrantType="grant"
-            />
-            {/* Collapse/expand quick button */}
-            <View style={S.dailyOverlay} pointerEvents="box-none">
-              <TouchableOpacity
-                style={S.dailyQuickBtn}
-                onPress={() => {
-                  const next = dailyH > DAILY_MIN_H + 20 ? DAILY_MIN_H : DAILY_DEFAULT_H;
-                  dailyHRef.current = next;
-                  setDailyH(next);
-                }}
-              >
-                <Ionicons
-                  name={dailyH > DAILY_MIN_H + 20 ? 'chevron-up' : 'chevron-down'}
-                  size={14}
-                  color="rgba(255,255,255,0.8)"
-                />
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          {/* ── DRAG HANDLE ───────────────────────────────────────────────── */}
-          <View
-            style={S.handle}
-            {...dragResponder.panHandlers}
-            {...({
-              // Web mouse drag
-              onMouseDown: (e: any) => {
-                const startY = e.clientY;
-                const startH = dailyHRef.current;
-                const onMove = (ev: MouseEvent) => {
-                  const newH = Math.max(DAILY_MIN_H, Math.min(DAILY_MAX_H, startH + (ev.clientY - startY)));
-                  dailyHRef.current = newH;
-                  setDailyH(newH);
-                };
-                const onUp = () => {
-                  window.removeEventListener('mousemove', onMove);
-                  window.removeEventListener('mouseup', onUp);
-                };
-                window.addEventListener('mousemove', onMove);
-                window.addEventListener('mouseup', onUp);
-              },
-            } as any)}
-          >
-            <View style={S.handlePill} />
-            <Text style={S.handleHint}>Drag to resize</Text>
-            <View style={S.handlePill} />
-          </View>
-
-          {/* Nearpod control fills the rest (web) */}
-          <NearpodControl nearpodUrl={nearpodUrl} pin={pin} />
-        </>
-      ) : (
-        /* ── Native: embedded Daily call + Nearpod in a responsive split ──── */
-        <SplitCallLayout
-          call={<DailyCallPanel roomUrl={dailyUrl} />}
-          content={<NearpodControl nearpodUrl={nearpodUrl} pin={pin} />}
-        />
-      )}
+      {/* Video only — the teacher runs Nearpod in its own tab */}
+      <View style={{ flex: 1 }}>
+        {Platform.OS === 'web' ? (
+          <WebViewUniversal
+            key={`daily-teacher-${sessionId}`}
+            uri={dailyUrl}
+            style={StyleSheet.absoluteFillObject}
+            loadingColor={C.sky}
+            mediaCapturePermissionGrantType="grant"
+          />
+        ) : (
+          <DailyCallPanel roomUrl={dailyUrl} />
+        )}
+      </View>
 
       {/* ── PIN Modal ───────────────────────────────────────────────────────── */}
       <Modal visible={pinVisible} transparent animationType="slide">
@@ -517,7 +390,10 @@ const S = StyleSheet.create({
   topBtnPin:  { backgroundColor: C.sky + '33', borderWidth: 1, borderColor: C.sky + '66' },
   topBtnEnd:  { backgroundColor: C.error + '22', borderWidth: 1, borderColor: C.error + '44' },
   topCenter:  { flex: 1, alignItems: 'center' },
-  topTitle:   { color: '#fff', fontSize: 14, fontWeight: '700' },
+  topTitle:   { color: '#fff', fontSize: 14, fontWeight: '700', flexShrink: 1 },
+  titleRow:   { flexDirection: 'row', alignItems: 'center', gap: 8, maxWidth: '100%' },
+  pinChip:    { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#7c3aed', borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3 },
+  pinChipTxt: { color: '#fff', fontSize: 12, fontWeight: '900', letterSpacing: 1 },
   topRight:   { flexDirection: 'row', gap: 7, alignItems: 'center' },
   liveBadge:  { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 3 },
   liveDot:    { width: 6, height: 6, borderRadius: 3, backgroundColor: C.success },
@@ -529,38 +405,6 @@ const S = StyleSheet.create({
   },
   pinBubbleTxt: { fontSize: 7, color: '#fff', fontWeight: '800' },
 
-  // Daily panel
-  dailyPanel: {
-    backgroundColor: '#000',
-    position: 'relative',
-    minHeight: DAILY_MIN_H,
-    maxHeight: DAILY_MAX_H,
-  },
-  dailyOverlay:   { position: 'absolute', top: 8, right: 8, zIndex: 5 },
-  dailyQuickBtn:  {
-    width: 28, height: 28, borderRadius: 14,
-    backgroundColor: 'rgba(0,0,0,0.55)',
-    justifyContent: 'center', alignItems: 'center',
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)',
-  },
-
-
-  // Drag handle
-  handle: {
-    height: HANDLE_H,
-    backgroundColor: '#1e293b',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    borderTopWidth: 1,    borderTopColor: '#334155',
-    borderBottomWidth: 1, borderBottomColor: '#334155',
-    zIndex: 20,
-    // @ts-ignore
-    cursor: Platform.OS === 'web' ? 'ns-resize' : undefined,
-  },
-  handlePill: { width: 32, height: 4, borderRadius: 2, backgroundColor: '#475569' },
-  handleHint: { fontSize: 10, color: '#64748b', fontWeight: '600', letterSpacing: 0.5 },
 
   // Modals
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
@@ -602,19 +446,5 @@ const S = StyleSheet.create({
   handNotifSub: { color: 'rgba(255,255,255,0.7)', fontSize: 11, marginTop: 2 },
 
   // Nearpod open button
-  nearpodOpenBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    backgroundColor: '#7c3aed',
-    paddingHorizontal: 28, paddingVertical: 14,
-    borderRadius: 16,
-    shadowColor: '#7c3aed', shadowOpacity: 0.4, shadowRadius: 12, elevation: 8,
-  },
-  nearpodOpenTxt: { color: '#fff', fontSize: 15, fontWeight: '800' },
 
-  pinReminder: {
-    alignItems: 'center', gap: 4,
-    backgroundColor: '#1e293b',
-    paddingHorizontal: 32, paddingVertical: 16,
-    borderRadius: 16, borderWidth: 1, borderColor: '#334155',
-  },
 });
