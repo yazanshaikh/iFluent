@@ -81,13 +81,19 @@ export default function GroupClassProfileScreen() {
 
   if (roomUrl) {
     return (
-      <View style={[s.room, { paddingTop: insets.top }]}>
-        {/* Same as individual lessons: the call beside the student's Nearpod */}
-        {nearpod && (
-          <View style={s.pinChip}>
-            <Text style={s.pinChipTxt}>رمز Nearpod: {nearpod.pin.toUpperCase()}</Text>
-          </View>
-        )}
+      <View style={[s.room, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+        {/* Top bar: Nearpod code with a small leave button beside it */}
+        <View style={s.roomBar}>
+          {nearpod && (
+            <View style={s.pinChip}>
+              <Text style={s.pinChipTxt}>رمز Nearpod: {nearpod.pin.toUpperCase()}</Text>
+            </View>
+          )}
+          <TouchableOpacity style={s.leaveRoom} onPress={() => setRoomUrl(null)} activeOpacity={0.85}>
+            <Ionicons name="exit-outline" size={14} color={C.white} />
+            <Text style={s.leaveRoomTxt}>مغادرة</Text>
+          </TouchableOpacity>
+        </View>
         <View style={{ flex: 1 }}>
           <SplitCallLayout
             call={<GroupCallPanel roomUrl={roomUrl} userName={profile?.name} />}
@@ -96,13 +102,6 @@ export default function GroupClassProfileScreen() {
               : <View style={{ flex: 1, backgroundColor: '#fff' }} />}
           />
         </View>
-        <TouchableOpacity
-          style={[s.leaveRoom, { marginBottom: insets.bottom + 12 }]}
-          onPress={() => setRoomUrl(null)}
-          activeOpacity={0.85}
-        >
-          <Text style={s.leaveRoomTxt}>مغادرة الحصة</Text>
-        </TouchableOpacity>
       </View>
     );
   }
@@ -239,10 +238,14 @@ function Row({ icon, label, value }: { icon: keyof typeof Ionicons.glyphMap; lab
 const s = StyleSheet.create({
   screen: { flex: 1, backgroundColor: C.cream },
   room: { flex: 1, backgroundColor: '#000' },
-  pinChip: { alignSelf: 'center', backgroundColor: '#7c3aed', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 5, marginVertical: 6 },
+  roomBar: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8, marginVertical: 6 },
+  pinChip: { backgroundColor: '#7c3aed', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 5 },
   pinChipTxt: { color: '#fff', fontWeight: '800', fontSize: 13 },
-  leaveRoom: { backgroundColor: C.error, marginHorizontal: 16, marginTop: 12, borderRadius: 14, paddingVertical: 14, alignItems: 'center' },
-  leaveRoomTxt: { color: C.white, fontSize: 15, fontWeight: '900' },
+  leaveRoom: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    backgroundColor: C.error, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 5,
+  },
+  leaveRoomTxt: { color: C.white, fontSize: 13, fontWeight: '800' },
   header: {
     backgroundColor: C.navy, flexDirection: 'row', alignItems: 'center',
     justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 16,
