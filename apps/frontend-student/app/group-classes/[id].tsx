@@ -13,6 +13,7 @@ import { WebViewUniversal } from '@/components/WebViewUniversal';
 import { profileApi } from '@/api/profile';
 import { appAlert } from '@/lib/alert';
 import { formatJordanDateTime } from '@/lib/bookingSlots';
+import { lockLandscape, lockPortrait } from '@/lib/screenOrientation';
 import { C, shadow } from '@/theme';
 
 const PURPLE = '#7C3AED';
@@ -42,6 +43,14 @@ export default function GroupClassProfileScreen() {
     qc.invalidateQueries({ queryKey: ['group-classes-mine'] });
     qc.invalidateQueries({ queryKey: ['profile'] });
   };
+
+  // Same as individual lessons: the room is always landscape (video + Nearpod
+  // side by side); back to portrait when the student leaves the room.
+  useEffect(() => {
+    if (!roomUrl) return;
+    lockLandscape().catch(() => {});
+    return () => { lockPortrait().catch(() => {}); };
+  }, [roomUrl]);
 
   // The class ending removes it from the student's list, which closes the room.
   const ended = isError && roomUrl !== null;
