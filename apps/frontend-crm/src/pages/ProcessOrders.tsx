@@ -521,6 +521,12 @@ export default function ProcessOrdersPage() {
         to_lesson_id:   toId   || null,
       }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['pending-approval'] }),
+    // Show why the server refused (overlapping lessons, already approved, …)
+    // instead of the button silently doing nothing.
+    onError: (err: any) => alert(
+      err?.response?.data?.message
+        ?? (err?.response ? `تعذّر تفعيل الاشتراك (خطأ ${err.response.status}).` : 'تعذّر الاتصال بالخادم. حاول مرة أخرى.'),
+    ),
   });
 
   const rejectMutation = useMutation({
@@ -531,6 +537,7 @@ export default function ProcessOrdersPage() {
       setRejectTarget(null);
       setRejectReason('');
     },
+    onError: (err: any) => alert(err?.response?.data?.message ?? 'تعذّر رفض الطلب. حاول مرة أخرى.'),
   });
 
   const handleCopy = (text: string, id: string) => {

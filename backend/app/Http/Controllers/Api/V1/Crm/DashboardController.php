@@ -213,7 +213,8 @@ class DashboardController extends Controller
         $studentList = $students->map(fn($sub) => [
             'student_id'     => $sub->student->id,
             'name'           => $sub->student->user->name,
-            'package'        => $sub->package->name,
+            // Plans are sold by lessons; most have no package
+            'package'        => $sub->package?->name ?? ($sub->lessons_count ? "{$sub->lessons_count} درس" : '—'),
             'activated_at'   => $sub->activated_at?->toDateString(),
             'expires_at'     => $sub->expires_at?->toDateString(),
             // Phase 2: lessons_completed, sessions_booked, progress_pct

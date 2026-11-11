@@ -165,12 +165,18 @@ class SubscriptionController extends Controller
                     'staff_id' => $request->user()->id,
                 ]);
             }
-
-            // Notify student
-            $subscription->student->user->notify(
-                new SubscriptionActivated($subscription)
-            );
         });
+
+        // Notify the student only after the approval is saved. A notification
+        // problem must never undo or block the activation itself.
+        try {
+            $subscription->refresh()->student->user->notify(new SubscriptionActivated($subscription));
+        } catch (\Throwable $e) {
+            \Log::warning('Subscription approved but the student notification failed', [
+                'subscription_id' => $subscription->id,
+                'error'           => $e->getMessage(),
+            ]);
+        }
 
         return new SubscriptionResource(
             $subscription->fresh()->load(['student.user', 'paymentAccount', 'activatedBy', 'approvedBy'])
