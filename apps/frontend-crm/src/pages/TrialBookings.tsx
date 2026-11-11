@@ -21,21 +21,21 @@ import { useDebounced } from '@/hooks/useDebounced';
 /* ── Status helpers ─────────────────────────────────────────────────────────── */
 // Support both SessionRequest statuses AND Session statuses
 const STATUS_LABEL: Record<string, string> = {
-  pending:   'Pending',
-  confirmed: 'Confirmed',
-  rejected:  'Rejected',
-  cancelled: 'Cancelled',
-  expired:   'Expired',
-  waiting:   'Pending',
-  active:    'Live now',
-  completed: 'Completed',
+  pending:   'قيد الانتظار',
+  confirmed: 'مؤكدة',
+  rejected:  'مرفوضة',
+  cancelled: 'ملغاة',
+  expired:   'منتهية',
+  waiting:   'قيد الانتظار',
+  active:    'جارية الآن',
+  completed: 'مكتملة',
 };
 
 function getStatusLabel(status: string, attendanceStatus?: string | null): string {
   if (status === 'completed' || attendanceStatus) {
-    if (attendanceStatus === 'attended')       return '✅ Completed';
-    if (attendanceStatus === 'absent')         return '😔 Student absent';
-    if (attendanceStatus === 'teacher_absent') return '🚫 Teacher absent';
+    if (attendanceStatus === 'attended')       return '✅ مكتملة';
+    if (attendanceStatus === 'absent')         return '😔 غياب الطالب';
+    if (attendanceStatus === 'teacher_absent') return '🚫 غياب المعلم';
   }
   return STATUS_LABEL[status] ?? status;
 }
@@ -64,8 +64,11 @@ const STATUS_VARIANT: Record<string, 'default' | 'secondary' | 'success' | 'dest
 };
 
 const ROLE_LABEL: Record<string, string> = {
-  cc: 'CC', ss: 'LP', super_admin: 'Admin',
+  cc: 'CC', ss: 'LP', super_admin: 'مدير النظام',
 };
+
+// Arabic month and day names with the Latin digits used across the CRM
+const AR_LOCALE = 'ar-JO-u-nu-latn';
 
 /* ── Columns ────────────────────────────────────────────────────────────────── */
 interface RowActions {
@@ -80,7 +83,7 @@ function useColumns(showStaff: boolean, actions: RowActions | null): ColumnDef<D
   const cols: ColumnDef<DemoBooking, unknown>[] = [
     {
       accessorKey: 'lead',
-      header: ({ column }) => <SortableHeader column={column} label="Lead" />,
+      header: ({ column }) => <SortableHeader column={column} label="العميل" />,
       cell: ({ row }) => row.original.lead ? (
         <div>
           <p className="font-medium">{row.original.lead.name}</p>
@@ -91,16 +94,16 @@ function useColumns(showStaff: boolean, actions: RowActions | null): ColumnDef<D
     },
     {
       accessorKey: 'scheduled_at',
-      header: ({ column }) => <SortableHeader column={column} label="Session time" />,
+      header: ({ column }) => <SortableHeader column={column} label="موعد الحصة" />,
       cell: ({ row }) => {
         const d = new Date(row.original.scheduled_at);
         return (
-          <div className="text-sm" dir="ltr">
+          <div className="text-sm">
             <p className="font-medium">
-              {d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
+              {d.toLocaleDateString(AR_LOCALE, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
             </p>
             <p className="text-xs text-muted-foreground">
-              {d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+              {d.toLocaleTimeString(AR_LOCALE, { hour: 'numeric', minute: '2-digit', hour12: true })}
             </p>
           </div>
         );
@@ -108,11 +111,11 @@ function useColumns(showStaff: boolean, actions: RowActions | null): ColumnDef<D
     },
     {
       accessorKey: 'status',
-      header: ({ column }) => <SortableHeader column={column} label="Status" />,
+      header: ({ column }) => <SortableHeader column={column} label="الحالة" />,
       cell: ({ row }) => {
         const s = row.original;
         return (
-          <Badge variant={getStatusVariant(s.status, (s as any).attendance_status)}>
+          <Badge className="whitespace-nowrap" variant={getStatusVariant(s.status, (s as any).attendance_status)}>
             {getStatusLabel(s.status, (s as any).attendance_status)}
           </Badge>
         );
@@ -120,10 +123,10 @@ function useColumns(showStaff: boolean, actions: RowActions | null): ColumnDef<D
     },
     {
       accessorKey: 'created_at',
-      header: ({ column }) => <SortableHeader column={column} label="Booked on" />,
+      header: ({ column }) => <SortableHeader column={column} label="تاريخ الحجز" />,
       cell: ({ row }) => (
-        <span className="text-xs text-muted-foreground" dir="ltr">
-          {new Date(row.original.created_at).toLocaleDateString('en-GB')}
+        <span className="text-xs text-muted-foreground">
+          {new Date(row.original.created_at).toLocaleDateString(AR_LOCALE)}
         </span>
       ),
     },
@@ -133,7 +136,7 @@ function useColumns(showStaff: boolean, actions: RowActions | null): ColumnDef<D
   if (showStaff) {
     cols.splice(1, 0, {
       id: 'assigned_to',
-      header: 'Staff',
+      header: 'الموظف',
       enableSorting: false,
       cell: ({ row }) => row.original.assigned_to ? (
         <div className="flex items-center gap-1.5">
@@ -143,7 +146,7 @@ function useColumns(showStaff: boolean, actions: RowActions | null): ColumnDef<D
           <span className="text-sm">{row.original.assigned_to.name}</span>
         </div>
       ) : (
-        <span className="text-xs text-muted-foreground">Unassigned</span>
+        <span className="text-xs text-muted-foreground">غير معيّن</span>
       ),
     });
   }
@@ -167,7 +170,7 @@ function useColumns(showStaff: boolean, actions: RowActions | null): ColumnDef<D
             >
               {actions.cancelingId === booking.id
                 ? <Loader2 className="h-3 w-3 animate-spin" />
-                : 'Cancel session'}
+                : 'إلغاء الحصة'}
             </Button>
           )}
           {actions && booking.lead && !isActive && (
@@ -177,7 +180,7 @@ function useColumns(showStaff: boolean, actions: RowActions | null): ColumnDef<D
               onClick={(e) => { e.stopPropagation(); actions.onBook(booking); }}
             >
               <CalendarPlus className="h-3.5 w-3.5" />
-              Book session
+              حجز حصة
             </Button>
           )}
           {booking.lead && (
@@ -231,13 +234,13 @@ export default function TrialBookingsPage() {
   const cancelMutation = useMutation({
     mutationFn: (id: number) => leadsApi.cancelDemo(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['demo-bookings'] }),
-    onError: (err: any) => alert(err?.response?.data?.message ?? 'Could not cancel the session'),
+    onError: (err: any) => alert(err?.response?.data?.message ?? 'تعذر إلغاء الحصة'),
   });
 
   const columns = useColumns(seesAll, seesAll ? {
     cancelingId: cancelMutation.isPending ? (cancelMutation.variables ?? null) : null,
     onCancel: (b) => {
-      if (confirm(`Cancel the trial session for ${b.lead?.name ?? 'this lead'}?`)) cancelMutation.mutate(b.id);
+      if (confirm(`هل تريد إلغاء الحصة التقييمية الخاصة بـ ${b.lead?.name ?? 'هذا العميل'}؟`)) cancelMutation.mutate(b.id);
     },
     onBook: (b) => b.lead && setBookLeadId(b.lead.id),
   } : null);
@@ -252,8 +255,8 @@ export default function TrialBookingsPage() {
             <CalendarClock className="h-6 w-6" />
             Trial Bookings
           </h1>
-          <p className="text-muted-foreground text-sm mt-0.5" dir="ltr">
-            {data ? `${data.total} trial sessions` : ' '}
+          <p className="text-muted-foreground text-sm mt-0.5">
+            {data ? `عدد الحصص التقييمية: ${data.total}` : ' '}
           </p>
         </div>
       </div>
@@ -263,7 +266,7 @@ export default function TrialBookingsPage() {
         <div className="relative flex-1 min-w-[200px] max-w-sm">
           <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Search by name or phone…"
+            placeholder="ابحث بالاسم أو رقم الهاتف…"
             dir="auto"
             value={search}
             onChange={(e) => { setSearch(e.target.value); setPage(1); }}
@@ -280,10 +283,10 @@ export default function TrialBookingsPage() {
             onValueChange={(v) => { setStatusFilter(v as DemoBooking['status'] | 'all'); setPage(1); }}
           >
             <SelectTrigger className="w-40">
-              <SelectValue placeholder="All statuses" />
+              <SelectValue placeholder="جميع الحالات" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All statuses</SelectItem>
+              <SelectItem value="all">جميع الحالات</SelectItem>
               {FILTER_STATUSES.map((s) => (
                 <SelectItem key={s} value={s}>{STATUS_LABEL[s]}</SelectItem>
               ))}
@@ -306,7 +309,7 @@ export default function TrialBookingsPage() {
               className="text-muted-foreground text-xs gap-1"
             >
               <X className="h-3.5 w-3.5" />
-              Clear all
+              مسح الفلاتر
             </Button>
           )}
         </div>
@@ -315,7 +318,7 @@ export default function TrialBookingsPage() {
       {/* Table */}
       <Card>
         <CardHeader className="pb-0">
-          <CardTitle className="text-base font-semibold">Booked trial sessions</CardTitle>
+          <CardTitle className="text-base font-semibold">الحصص التقييمية المحجوزة</CardTitle>
         </CardHeader>
         <CardContent className="pt-4">
           <DataTable
@@ -328,8 +331,8 @@ export default function TrialBookingsPage() {
                 <p className="text-3xl">📅</p>
                 <p>
                   {hasFilters
-                    ? 'No sessions match these filters'
-                    : 'No trial sessions booked yet'}
+                    ? 'لا توجد حصص مطابقة لهذه الفلاتر'
+                    : 'لا توجد حصص تقييمية محجوزة حتى الآن'}
                 </p>
               </div>
             }
@@ -338,19 +341,19 @@ export default function TrialBookingsPage() {
           {/* Pagination */}
           {data && data.last_page > 1 && (
             <div className="flex items-center justify-between mt-4 pt-4 border-t">
-              <p className="text-sm text-muted-foreground" dir="ltr">
-                Page {data.current_page} of {data.last_page} · {data.total} results
+              <p className="text-sm text-muted-foreground">
+                صفحة {data.current_page} من {data.last_page} · {data.total} نتيجة
               </p>
               <div className="flex gap-2">
                 <Button variant="outline" size="sm"
                   disabled={page === 1}
                   onClick={() => setPage((p) => p - 1)}>
-                  Previous
+                  السابق
                 </Button>
                 <Button variant="outline" size="sm"
                   disabled={page === data.last_page}
                   onClick={() => setPage((p) => p + 1)}>
-                  Next
+                  التالي
                 </Button>
               </div>
             </div>

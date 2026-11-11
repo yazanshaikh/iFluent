@@ -11,7 +11,15 @@ export interface LessonOption {
   level: { id: number; code: string; name: string };
 }
 
+export type SubscriptionType = 'individual' | 'group';
+
+export const SUBSCRIPTION_TYPE_LABEL: Record<SubscriptionType, string> = {
+  individual: 'حصص فردية',
+  group:      'حصص جماعية',
+};
+
 export interface PurchaseCoursePayload {
+  subscription_type: SubscriptionType;
   lessons_count:   number;
   amount_paid:     number;
   from_lesson_id?: number | null;
@@ -35,6 +43,7 @@ export interface PendingOrder {
   invoice_uuid:  string | null;
   invoice_url:   string | null;
   status:        string;
+  subscription_type?: SubscriptionType;
   lessons_count: number | null;
   months_count:  number;
   amount_paid:   number;
@@ -157,7 +166,7 @@ export const lessonsApi = {
    *  Used in CRM to populate from/to lesson dropdowns. */
   getAll: () =>
     client
-      .get<{ data: LessonOption[] }>('/admin/lessons')
+      .get<{ data: LessonOption[] }>('/crm/lessons')
       .then((r) => r.data.data),
 };
 

@@ -65,6 +65,7 @@ export interface Lead {
     activated_at:  string | null;
     amount_paid:   number;
     lessons_count: number | null;
+    subscription_type?: 'individual' | 'group';
     has_pending_cancellation?: boolean;
     remaining_lessons?: number;
     is_near_end?: boolean;

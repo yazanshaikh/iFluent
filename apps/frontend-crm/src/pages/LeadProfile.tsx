@@ -5,7 +5,7 @@ import {
 } from '@tanstack/react-query';
 import { leadsApi, type LeadStatus, type UpdateLeadPayload, type Remark } from '@/api/leads';
 import { staffApi } from '@/api/staff';
-import { checkoutApi, type InvoiceCreatedResponse } from '@/api/checkout';
+import { checkoutApi, SUBSCRIPTION_TYPE_LABEL, type InvoiceCreatedResponse, type SubscriptionType } from '@/api/checkout';
 import { invoiceFullUrl } from '@/lib/appUrl';
 import { useAuthStore } from '@/stores/authStore';
 import { STATUS_LABELS_EN, STATUS_VARIANT } from './Leads';
@@ -172,6 +172,7 @@ export default function LeadProfilePage() {
 
   /* ── Purchase Course modal state ── */
   const [purchaseOpen,        setPurchaseOpen]        = useState(false);
+  const [purchaseType,        setPurchaseType]        = useState<SubscriptionType | null>(null);
   const [purchaseLessonsFrom, setPurchaseLessonsFrom] = useState<number | null>(null);
   const [purchaseLessonsTo,   setPurchaseLessonsTo]   = useState<number | null>(null);
   const [purchaseActualPrice, setPurchaseActualPrice] = useState('');
@@ -250,6 +251,7 @@ export default function LeadProfilePage() {
   const purchaseMutation = useMutation({
     mutationFn: () =>
       checkoutApi.purchaseCourse(leadId, {
+        subscription_type: purchaseType!,
         lessons_count:   selectedLessonsCount,
         amount_paid:     Number(purchaseActualPrice) || selectedLessonsCount * pricePerLesson,
         // global lesson numbers match DB IDs (lessons seeded sequentially 1-252)
@@ -281,6 +283,7 @@ export default function LeadProfilePage() {
 
   const handlePurchaseOpen = () => {
     setPurchaseOpen(true);
+    setPurchaseType(null);
     setPurchaseLessonsFrom(null);
     setPurchaseLessonsTo(null);
     setPurchaseActualPrice('');
@@ -657,6 +660,12 @@ export default function LeadProfilePage() {
                 <div className="absolute left-0 top-full mt-1 z-50 hidden group-hover:block w-72 rounded-xl border bg-white shadow-lg p-4 text-right dark:bg-zinc-900 dark:border-zinc-700">
                   <p className="text-xs font-bold text-emerald-700 mb-3 border-b pb-2">تفاصيل الاشتراك</p>
                   <div className="space-y-2 text-sm">
+                    {lead.active_subscription.subscription_type && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">نوع الاشتراك</span>
+                        <span className="font-medium">{SUBSCRIPTION_TYPE_LABEL[lead.active_subscription.subscription_type]}</span>
+                      </div>
+                    )}
                     {lead.active_subscription.activated_at && (
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">تاريخ الشراء</span>
@@ -1215,8 +1224,30 @@ export default function LeadProfilePage() {
           </DialogTitle>
         </DialogHeader>
 
-        {!purchaseResult ? (
+        {!purchaseResult && !purchaseType ? (
+          <div className="space-y-3">
+            <Label>اختر نوع الاشتراك</Label>
+            <div className="grid grid-cols-2 gap-3">
+              {(Object.keys(SUBSCRIPTION_TYPE_LABEL) as SubscriptionType[]).map((type) => (
+                <Button
+                  key={type}
+                  variant="outline"
+                  className="h-20 text-base font-semibold"
+                  onClick={() => { setPurchaseError(''); setPurchaseType(type); }}
+                >
+                  {SUBSCRIPTION_TYPE_LABEL[type]}
+                </Button>
+              ))}
+            </div>
+          </div>
+        ) : !purchaseResult ? (
           <>
+            <div className="flex items-center justify-between rounded-md bg-muted px-3 py-2 text-sm">
+              <span>نوع الاشتراك: <span className="font-semibold">{SUBSCRIPTION_TYPE_LABEL[purchaseType!]}</span></span>
+              <button type="button" className="text-primary text-xs font-medium" onClick={() => setPurchaseType(null)}>
+                تغيير
+              </button>
+            </div>
             {/* ── Lesson selector ── */}
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">

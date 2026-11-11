@@ -18,6 +18,7 @@ import {
   Ban,
   Inbox,
   UserCircle,
+  Presentation,
 } from 'lucide-react';
 import { cn }          from '@/lib/utils';
 import { Button }      from '@/components/ui/button';
@@ -45,6 +46,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Trial Bookings',to: '/bookings',        icon: BookOpen },
   { label: 'Process Orders', to: '/process-orders', icon: ClipboardList },
   { label: 'Paid Students',  to: '/paid-students',   icon: UserCheck },
+  { label: 'Group Classes',  to: '/group-classes',   icon: Presentation, adminOnly: true },
   { label: 'Cancellation Requests', to: '/cancellation-requests', icon: Ban, adminOnly: true },
   { label: 'Cancellation Requests', to: '/my-requests',      icon: Inbox, lpOnly: true },
   { label: 'Teachers',       to: '/teachers',         icon: GraduationCap, lpOnly: true },

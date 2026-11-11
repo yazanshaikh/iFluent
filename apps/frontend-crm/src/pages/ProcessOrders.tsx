@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect, type ReactNode } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { checkoutApi, lessonsApi, type PendingOrder, type LessonOption } from '@/api/checkout';
+import { checkoutApi, lessonsApi, SUBSCRIPTION_TYPE_LABEL, type PendingOrder, type LessonOption } from '@/api/checkout';
 import { useAuthStore } from '@/stores/authStore';
 import { invoiceFullUrl } from '@/lib/appUrl';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -275,6 +275,12 @@ function OrderCard({
           <div className="flex items-center gap-1.5 text-muted-foreground">
             <span>المبلغ:</span>
             <span className="font-semibold text-foreground">{order.amount_paid} دينار</span>
+          </div>
+          <div className="flex items-center gap-1.5 text-muted-foreground">
+            <span>نوع الاشتراك:</span>
+            <span className="font-semibold text-foreground">
+              {SUBSCRIPTION_TYPE_LABEL[order.subscription_type ?? 'individual']}
+            </span>
           </div>
           <div className="flex items-center gap-1.5 text-muted-foreground">
             <span>المدة:</span>

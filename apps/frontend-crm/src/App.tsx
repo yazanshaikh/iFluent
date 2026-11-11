@@ -15,6 +15,7 @@ import SmallTreasuryPage   from '@/pages/SmallTreasury';
 import TrialBookingsPage   from '@/pages/TrialBookings';
 import ProcessOrdersPage   from '@/pages/ProcessOrders';
 import PaidStudentsPage    from '@/pages/PaidStudents';
+import GroupClassesPage from '@/pages/GroupClasses';
 import CancellationRequestsPage from '@/pages/CancellationRequests';
 import MyRequestsPage      from '@/pages/MyRequests';
 import TeachersPage        from '@/pages/Teachers';
@@ -55,6 +56,7 @@ export default function App() {
             <Route path="/bookings"       element={<TrialBookingsPage />} />
             <Route path="/process-orders" element={<ProcessOrdersPage />} />
             <Route path="/paid-students"  element={<PaidStudentsPage />} />
+            <Route path="/group-classes"  element={<GroupClassesPage />} />
             <Route path="/cancellation-requests" element={<CancellationRequestsPage />} />
             <Route path="/my-requests"    element={<MyRequestsPage />} />
             <Route path="/messages"       element={<MessagesPage />} />
