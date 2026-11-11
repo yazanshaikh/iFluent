@@ -12,7 +12,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import {
-  UserCheck, Phone, Calendar, Loader2, Search, X, ChevronRight, Clock, UserRoundCog, BellRing,
+  UserCheck, Phone, Calendar, Loader2, Search, X, ChevronRight, Clock, UserRoundCog, BellRing, Users, User,
 } from 'lucide-react';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -286,6 +286,18 @@ export default function PaidStudentsPage() {
 
                       <Badge variant={SUB_STATUS_VARIANT[s.subscription.status] ?? 'outline'}>
                         {SUB_STATUS_LABEL[s.subscription.status] ?? s.subscription.status}
+                      </Badge>
+
+                      {/* Group or individual plan, so the two are easy to tell apart */}
+                      <Badge
+                        variant="outline"
+                        className={s.subscription.subscription_type === 'group'
+                          ? 'gap-1 border-violet-300 bg-violet-50 text-violet-700'
+                          : 'gap-1 border-sky-300 bg-sky-50 text-sky-700'}
+                      >
+                        {s.subscription.subscription_type === 'group'
+                          ? <><Users className="h-3 w-3" /> حصص جماعية</>
+                          : <><User className="h-3 w-3" /> حصص فردية</>}
                       </Badge>
 
                       {/* Expired → reminder to reach out about renewing (drops off the list after 3 days) */}

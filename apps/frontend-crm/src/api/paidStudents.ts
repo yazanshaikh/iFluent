@@ -14,6 +14,7 @@ export interface PaidStudent {
     lessons_count: number | null;
     months_count:  number;
     status:        string;
+    subscription_type?: 'individual' | 'group';
     activated_at:  string | null;
     expires_at:    string | null;
     has_pending_cancellation?: boolean;
