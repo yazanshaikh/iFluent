@@ -1,6 +1,6 @@
 /**
  * Requests Center — Requests Center
- * Tabs: Demo | Core | Private | Group
+ * Tabs: Demo | Core | Private (group classes have their own tab)
  */
 import { useState } from 'react';
 import {
@@ -15,13 +15,12 @@ import { fmtManila } from '@/lib/time';
 import { C, shadow } from '@/theme';
 import { appAlert } from '@/lib/alert';
 
-type Tab = 'demo' | 'core' | 'private' | 'group';
+type Tab = 'demo' | 'core' | 'private';
 
 const TABS: { key: Tab; label: string; icon: string }[] = [
   { key: 'demo',    label: 'Assessment',  icon: 'star-outline' },
   { key: 'core',    label: 'Core',   icon: 'book-outline' },
   { key: 'private', label: 'Private',     icon: 'person-outline' },
-  { key: 'group',   label: 'Group',   icon: 'people-outline' },
 ];
 
 function fmt(iso: string | null) {
@@ -133,7 +132,6 @@ export default function RequestsScreen() {
     demo:    allData.filter((r) => r.type === 'demo').length,
     core:    allData.filter((r) => r.type === 'core').length,
     private: allData.filter((r) => r.type === 'private').length,
-    group:   allData.filter((r) => r.type === 'group').length,
   };
 
   const [acceptingId, setAcceptingId] = useState<number | null>(null);

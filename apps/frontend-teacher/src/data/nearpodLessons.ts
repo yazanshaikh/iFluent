@@ -125,3 +125,24 @@ export const NEARPOD_LESSONS: LessonLevel[] = [
     ],
   },
 ];
+
+/** Assessment (trial) lessons — shown under «Assessment Sessions» in Browse Lessons. */
+export interface AssessmentSession {
+  title: string;
+  url:   string;
+}
+
+export const ASSESSMENT_SESSIONS: AssessmentSession[] = [
+  {
+    title: 'Greeting Beginner',
+    url:   'https://np1.nearpod.com/sharePresentation.php?code=e6ce649a91c0dc54c557f33370d9da20-1&oc=user-created&utm_source=link',
+  },
+  {
+    title: 'Make Order (A1)',
+    url:   'https://np1.nearpod.com/sharePresentation.php?code=c9b8f848853664a866d7256dc2d0cbe6-1&oc=user-created&utm_source=link',
+  },
+  {
+    title: 'WH Questions (A2)',
+    url:   'https://np1.nearpod.com/sharePresentation.php?code=0e0839d06b19c045b2c2ea01e90b64a1-1&oc=user-created&utm_source=link',
+  },
+];

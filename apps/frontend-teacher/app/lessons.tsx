@@ -15,7 +15,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { NEARPOD_LESSONS } from '@/data/nearpodLessons';
+import { ASSESSMENT_SESSIONS, NEARPOD_LESSONS } from '@/data/nearpodLessons';
 import { C, shadow } from '@/theme';
 import { appAlert } from '@/lib/alert';
 
@@ -95,6 +95,42 @@ export default function LessonsScreen() {
           );
         })}
 
+        {/* Assessment (trial) lessons — for individual and group classes alike */}
+        <View style={styles.levelCard}>
+          <TouchableOpacity
+            style={styles.levelHeader}
+            onPress={() => toggle('assessment')}
+            activeOpacity={0.8}
+          >
+            <Ionicons
+              name={open === 'assessment' ? 'chevron-down' : 'chevron-back'}
+              size={18}
+              color={C.skyDark}
+            />
+            <View style={{ flex: 1, alignItems: 'flex-end' }}>
+              <Text style={styles.levelTitle}>Assessment Sessions</Text>
+              <Text style={styles.levelCount}>{ASSESSMENT_SESSIONS.length} lessons</Text>
+            </View>
+          </TouchableOpacity>
+
+          {open === 'assessment' && (
+            <View style={styles.assessmentList}>
+              {ASSESSMENT_SESSIONS.map((lesson) => (
+                <TouchableOpacity
+                  key={lesson.url}
+                  style={styles.assessmentRow}
+                  onPress={() => openLesson(lesson.url)}
+                  activeOpacity={0.75}
+                >
+                  <Ionicons name="open-outline" size={16} color={C.sky} />
+                  <Text style={styles.assessmentTxt}>{lesson.title}</Text>
+                  <Ionicons name="star-outline" size={16} color={C.skyDark} />
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+        </View>
+
         <Text style={styles.footer}>
           Open the lesson in Nearpod, launch it in Live Participation mode, copy the
           code, then enter it back in the app.
@@ -155,6 +191,14 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   numTxt: { fontSize: 16, fontWeight: '800', color: C.skyDark },
+
+  assessmentList: { paddingHorizontal: 16, paddingBottom: 16, gap: 8 },
+  assessmentRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    backgroundColor: C.inputBg, borderWidth: 1.5, borderColor: C.border,
+    borderRadius: 14, paddingHorizontal: 14, paddingVertical: 13,
+  },
+  assessmentTxt: { flex: 1, fontSize: 15, fontWeight: '800', color: C.skyDark, textAlign: 'right' },
 
   footer: {
     fontSize: 12, color: C.grayMid, textAlign: 'center',
