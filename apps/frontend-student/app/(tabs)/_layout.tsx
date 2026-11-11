@@ -7,12 +7,13 @@
  */
 import { Redirect, Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { Animated, Platform, StyleSheet } from 'react-native';
+import { Animated, Platform, StyleSheet, View } from 'react-native';
 import { BottomTabBar } from '@react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '@/stores/authStore';
 import { C } from '@/theme';
 import { tabBarScrollAnim } from '@/animations';
+import { SessionsTabGuide } from '@/components/SessionsTabGuide';
 
 const TAB_BAR_STYLE = StyleSheet.create({
   bar: {
@@ -39,6 +40,7 @@ export default function TabsLayout() {
   }
 
   return (
+    <View style={{ flex: 1 }}>
     <Tabs
       tabBar={(props) => (
         <Animated.View style={{ transform: [{ translateY: tabBarScrollAnim }] }}>
@@ -95,5 +97,7 @@ export default function TabsLayout() {
         }}
       />
     </Tabs>
+    <SessionsTabGuide bottom={56 + bottomPad} />
+    </View>
   );
 }

@@ -29,6 +29,10 @@ import { teachersApi }       from '@/api/teachers';
 import { AvailabilityList }  from '@/components/AvailabilityList';
 import { sessionsApi }       from '@/api/sessions';
 import { C, shadow }         from '@/theme';
+import {
+  AFTER_MIDNIGHT_NOTE, BOOKING_SLOTS, formatSlot12h, getBookingDays,
+  getTodaySlots, isAfterMidnight, toScheduledAt,
+} from '@/lib/bookingSlots';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -37,39 +41,6 @@ const AR_MONTHS = [
   'يناير','فبراير','مارس','إبريل','مايو','يونيو',
   'يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر',
 ];
-
-// 09:00 → 21:00 (9 PM) Jordan time, every 30 min
-const ALL_SLOTS = (() => {
-  const slots: string[] = [];
-  const pad = (n: number) => String(n).padStart(2, '0');
-  for (let h = 9; h <= 23; h++) {
-    slots.push(`${pad(h)}:00`);
-    if (h < 23) slots.push(`${pad(h)}:30`); // no 23:30
-  }
-  return slots;
-})();
-
-// Jordan is UTC+3 — get current Jordan hour/minute
-function jordanNow() {
-  const now = new Date();
-  try {
-    // Use Intl.DateTimeFormat — reliable in Hermes (React Native)
-    const fmt = new Intl.DateTimeFormat('en-US', {
-      timeZone:  'Asia/Amman',
-      hour:      'numeric',
-      minute:    'numeric',
-      hour12:    false,
-    });
-    const parts = fmt.formatToParts(now);
-    const h = parseInt(parts.find(p => p.type === 'hour')?.value   ?? '0', 10);
-    const m = parseInt(parts.find(p => p.type === 'minute')?.value ?? '0', 10);
-    // Intl sometimes returns 24 for midnight — normalise
-    return { h: h === 24 ? 0 : h, m };
-  } catch {
-    // Fallback: assume device is set to Jordan time
-    return { h: now.getHours(), m: now.getMinutes() };
-  }
-}
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
@@ -111,25 +82,14 @@ export function SessionBookingModal({ visible, credits, onClose, onBooked }: Pro
     staleTime: 60_000,
   });
 
-  const days = useMemo(() =>
-    Array.from({ length: 7 }, (_, i) => {
-      const d = new Date();
-      d.setDate(d.getDate() + i);
-      return d;
-    }), [],
-  );
+  const days = useMemo(() => getBookingDays(), [visible]);
 
-  // Filter past slots when today is selected — use Jordan time.
+  // Filter past slots when today is selected.
   // nowTick in deps → recomputes every 30s so stale past slots disappear.
-  const availableSlots = useMemo(() => {
-    if (dayIdx !== 0) return ALL_SLOTS;
-    const { h, m } = jordanNow();
-    const curMin   = h * 60 + m;
-    return ALL_SLOTS.filter((s) => {
-      const [sh, sm] = s.split(':').map(Number);
-      return sh * 60 + sm > curMin + 15; // must be 15+ min from now
-    });
-  }, [dayIdx, nowTick]);
+  const availableSlots = useMemo(
+    () => (dayIdx === 0 ? getTodaySlots() : BOOKING_SLOTS),
+    [dayIdx, nowTick],
+  );
 
   // If the currently-selected slot just became invalid (time passed), clear it
   useEffect(() => {
@@ -138,20 +98,10 @@ export function SessionBookingModal({ visible, credits, onClose, onBooked }: Pro
 
   const effectiveSlot = slot && availableSlots.includes(slot) ? slot : null;
 
-  const pad = (n: number) => String(n).padStart(2, '0');
-
   const handleSubmit = async () => {
     if (!effectiveSlot) return;
 
-    // Build ISO 8601 with Jordan +03:00 offset so backend stores correct UTC
-    const d   = days[dayIdx];
-    const [slotH, slotM] = effectiveSlot.split(':').map(Number);
-    const jordanDate = new Date(
-      d.getFullYear(), d.getMonth(), d.getDate(), slotH, slotM, 0,
-    );
-    // Adjust: jordanDate is in device local time; we need it interpreted as Jordan (+3)
-    // Send as "YYYY-MM-DD HH:MM:00+03:00"
-    const scheduled_at = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${effectiveSlot}:00`;
+    const scheduled_at = toScheduledAt(days[dayIdx], effectiveSlot);
 
     setLoading(true);
     try {
@@ -286,11 +236,14 @@ export function SessionBookingModal({ visible, credits, onClose, onBooked }: Pro
                         onPress={() => setSlot(sl)}
                         activeOpacity={0.8}
                       >
-                        <Text style={[s.slotTxt, active && s.slotTxtActive]}>{sl}</Text>
+                        <Text style={[s.slotTxt, active && s.slotTxtActive]}>{formatSlot12h(sl)}</Text>
                       </TouchableOpacity>
                     );
                   })}
                 </View>
+              )}
+              {availableSlots.some(isAfterMidnight) && (
+                <Text style={s.slotsNote}>{AFTER_MIDNIGHT_NOTE}</Text>
               )}
 
               {/* Gender preference */}
@@ -462,6 +415,7 @@ const s = StyleSheet.create({
   slotPillActive: { backgroundColor: C.navy, borderColor: C.navy },
   slotTxt:        { fontSize: 13, fontWeight: '800', color: C.navy, letterSpacing: 0.3 },
   slotTxtActive:  { color: C.white },
+  slotsNote:      { fontSize: 11, color: C.gray, fontWeight: '600', textAlign: 'right', marginTop: 10 },
 
   // Optional tag
   optionalTag: { fontSize: 11, fontWeight: '500', color: C.gray },

@@ -13,6 +13,7 @@ export interface SessionListItem {
     id:    number;
     title: string;
     order: number;
+    is_assessment?: boolean;
     unit:  { id: number; name: string; order: number } | null;
     level: { id: number; code: string; name: string };
   };

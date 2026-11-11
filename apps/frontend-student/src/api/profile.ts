@@ -7,6 +7,9 @@ export interface Profile {
   phone:             string;
   timezone:          string | null;
   lesson_credits:    number;
+  is_subscribed?:    boolean;
+  /** Type of the latest active plan; null when there is none. */
+  subscription_type?: 'individual' | 'group' | null;
   completed_lessons: number;
   passed_quizzes:    number;
   enrolled_units:    number;

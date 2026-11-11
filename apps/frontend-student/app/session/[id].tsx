@@ -13,7 +13,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ActivityIndicator,
   TouchableOpacity, AppState,
-  StatusBar, BackHandler,
+  StatusBar, BackHandler, useWindowDimensions,
 } from 'react-native';
 import { appAlert } from '@/lib/alert';
 import { useRouter, useLocalSearchParams, Stack } from 'expo-router';
@@ -25,6 +25,8 @@ import { lockLandscape, lockPortrait } from '@/lib/screenOrientation';
 import { DailyCallPanel } from '@/components/DailyCallPanel';
 import { SplitCallLayout } from '@/components/SplitCallLayout';
 import { sessionsApi, type JoinSessionResponse } from '@/api/sessions';
+import { GuideTip } from '@/components/GuideTip';
+import { useGuideStep, useIsTrialStudent } from '@/lib/trialGuide';
 
 const POLL_WAITING_MS = 5_000;
 
@@ -82,6 +84,19 @@ export default function SessionRoomScreen() {
   const [raisingHand,       setRaisingHand]       = useState(false);
 
   const appState = useRef(AppState.currentState);
+
+  // Trial students: point at the code Nearpod asks for
+  const isTrialStudent = useIsTrialStudent();
+  const codeTip = useGuideStep(
+    'nearpod-code',
+    isTrialStudent && joined && roomData?.lesson?.is_assessment && roomData?.nearpod_pin ? sessionId : null,
+  );
+  const { width: screenW } = useWindowDimensions();
+  const pinRef = useRef<View>(null);
+  const [pinBox, setPinBox] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
+  const measurePin = () => pinRef.current?.measureInWindow((x, y, w, h) => setPinBox({ x, y, w, h }));
+  const tipWidth = Math.min(320, screenW - 24);
+  const tipLeft  = pinBox ? Math.max(12, Math.min(pinBox.x + pinBox.w / 2 - tipWidth / 2, screenW - tipWidth - 12)) : 12;
 
   // ── Polling — stop once joined ─────────────────────────────────────────────
   const { data, error } = useQuery<JoinSessionResponse>({
@@ -193,7 +208,7 @@ export default function SessionRoomScreen() {
           )}
 
           {joined && !!roomData?.nearpod_pin && (
-            <View style={S.pinChip}>
+            <View ref={pinRef} collapsable={false} onLayout={measurePin} style={S.pinChip}>
               <Ionicons name="key" size={12} color="#1A2980" />
               <Text style={S.pinChipTxt}>{roomData.nearpod_pin.toUpperCase()}</Text>
             </View>
@@ -207,6 +222,16 @@ export default function SessionRoomScreen() {
           )}
         </View>
       </View>
+
+      {codeTip.visible && pinBox && (
+        <GuideTip
+          text="أدخل هذا الرمز في المربع الذي يطلبه Nearpod للدخول إلى الدرس."
+          arrow="up"
+          arrowLeft={pinBox.x + pinBox.w / 2 - tipLeft}
+          onDismiss={codeTip.dismiss}
+          style={{ position: 'absolute', top: pinBox.y + pinBox.h + 2, left: tipLeft, width: tipWidth, zIndex: 50, elevation: 20 }}
+        />
+      )}
 
       {/* ── Waiting ───────────────────────────────────────────────────────── */}
       {!joined && (

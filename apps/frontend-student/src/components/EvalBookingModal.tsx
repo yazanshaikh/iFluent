@@ -28,6 +28,10 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import client                    from '@/api/client';
 import { C, shadow }             from '@/theme';
 import { purchaseAssessment, getAssessmentPrice, isIapSupported } from '@/services/iap';
+import {
+  AFTER_MIDNIGHT_NOTE, BOOKING_SLOTS, formatSlot12h, getBookingDays,
+  getTodaySlots, isAfterMidnight, toScheduledAt,
+} from '@/lib/bookingSlots';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -42,34 +46,14 @@ const AR_MONTHS = [
   'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر',
 ];
 
-// 09:00 → 23:30 every 30 min, then 00:00 (midnight)
-const ALL_SLOTS = (() => {
-  const slots: string[] = [];
-  const pad = (n: number) => String(n).padStart(2, '0');
-  for (let h = 9; h <= 23; h++) {
-    slots.push(`${pad(h)}:00`);
-    slots.push(`${pad(h)}:30`);
-  }
-  slots.push('00:00');
-  return slots;
-})();
-
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function parseStoredDate(val: string): Date {
-  // "2026-06-01 14:00:00"
-  const [datePart, timePart] = val.split(' ');
-  const [y, mo, d] = datePart.split('-').map(Number);
-  const [h, m]     = timePart.split(':').map(Number);
-  return new Date(y, mo - 1, d, h, m);
-}
-
-function formatBookingLabel(val: string): string {
-  const date = parseStoredDate(val);
-  const pad  = (n: number) => String(n).padStart(2, '0');
+function formatBookingLabel(iso: string): string {
+  const date = new Date(iso);
+  const time = `${date.getHours()}:${String(date.getMinutes()).padStart(2, '0')}`;
   return (
     `${AR_DAYS[date.getDay()]} ${date.getDate()} ${AR_MONTHS[date.getMonth()]}` +
-    ` — الساعة ${pad(date.getHours())}:${pad(date.getMinutes())}`
+    ` — الساعة ${formatSlot12h(time)}`
   );
 }
 
@@ -145,38 +129,21 @@ export function EvalBookingModal({ visible, onClose, paid = false }: Props) {
     onError: (e: any) => appAlert('خطأ', e?.response?.data?.message ?? 'حدث خطأ، يرجى المحاولة مرة أخرى'),
   });
 
-  // 7 calendar days starting from today
-  const days = useMemo(() =>
-    Array.from({ length: 7 }, (_, i) => {
-      const d = new Date();
-      d.setDate(d.getDate() + i);
-      return d;
-    }), [],
-  );
+  const days = useMemo(() => getBookingDays(), [visible]);
 
   // For "today", filter out slots whose time has already passed.
-  // Midnight '00:00' (totalMin = 0) is always < current time so it's
-  // automatically excluded for today — available for future days only.
-  const availableSlots = useMemo(() => {
-    if (dayIdx !== 0) return ALL_SLOTS;
-    const now    = new Date();
-    const curMin = now.getHours() * 60 + now.getMinutes();
-    return ALL_SLOTS.filter((s) => {
-      const [h, m] = s.split(':').map(Number);
-      return h * 60 + m > curMin;
-    });
-  }, [dayIdx]);
+  const availableSlots = useMemo(
+    () => (dayIdx === 0 ? getTodaySlots() : BOOKING_SLOTS),
+    [dayIdx, visible],
+  );
 
   const effectiveSlot = slot && availableSlots.includes(slot) ? slot : null;
 
   const handleDaySelect = useCallback((idx: number) => setDayIdx(idx), []);
 
-  const pad = (n: number) => String(n).padStart(2, '0');
-
   const handleSubmit = async () => {
     if (!effectiveSlot || assessLessons.length === 0) return;
-    const d            = days[dayIdx];
-    const scheduled_at = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${effectiveSlot}:00`;
+    const scheduled_at = toScheduledAt(days[dayIdx], effectiveSlot);
 
     if (!paid) {
       bookMutation.mutate({ lessonId: assessLessons[0].id, scheduled_at });
@@ -263,7 +230,7 @@ export function EvalBookingModal({ visible, onClose, paid = false }: Props) {
               <View style={s.bookedDateBox}>
                 <Text style={s.bookedDateTxt}>
                   {existingBooking?.scheduled_at
-                    ? formatBookingLabel(existingBooking.scheduled_at.replace('T', ' ').slice(0, 16) + ':00')
+                    ? formatBookingLabel(existingBooking.scheduled_at)
                     : 'موعد محجوز'}
                 </Text>
               </View>
@@ -346,11 +313,14 @@ export function EvalBookingModal({ visible, onClose, paid = false }: Props) {
                         onPress={() => setSlot(sl)}
                         activeOpacity={0.8}
                       >
-                        <Text style={[s.slotTxt, active && s.slotTxtActive]}>{sl}</Text>
+                        <Text style={[s.slotTxt, active && s.slotTxtActive]}>{formatSlot12h(sl)}</Text>
                       </TouchableOpacity>
                     );
                   })}
                 </View>
+              )}
+              {availableSlots.some(isAfterMidnight) && (
+                <Text style={s.slotsNote}>{AFTER_MIDNIGHT_NOTE}</Text>
               )}
 
               {/* Gender preference */}
@@ -516,6 +486,7 @@ const s = StyleSheet.create({
   slotPillActive: { backgroundColor: C.yellow, borderColor: C.yellow },
   slotTxt:        { fontSize: 13, fontWeight: '800', color: C.navy, letterSpacing: 0.3 },
   slotTxtActive:  { color: C.navy },
+  slotsNote: { fontSize: 11, color: C.gray, fontWeight: '600', textAlign: 'right', marginTop: 10 },
 
   // Name input
   nameInput: {

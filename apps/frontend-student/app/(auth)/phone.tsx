@@ -22,6 +22,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { sendOtp } from '@/services/firebaseAuth';
 import { authApi } from '@/api/auth';
 import { toE164 } from '@/lib/phone';
+import { otpErrorMessage } from '@/lib/otpErrors';
 import { useAuthStore } from '@/stores/authStore';
 import { ResponsiveContainer } from '@/components/ResponsiveContainer';
 import { rf, s } from '@/lib/responsive';
@@ -143,8 +144,7 @@ export default function PhoneScreen() {
           err?.response?.data?.message ?? 'لقد طلبت رمز التحقق عدة مرات. حاول لاحقاً.',
         );
       } else {
-        const msg = err?.response?.data?.message ?? err?.message ?? 'تعذر الاتصال. حاول مجدداً.';
-        appAlert('خطأ', msg);
+        appAlert('خطأ', otpErrorMessage(err));
       }
     } finally {
       setLoading(false);

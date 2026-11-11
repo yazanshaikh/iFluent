@@ -67,3 +67,8 @@ export async function confirmOtp(confirmation: OtpConfirmation, code: string): P
   const credential = await (confirmation as ConfirmationResult).confirm(code);
   return credential.user.getIdToken();
 }
+
+/** The SMS is never read automatically on web. */
+export function onOtpAutoVerified(_onToken: (idToken: string) => void): () => void {
+  return () => {};
+}

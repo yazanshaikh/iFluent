@@ -17,7 +17,8 @@ import {
 import { appAlert } from '@/lib/alert';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { confirmOtp, sendOtp } from '@/services/firebaseAuth';
+import { confirmOtp, onOtpAutoVerified, sendOtp } from '@/services/firebaseAuth';
+import { otpErrorMessage } from '@/lib/otpErrors';
 import { authApi } from '@/api/auth';
 import { toE164 } from '@/lib/phone';
 import { useAuthStore } from '@/stores/authStore';
@@ -56,6 +57,7 @@ export default function VerifyScreen() {
   const [resending, setResending] = useState(false);
 
   const boxRefs = useRef<(TextInput | null)[]>([]);
+  const finishing = useRef(false);
 
   useEffect(() => {
     const t = setInterval(() => setResend(c => Math.max(0, c - 1)), 1000);
@@ -89,6 +91,26 @@ export default function VerifyScreen() {
 
   const otp = digits.join('');
 
+  // ── Exchange the Firebase token for our session (only ever once) ──
+  const finishLogin = async (idToken: string) => {
+    if (finishing.current) return;
+    finishing.current = true;
+    try {
+      const res = await authApi.firebaseVerify(idToken);
+      clearConfirmationResult();
+      await setAuth(res.token, res.user);
+      router.replace('/(tabs)/levels');
+    } catch (err) {
+      finishing.current = false; // allow another attempt
+      throw err;
+    }
+  };
+
+  // Android can read the SMS and verify the phone by itself.
+  useEffect(() => onOtpAutoVerified((idToken) => {
+    finishLogin(idToken).catch((err) => appAlert('خطأ', otpErrorMessage(err)));
+  }), []);
+
   // ── Verify ────────────────────────────────────────────────────────────
   const handleVerify = async () => {
     if (otp.length !== 6) {
@@ -105,13 +127,7 @@ export default function VerifyScreen() {
     try {
       // Confirm the OTP and get the Firebase ID token (platform-agnostic).
       const idToken = await confirmOtp(confirmationResult, otp);
-
-      // Exchange with Laravel for a Sanctum token.
-      const res = await authApi.firebaseVerify(idToken);
-
-      clearConfirmationResult();
-      await setAuth(res.token, res.user);
-      router.replace('/(tabs)/levels');
+      await finishLogin(idToken);
 
     } catch (err: any) {
       // Firebase expires the verification session after a few minutes. With a
@@ -129,13 +145,7 @@ export default function VerifyScreen() {
         setResend(0); // make "إعادة الإرسال" tappable right away
       }
 
-      const msg = err?.response?.data?.message
-        ?? (expired ? 'انتهت صلاحية الرمز. اضغط "إعادة الإرسال" للحصول على رمز جديد.' : null)
-        ?? (err?.code === 'auth/invalid-verification-code' ? 'رمز التحقق غير صحيح' : null)
-        ?? err?.message
-        ?? 'حدث خطأ. حاول مجدداً.';
-
-      appAlert('خطأ', msg);
+      appAlert('خطأ', otpErrorMessage(err));
       setDigits(Array(6).fill(''));
       boxRefs.current[0]?.focus();
     } finally {
@@ -182,7 +192,7 @@ export default function VerifyScreen() {
         // Keep the button locked even past the 60s so they wait out the window.
         setResend(60);
       } else {
-        appAlert('خطأ', err?.response?.data?.message ?? err?.message ?? 'تعذر إعادة الإرسال.');
+        appAlert('خطأ', otpErrorMessage(err));
       }
     } finally {
       setResending(false);

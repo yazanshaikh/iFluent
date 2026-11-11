@@ -243,7 +243,9 @@ function CreditsBody({
   router,
   onBook,
   onBookSession,
+  subscriptionType,
 }: {
+  subscriptionType?: 'individual' | 'group' | null;
   credits:       number;
   myUnits:       Unit[];
   router:        ReturnType<typeof useRouter>;
@@ -251,6 +253,8 @@ function CreditsBody({
   onBookSession: () => void;
 }) {
   const doneCount = myUnits.filter((u) => u.enrollment?.status === 'completed').length;
+  // A plan opens one kind of lesson and locks the other.
+  const isGroupPlan = subscriptionType === 'group';
 
   return (
     <>
@@ -269,28 +273,32 @@ function CreditsBody({
 
       {/* Book individual session */}
       <TouchableOpacity
-        style={styles.bookSessionBtn}
-        onPress={onBookSession}
+        style={[styles.bookSessionBtn, isGroupPlan && styles.bookLocked]}
+        onPress={isGroupPlan
+          ? () => appAlert('غير متاح', 'اشتراكك الحالي يشمل الحصص الجماعية فقط.')
+          : onBookSession}
         activeOpacity={0.85}
       >
         <View style={styles.bookSessionIcon}>
           <Ionicons name="person-outline" size={22} color={C.white} />
         </View>
         <Text style={styles.bookSessionTxt}>احجز حصة فردية</Text>
-        <Ionicons name="chevron-back" size={18} color="rgba(255,255,255,0.6)" />
+        <Ionicons name={isGroupPlan ? 'lock-closed' : 'chevron-back'} size={18} color="rgba(255,255,255,0.6)" />
       </TouchableOpacity>
 
-      {/* Book group session — coming soon */}
+      {/* Book group session */}
       <TouchableOpacity
-        style={[styles.bookSessionBtn, styles.bookGroupBtn]}
-        onPress={() => appAlert('قريباً 🚧', 'هذه الميزة غير متاحة حالياً، ترقّب إطلاقها قريباً!')}
+        style={[styles.bookSessionBtn, styles.bookGroupBtn, !isGroupPlan && styles.bookLocked]}
+        onPress={isGroupPlan
+          ? () => router.push('/group-classes')
+          : () => appAlert('غير متاح', 'اشتراكك الحالي يشمل الحصص الفردية فقط.')}
         activeOpacity={0.85}
       >
         <View style={[styles.bookSessionIcon, styles.bookGroupIcon]}>
           <Ionicons name="people-outline" size={22} color={C.navy} />
         </View>
         <Text style={[styles.bookSessionTxt, styles.bookGroupTxt]}>احجز حصة جماعية</Text>
-        <Ionicons name="chevron-back" size={18} color="rgba(26,41,128,0.45)" />
+        <Ionicons name={isGroupPlan ? 'chevron-back' : 'lock-closed'} size={18} color="rgba(26,41,128,0.45)" />
       </TouchableOpacity>
 
       <View style={{ height: 20 }} />
@@ -346,7 +354,8 @@ export default function LevelsScreen() {
   const credits    = profile?.lesson_credits ?? 0;
   const units      = myUnits   ?? [];
   const levels     = allLevels ?? [];
-  const hasCredits = credits > 0;
+  // A group student who has registered with every credit still needs their classes.
+  const hasCredits = credits > 0 || profile?.subscription_type === 'group';
 
   // Show mascot greeting once per session when subscribed student's data loads
   useEffect(() => {
@@ -442,6 +451,7 @@ export default function LevelsScreen() {
         ) : hasCredits ? (
           <CreditsBody
             credits={credits}
+            subscriptionType={profile?.subscription_type}
             myUnits={units}
             router={router}
             onBook={() => setBookingVisible(true)}
@@ -702,6 +712,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 16, fontWeight: '900', color: C.white, textAlign: 'right',
   },
+  bookLocked: { opacity: 0.55 },
   bookGroupBtn: {
     backgroundColor: C.yellow,
     ...shadow.amber,

@@ -31,6 +31,8 @@ import { getEcho, disconnectEcho } from '@/lib/echo';
 import { fixStorageUrl } from '@/api/client';
 import { TeacherAvailabilityModal } from '@/components/TeacherAvailabilityModal';
 import { C, shadow } from '@/theme';
+import { GuideTip } from '@/components/GuideTip';
+import { useGuideStep, useIsTrialStudent } from '@/lib/trialGuide';
 
 // ─── Tokens ───────────────────────────────────────────────────────────────────
 const G_TOP    = '#6D28D9';   // deep purple
@@ -337,6 +339,14 @@ export default function SessionProfileScreen() {
     },
   });
 
+  // Trial students: point at the activity once the trial session is over
+  const isTrialStudent = useIsTrialStudent();
+  const activityTip = useGuideStep(
+    'activity',
+    isTrialStudent && rawData?.status === 'completed' && rawData?.lesson?.is_assessment
+      && rawData?.quiz_unlocked && rawData?.lesson?.activity_url ? sessionId : null,
+  );
+
   // Merge real-time override with query data
   const data = rawData ? { ...rawData, ...(rtData ?? {}) } : rawData;
 
@@ -612,13 +622,21 @@ export default function SessionProfileScreen() {
               locked={!data.quiz_unlocked}
               lockedMsg="النشاط يُفتح بعد إتمام الحصة 🔐"
             >
+              {activityTip.visible && (
+                <GuideTip
+                  text="أكمل النشاط التفاعلي من هنا لتثبيت ما تعلمته في الحصة."
+                  arrow="down"
+                  onDismiss={activityTip.dismiss}
+                  style={{ marginBottom: 2 }}
+                />
+              )}
               <TouchableOpacity
                 style={styles.activityBtn}
                 activeOpacity={0.85}
-                onPress={() => router.push({
+                onPress={() => { activityTip.dismiss(); router.push({
                   pathname: '/activity/[id]',
                   params: { id: String(lesson.id), url: lesson.activity_url!, title: lesson.title },
-                })}
+                }); }}
               >
                 <Ionicons name="game-controller" size={18} color="#fff" />
                 <Text style={styles.quizTxt}>افتح النشاط</Text>

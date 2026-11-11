@@ -12,8 +12,11 @@ import { useQuery } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { sessionsApi, type SessionListItem, type SessionRequest } from '@/api/sessions';
+import { groupClassesApi, type GroupClassItem } from '@/api/groupClasses';
 import { C, shadow }          from '@/theme';
 import { useAnimatedHeader }  from '@/hooks/useAnimatedHeader';
+import { GuideTip } from '@/components/GuideTip';
+import { useGuideStep, useIsTrialStudent } from '@/lib/trialGuide';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -58,6 +61,48 @@ function fmt(iso: string | null) {
     hour: '2-digit', minute: '2-digit',
     timeZone: 'Asia/Amman',
   });
+}
+
+// ─── Group class card ─────────────────────────────────────────────────────────
+
+function groupLabel(item: GroupClassItem): { label: string; color: string } {
+  if (item.status === 'active')    return { label: 'جارية الآن', color: C.success };
+  if (item.status === 'scheduled') return { label: 'مسجل', color: C.info };
+  if (item.status === 'cancelled') return { label: 'ملغاة', color: C.error };
+  return item.attended
+    ? { label: 'مكتملة', color: C.gray }
+    : { label: 'لم تحضر', color: C.warning };
+}
+
+function GroupClassCard({ item }: { item: GroupClassItem }) {
+  const router = useRouter();
+  const { label, color } = groupLabel(item);
+
+  return (
+    <TouchableOpacity
+      style={styles.card}
+      activeOpacity={0.8}
+      onPress={() => router.push({ pathname: '/group-classes/[id]', params: { id: String(item.id) } })}
+    >
+      <View style={[styles.statusBar, { backgroundColor: color }]} />
+      <View style={styles.cardBody}>
+        <View style={styles.cardTopRow}>
+          <View style={[styles.pill, { backgroundColor: color + '20' }]}>
+            <Text style={[styles.pillTxt, { color }]}>{label}</Text>
+          </View>
+          <Text style={styles.cardDate}>{fmt(item.scheduled_at)}</Text>
+        </View>
+        <Text style={styles.cardLesson} numberOfLines={1}>{item.lesson?.title ?? item.title}</Text>
+        <View style={styles.cardTeacherRow}>
+          <Ionicons name="people-outline" size={12} color={C.gray} />
+          <Text style={styles.cardTeacher}>حصة جماعية · {item.teacher.name ?? '—'}</Text>
+        </View>
+        <View style={styles.cardArrow}>
+          <Ionicons name="chevron-back" size={14} color={C.gray} />
+        </View>
+      </View>
+    </TouchableOpacity>
+  );
 }
 
 // ─── Active hero card ─────────────────────────────────────────────────────────
@@ -313,6 +358,18 @@ export default function SessionsScreen() {
     refetchInterval: 15_000,
   });
 
+  // Group classes the student registered for (empty for individual plans)
+  const { data: groupData, refetch: refetchGroup } = useQuery({
+    queryKey: ['group-classes-mine'],
+    queryFn:  groupClassesApi.mine,
+    refetchInterval: 15_000,
+  });
+  const groupClasses  = groupData ?? [];
+  const groupUpcoming = groupClasses
+    .filter((g) => g.status === 'scheduled' || g.status === 'active')
+    .sort((a, b) => a.scheduled_at.localeCompare(b.scheduled_at));
+  const groupPast     = groupClasses.filter((g) => g.status === 'completed' || g.status === 'cancelled');
+
   const sessions = data ?? [];
   const bookings = (bookingsData ?? []) as SessionRequest[];
 
@@ -329,13 +386,20 @@ export default function SessionsScreen() {
     (b) => ['rejected', 'cancelled', 'expired'].includes(b.status),
   );
 
-  const upcomingCount = active.length + upcoming.length + pendingRequests.length;
-  const doneCount     = past.length + doneRequests.length;
+  const upcomingCount = active.length + upcoming.length + pendingRequests.length + groupUpcoming.length;
+  const doneCount     = past.length + doneRequests.length + groupPast.length;
 
-  const handleRefresh = () => { refetch(); refetchBookings(); };
+  // Latest trial session finished in the last two weeks
+  const isTrialStudent = useIsTrialStudent();
+  const recentTrial = past.find((s) =>
+    s.status === 'completed' && s.lesson?.is_assessment
+    && !!s.ended_at && Date.now() - new Date(s.ended_at).getTime() < 14 * 86_400_000);
+  const pastTip = useGuideStep('past-sessions', isTrialStudent && recentTrial ? recentTrial.id : null);
 
-  const hasUpcoming = active.length + upcoming.length + pendingRequests.length > 0;
-  const hasDone     = past.length + doneRequests.length > 0;
+  const handleRefresh = () => { refetch(); refetchBookings(); refetchGroup(); };
+
+  const hasUpcoming = upcomingCount > 0;
+  const hasDone     = doneCount > 0;
 
   return (
     <View style={{ flex: 1, backgroundColor: C.cream }}>
@@ -363,10 +427,24 @@ export default function SessionsScreen() {
         {/* Filter pills — always shown */}
         <FilterPills
           value={filter}
-          onChange={setFilter}
+          onChange={(v) => {
+            setFilter(v);
+            if (v === 'done' && pastTip.visible) pastTip.dismiss();
+          }}
           upcomingCount={upcomingCount}
           doneCount={doneCount}
         />
+
+        {/* Trial students: where a finished trial session is kept */}
+        {pastTip.visible && filter === 'upcoming' && (
+          <GuideTip
+            text="بعد انتهاء الحصة تجدها هنا في «السابقة»، ومنها يمكنك فتح النشاط."
+            arrow="up"
+            arrowSlot={{ index: 1, of: 2 }}
+            onDismiss={pastTip.dismiss}
+            style={{ marginTop: 6 }}
+          />
+        )}
       </Animated.View>
 
       {/* ── Content ────────────────────────────────────────────────────────────── */}
@@ -444,6 +522,14 @@ export default function SessionsScreen() {
                     {upcoming.map((s) => <SessionCard key={s.id} session={s} />)}
                   </>
                 )}
+
+                {/* Group classes the student registered for */}
+                {groupUpcoming.length > 0 && (
+                  <>
+                    <Text style={styles.sectionLabel}>👥 الحصص الجماعية</Text>
+                    {groupUpcoming.map((g) => <GroupClassCard key={`group-${g.id}`} item={g} />)}
+                  </>
+                )}
               </>
             )}
 
@@ -453,6 +539,12 @@ export default function SessionsScreen() {
                   <>
                     <Text style={styles.sectionLabel}>✅ المكتملة والملغاة</Text>
                     {past.map((s) => <SessionCard key={s.id} session={s} />)}
+                  </>
+                )}
+                {groupPast.length > 0 && (
+                  <>
+                    <Text style={[styles.sectionLabel, { marginTop: 8 }]}>👥 الحصص الجماعية</Text>
+                    {groupPast.map((g) => <GroupClassCard key={`group-${g.id}`} item={g} />)}
                   </>
                 )}
                 {doneRequests.length > 0 && (
