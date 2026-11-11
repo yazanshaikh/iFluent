@@ -2,7 +2,7 @@
   "expo": {
     "name": "iFluent",
     "slug": "ifluent-student",
-    "version": "1.0.2",
+    "version": "1.0.3",
     "orientation": "default",
     "icon": "./assets/icon.png",
     "scheme": "ifluent-student",
