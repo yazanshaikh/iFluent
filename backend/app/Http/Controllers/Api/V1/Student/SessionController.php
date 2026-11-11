@@ -35,31 +35,16 @@ class SessionController extends Controller
                 $request->filled('status'),
                 fn($q) => $q->where('status', $request->status)
             )
-            // ── Visibility rules ──────────────────────────────────────────────
-            // 1. NEVER show waiting sessions past their grace period (teacher didn't show)
-            // → Scheduler will mark them completed, but until then hide them
-            // 2. Hide completed/cancelled regular sessions older than 24h
-            // 3. Always show assessment sessions
+            // ── Visibility rule ───────────────────────────────────────────────
+            // Hide waiting sessions past their time (+15 min grace) — the
+            // scheduler closes them as teacher-absent. Finished and cancelled
+            // sessions stay for good: they are the student's history («السابقة»).
             ->where(function ($q) {
-                // Exclude waiting sessions that are past their time (+15min grace)
-                $q->where(function ($q2) {
-                    $q2->where('status', '!=', Session::STATUS_WAITING)
-                       ->orWhere('scheduled_at', '>=', now()->subMinutes(15));
-                });
-            })
-            ->where(function ($q) {
-                $q->where(function ($q2) {
-                    // Regular sessions: hide completed/cancelled older than 24h
-                    $q2->where(function ($q3) {
-                        $q3->whereNotIn('status', [Session::STATUS_COMPLETED, Session::STATUS_CANCELLED])
-                          ->orWhere('ended_at', '>=', now()->subDay());
-                    })
-                    ->whereHas('lesson', fn($l) => $l->where('is_assessment', false));
-                })
-                ->orWhereHas('lesson', fn($l) => $l->where('is_assessment', true));
+                $q->where('status', '!=', Session::STATUS_WAITING)
+                  ->orWhere('scheduled_at', '>=', now()->subMinutes(15));
             })
             ->orderByDesc('scheduled_at')
-            ->paginate(20);
+            ->paginate(min($request->integer('per_page', 100), 200));
 
         return SessionResource::collection($sessions);
     }

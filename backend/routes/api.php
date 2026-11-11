@@ -39,6 +39,7 @@ use App\Http\Controllers\Api\V1\Student\TeacherProfileController as StudentTeach
 use App\Http\Controllers\Api\V1\Teacher\AvailabilityController as TeacherAvailabilityController;
 use App\Http\Controllers\Api\V1\Teacher\EarningsController as TeacherEarningsController;
 use App\Http\Controllers\Api\V1\Teacher\GroupClassController as TeacherGroupClassController;
+use App\Http\Controllers\Api\V1\Teacher\MyStudentsController as TeacherMyStudentsController;
 use App\Http\Controllers\Api\V1\Teacher\ProfileController as TeacherOwnProfileController;
 use App\Http\Controllers\Api\V1\Teacher\RequestController as TeacherRequestController;
 use App\Http\Controllers\Api\V1\Teacher\SessionController as TeacherSessionController;
@@ -353,6 +354,10 @@ Route::middleware(['auth:sanctum', 'role:teacher'])
     ->group(function () {
 
         // ── Lesson Browsing ────────────────────────────────────────────────────
+        // ── My students (assigned from the CRM) ──────────────────────────────
+        Route::get   ('my-students',           [TeacherMyStudentsController::class, 'index']);
+        Route::delete('my-students/{student}', [TeacherMyStudentsController::class, 'destroy']);
+
         Route::get('lessons',            [TeacherSessionController::class, 'lessons']);           // regular
         Route::get('assessment-lessons', [TeacherSessionController::class, 'assessmentLessons']); // evaluation
 

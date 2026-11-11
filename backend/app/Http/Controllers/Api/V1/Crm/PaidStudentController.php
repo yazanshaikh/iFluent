@@ -99,6 +99,7 @@ class PaidStudentController extends Controller
                         'amount_paid'    => (float) $sub->amount_paid,
                         'lessons_count'  => $sub->lessons_count,
                         'months_count'   => $sub->months_count,
+                        'subscription_type' => $sub->subscription_type,
                         'status'         => $sub->status,
                         'activated_at'   => $sub->activated_at?->toIso8601String(),
                         'expires_at'     => $sub->expires_at?->toIso8601String(),
