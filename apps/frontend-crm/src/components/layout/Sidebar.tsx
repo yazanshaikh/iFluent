@@ -68,11 +68,11 @@ export function Sidebar() {
 
   const isAdmin = user?.role === 'super_admin';
 
-  // Badge on Paid Students: packages ending soon (admin + LP)
+  // Badge on Paid Students: packages ending soon (every role that sees the page)
   const { data: nearEndCount = 0 } = useQuery({
     queryKey: ['paid-students-near-end-count'],
     queryFn:  paidStudentsApi.nearEndCount,
-    enabled:  isAdmin || user?.role === 'ss',
+    enabled:  ['super_admin', 'cc', 'ss'].includes(user?.role ?? ''),
     refetchInterval: 60_000,
   });
   const visibleItems = NAV_ITEMS.filter(
@@ -140,7 +140,7 @@ export function Sidebar() {
                 {!collapsed && item.to === '/paid-students' && nearEndCount > 0 && (
                   <span
                     className="ms-auto min-w-5 h-5 px-1.5 rounded-full bg-red-500 text-white text-[11px] font-bold flex items-center justify-center"
-                    title={`${nearEndCount} packages ending soon`}
+                    title={`باقات على وشك الانتهاء: ${nearEndCount}`}
                   >
                     {nearEndCount}
                   </span>

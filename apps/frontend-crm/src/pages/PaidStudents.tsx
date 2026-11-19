@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { paidStudentsApi, type PaidStudentsFilters } from '@/api/paidStudents';
 import { useAuthStore } from '@/stores/authStore';
+import { endingSoonReasons } from '@/lib/endingSoon';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,7 +13,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import {
-  UserCheck, Phone, Calendar, Loader2, Search, X, ChevronRight, Clock, UserRoundCog, BellRing, Users, User,
+  UserCheck, Phone, Calendar, Loader2, Search, X, ChevronRight, Clock, UserRoundCog, BellRing, Users, User, Hourglass,
 } from 'lucide-react';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -75,11 +76,29 @@ export default function PaidStudentsPage() {
     staleTime: 30_000,
   });
 
+  // Packages ending soon — same count as the sidebar badge (shared query)
+  const { data: endingSoonCount = 0 } = useQuery({
+    queryKey: ['paid-students-near-end-count'],
+    queryFn:  paidStudentsApi.nearEndCount,
+    refetchInterval: 60_000,
+  });
+  const endingSoonOnly = applied.ending_soon === 1;
+
+  // Applies straight away and keeps the other filters as they are
+  const toggleEndingSoon = () => {
+    setPage(1);
+    setApplied((prev) => {
+      const { ending_soon: _drop, ...rest } = prev;
+      return endingSoonOnly ? { ...rest, page: 1 } : { ...rest, ending_soon: 1, page: 1 };
+    });
+  };
+
   const handleSearch = () => {
     const filters: PaidStudentsFilters = { page: 1 };
     if (phone.trim())    filters.phone     = phone.trim();
     if (dateFrom)        filters.date_from = dateFrom;
     if (dateTo)          filters.date_to   = dateTo;
+    if (endingSoonOnly)  filters.ending_soon = 1;
     setPage(1);
     setApplied(filters);
   };
@@ -99,7 +118,7 @@ export default function PaidStudentsPage() {
 
   const students = data?.data ?? [];
   const meta     = data?.meta;
-  const hasFilters = !!phone || !!dateFrom || !!dateTo;
+  const hasFilters = !!phone || !!dateFrom || !!dateTo || endingSoonOnly;
 
   return (
     <div className="p-6 space-y-6 max-w-4xl" dir="rtl">
@@ -113,11 +132,24 @@ export default function PaidStudentsPage() {
             {isLP ? 'الطلاب المشتركون المعيّنون لك' : 'جميع الطلاب المشتركين في المنصة'}
           </p>
         </div>
-        {meta && (
-          <Badge variant="secondary" className="font-mono mr-auto">
-            {meta.total} طالب
-          </Badge>
-        )}
+        <div className="mr-auto flex items-center gap-2">
+          {endingSoonCount > 0 && (
+            <button
+              type="button"
+              onClick={toggleEndingSoon}
+              className="inline-flex items-center gap-1.5 rounded-full border border-amber-300 bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-800 hover:bg-amber-100 transition-colors"
+              title="عرض الطلاب الذين أوشكت باقاتهم على الانتهاء"
+            >
+              <Hourglass className="h-3 w-3" />
+              {endingSoonCount} على وشك الانتهاء
+            </button>
+          )}
+          {meta && (
+            <Badge variant="secondary" className="font-mono">
+              {meta.total} طالب
+            </Badge>
+          )}
+        </div>
       </div>
 
       {assignError && (
@@ -168,10 +200,24 @@ export default function PaidStudentsPage() {
             </div>
           </div>
 
-          <div className="flex gap-2 mt-3">
+          <div className="flex gap-2 mt-3 flex-wrap">
             <Button onClick={handleSearch} className="gap-1.5">
               <Search className="h-4 w-4" />
               بحث
+            </Button>
+            <Button
+              variant="outline"
+              onClick={toggleEndingSoon}
+              aria-pressed={endingSoonOnly}
+              className={endingSoonOnly
+                ? 'gap-1.5 border-amber-400 bg-amber-100 text-amber-900 hover:bg-amber-100'
+                : 'gap-1.5 border-amber-300 text-amber-800 hover:bg-amber-50'}
+            >
+              <Hourglass className="h-4 w-4" />
+              الباقات القريبة من الانتهاء
+              <span className="rounded-full bg-amber-500 px-1.5 text-[11px] font-bold text-white">
+                {endingSoonCount}
+              </span>
             </Button>
             {hasFilters && (
               <Button variant="ghost" onClick={handleReset} className="gap-1.5 text-muted-foreground">
@@ -191,17 +237,22 @@ export default function PaidStudentsPage() {
       ) : students.length === 0 ? (
         <Card>
           <CardContent className="py-16 text-center text-muted-foreground text-sm">
-            {hasFilters ? 'لا توجد نتائج تطابق البحث' : 'لا يوجد طلاب مشتركون بعد'}
+            {endingSoonOnly
+              ? 'لا يوجد طلاب أوشكت باقاتهم على الانتهاء'
+              : hasFilters ? 'لا توجد نتائج تطابق البحث' : 'لا يوجد طلاب مشتركون بعد'}
           </CardContent>
         </Card>
       ) : (
         <div className="space-y-2">
           {students.map((s) => {
             const lpOwner = s.assigned_to?.role === 'ss' ? s.assigned_to : null;
+            const endingReasons = s.subscription?.is_near_end
+              ? endingSoonReasons(s.subscription.ending_soon)
+              : [];
             return (
             <Card
               key={s.id}
-              className="hover:border-primary/40 transition-colors cursor-pointer"
+              className={`hover:border-primary/40 transition-colors cursor-pointer ${s.subscription?.is_near_end ? 'border-amber-300 border-r-4 border-r-amber-500' : ''}`}
               onClick={() => navigate(`/leads/${s.id}`)}
             >
               <CardContent className="py-3 px-4">
@@ -339,13 +390,18 @@ export default function PaidStudentsPage() {
                   <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
                 </div>
 
-                {/* Few lessons left → reminder to follow up about renewing */}
+                {/* Package ending soon (few lessons left or end date close) → follow up about renewing */}
                 {s.subscription?.is_near_end && (
-                  <div className="mt-2 pt-2 border-t">
+                  <div className="mt-2 pt-2 border-t flex items-center gap-2 flex-wrap">
                     <Badge variant="warning" className="gap-1">
                       <BellRing className="h-3 w-3" />
-                      الباقة على وشك الانتهاء · الحصص المتبقية: {s.subscription.remaining_lessons ?? 0}
+                      الباقة على وشك الانتهاء
                     </Badge>
+                    {endingReasons.map((r) => (
+                      <Badge key={r} variant="outline" className="border-amber-300 bg-amber-50 text-amber-800">
+                        {r}
+                      </Badge>
+                    ))}
                   </div>
                 )}
               </CardContent>

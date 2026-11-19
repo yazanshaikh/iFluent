@@ -1,4 +1,5 @@
 import client from './client';
+import type { EndingSoonReason } from '@/lib/endingSoon';
 
 export interface PaidStudent {
   id: number;
@@ -19,8 +20,10 @@ export interface PaidStudent {
     expires_at:    string | null;
     has_pending_cancellation?: boolean;
     remaining_lessons?: number;
-    /** Active package with few lessons left (admin + LP only). */
+    /** Package ending soon (few lessons left or end date close) — every CRM role. */
     is_near_end?: boolean;
+    /** Why it is ending soon; null when it isn't. */
+    ending_soon?: EndingSoonReason | null;
   } | null;
 }
 
@@ -28,6 +31,8 @@ export interface PaidStudentsFilters {
   phone?: string;
   date_from?: string;
   date_to?: string;
+  /** Only students whose package is ending soon. */
+  ending_soon?: 1;
   page?: number;
 }
 
@@ -47,7 +52,7 @@ export const paidStudentsApi = {
       )
       .then((r) => r.data),
 
-  /** Sidebar badge: students whose package is ending soon (admin + LP). */
+  /** Students whose package is ending soon (same visibility as the list) — sidebar badge + page filter. */
   nearEndCount: () =>
     client.get<{ count: number }>('/crm/paid-students/near-end-count').then((r) => r.data.count),
 

@@ -80,8 +80,11 @@ class LeadResource extends JsonResource
                         'subscription_type' => $sub->subscription_type,
                         'lessons_count'  => $sub->lessons_count,
                         'remaining_lessons' => (int) ($this->student->user?->lesson_credits ?? 0),
-                        'is_near_end' => $viewer && !$viewer->isCC()
-                            && (int) ($this->student->user?->lesson_credits ?? 0) <= \App\Models\Subscription::NEAR_END_LESSONS,
+                        'ending_soon' => $endingSoon = \App\Models\Subscription::endingSoonReason(
+                            $this->student->subscriptions,
+                            (int) ($this->student->user?->lesson_credits ?? 0),
+                        ),
+                        'is_near_end' => $endingSoon !== null,
                         'has_pending_cancellation' => \App\Models\SubscriptionCancellationRequest::where('subscription_id', $sub->id)
                             ->where('status', 'pending')->exists(),
                         'from_lesson'    => $fromLesson ? ['id' => $fromLesson->id, 'title' => $fromLesson->title] : null,

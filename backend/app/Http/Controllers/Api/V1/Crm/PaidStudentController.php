@@ -23,7 +23,9 @@ class PaidStudentController extends Controller
      * or none at all) stays on the list for NOT_SUBSCRIBED_GRACE_DAYS after it
      * ended, then drops off. Active / pending-approval students always show.
      *
-     * Filters: ?phone=&date_from=YYYY-MM-DD&date_to=YYYY-MM-DD&page=
+     * Filters: ?phone=&date_from=YYYY-MM-DD&date_to=YYYY-MM-DD&ending_soon=1&page=
+     *   ending_soon=1 → only students whose package is ending soon
+     *   (see Subscription::endingSoonReason for the rule).
      */
     public function index(Request $request): JsonResponse
     {
@@ -31,6 +33,7 @@ class PaidStudentController extends Controller
             'phone'     => ['nullable', 'string', 'max:20'],
             'date_from' => ['nullable', 'date'],
             'date_to'   => ['nullable', 'date', 'after_or_equal:date_from'],
+            'ending_soon' => ['nullable', 'boolean'],
         ]);
 
         $query = Lead::whereNotNull('converted_at')
@@ -61,6 +64,10 @@ class PaidStudentController extends Controller
             }
         }
 
+        if ($request->boolean('ending_soon')) {
+            $query->whereHas('student', fn ($student) => Subscription::constrainStudentsEndingSoon($student));
+        }
+
         if ($request->filled('date_from')) {
             $query->whereDate('converted_at', '>=', $request->date_from);
         }
@@ -82,6 +89,10 @@ class PaidStudentController extends Controller
         return response()->json([
             'data' => $leads->map(function (Lead $lead) use ($pendingCancel, $request) {
                 $sub = $lead->student?->subscriptions?->first();
+                $lessonsLeft = (int) ($lead->student?->user?->lesson_credits ?? 0);
+                $endingSoon  = $lead->student
+                    ? Subscription::endingSoonReason($lead->student->subscriptions, $lessonsLeft)
+                    : null;
 
                 return [
                     'id'           => $lead->id,
@@ -104,11 +115,10 @@ class PaidStudentController extends Controller
                         'activated_at'   => $sub->activated_at?->toIso8601String(),
                         'expires_at'     => $sub->expires_at?->toIso8601String(),
                         'has_pending_cancellation' => $pendingCancel->has($sub->id),
-                        'remaining_lessons' => (int) ($lead->student?->user?->lesson_credits ?? 0),
-                        // CC doesn't get the renewal reminder
-                        'is_near_end' => !$request->user()->isCC()
-                            && $lead->student->subscriptions->contains('status', Subscription::STATUS_ACTIVE)
-                            && (int) ($lead->student->user?->lesson_credits ?? 0) <= Subscription::NEAR_END_LESSONS,
+                        'remaining_lessons' => $lessonsLeft,
+                        // Package ending soon — shown to every role on this page
+                        'is_near_end' => $endingSoon !== null,
+                        'ending_soon' => $endingSoon,
                     ] : null,
                 ];
             }),
@@ -153,15 +163,14 @@ class PaidStudentController extends Controller
     }
 
     /**
-     * GET /crm/paid-students/near-end-count — sidebar badge (admin + LP).
+     * GET /crm/paid-students/near-end-count — packages ending soon (every CRM role).
      * Same visibility as the list: LP only counts the students assigned to them.
+     * Matches ?ending_soon=1 on the list exactly.
      */
     public function nearEndCount(Request $request): JsonResponse
     {
         $count = Lead::whereNotNull('converted_at')
-            ->whereHas('student', fn ($student) => $student
-                ->whereHas('subscriptions', fn ($s) => $s->where('status', Subscription::STATUS_ACTIVE))
-                ->whereHas('user', fn ($u) => $u->where('lesson_credits', '<=', Subscription::NEAR_END_LESSONS)))
+            ->whereHas('student', fn ($student) => Subscription::constrainStudentsEndingSoon($student))
             ->when($request->user()->isSS(), fn ($q) => $q->where('assigned_to', $request->user()->id))
             ->count();
 

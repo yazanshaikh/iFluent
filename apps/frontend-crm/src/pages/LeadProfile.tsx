@@ -31,6 +31,7 @@ import { BookDemoDialog } from '@/components/demo/BookDemoDialog';
 import { CancellationRequestDialog } from '@/components/cancellation/CancellationRequestDialog';
 import { MoveToSeaButton } from '@/components/leads/MoveToSeaButton';
 import { paidStudentsApi } from '@/api/paidStudents';
+import { endingSoonReasons } from '@/lib/endingSoon';
 
 const ROLE_LABELS: Record<string, string> = { cc: 'CC', ss: 'LP', super_admin: 'مدير' };
 
@@ -740,12 +741,13 @@ export default function LeadProfilePage() {
         </div>
       </div>
 
-      {/* Few lessons left → reminder to follow up about renewing */}
+      {/* Package ending soon (few lessons left or end date close) → follow up about renewing */}
       {lead.active_subscription?.is_near_end && (
         <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-400">
           <BellRing className="h-4 w-4 shrink-0" />
           <span>
-            الباقة على وشك الانتهاء — الحصص المتبقية: {lead.active_subscription.remaining_lessons ?? 0}.
+            الباقة على وشك الانتهاء
+            {endingSoonReasons(lead.active_subscription.ending_soon).map((r) => ` · ${r}`).join('')}.
             يُرجى التواصل مع الطالب بشأن التجديد.
           </span>
         </div>

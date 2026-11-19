@@ -19,8 +19,17 @@ class Subscription extends Model
     const TYPE_INDIVIDUAL = 'individual';
     const TYPE_GROUP      = 'group';
 
-    /** An active package with this many lessons left (or fewer) is flagged as ending soon. */
-    const NEAR_END_LESSONS = 3;
+    /**
+     * "Package ending soon" on Paid Students. A student with an active package
+     * (and no renewal awaiting approval) is flagged when EITHER:
+     *   - they have NEAR_END_LESSONS lessons left or fewer, or
+     *   - the package's end date is NEAR_END_DAYS days away or fewer
+     *     (or has already passed while lessons are still left).
+     * Days are counted on the Jordan calendar (NEAR_END_TIMEZONE).
+     */
+    const NEAR_END_LESSONS  = 3;
+    const NEAR_END_DAYS     = 7;
+    const NEAR_END_TIMEZONE = 'Asia/Amman';
 
     /** Days a no-longer-subscribed student stays on the Paid Students list. */
     const NOT_SUBSCRIBED_GRACE_DAYS = 3;
@@ -320,6 +329,64 @@ class Subscription extends Model
         $this->update(['current_lesson_id' => $nextLesson?->id]);
 
         return $nextLesson;
+    }
+
+    // ─── Package Ending Soon ──────────────────────────────────────────────────
+
+    /**
+     * Why a student's package is ending soon, or null when it isn't.
+     *
+     * $subs: the student's subscriptions (must include every active and
+     * pending-approval one). $lessonsLeft: the student's lesson_credits.
+     *
+     * Returns ['lessons_left' => ?int, 'days_left' => ?int]; each key is set
+     * only when that measure triggered the flag. days_left < 0 means the end
+     * date has passed but the package stays active until its lessons are used.
+     */
+    public static function endingSoonReason(\Illuminate\Support\Collection $subs, int $lessonsLeft): ?array
+    {
+        $active = $subs->where('status', self::STATUS_ACTIVE);
+
+        if ($active->isEmpty() || $subs->contains('status', self::STATUS_PENDING)) {
+            return null;
+        }
+
+        // Several active packages (a renewal approved early) → the latest end date counts.
+        // A package without an end date never triggers the date measure.
+        $daysLeft = null;
+        if (!$active->contains(fn ($s) => $s->expires_at === null)) {
+            $today   = now(self::NEAR_END_TIMEZONE)->startOfDay();
+            $endDay  = $active->max('expires_at')->copy()->setTimezone(self::NEAR_END_TIMEZONE)->startOfDay();
+            $days    = (int) round($today->diffInDays($endDay, false));
+            $daysLeft = $days <= self::NEAR_END_DAYS ? $days : null;
+        }
+
+        $lessons = $lessonsLeft <= self::NEAR_END_LESSONS ? max(0, $lessonsLeft) : null;
+
+        if ($lessons === null && $daysLeft === null) {
+            return null;
+        }
+
+        return ['lessons_left' => $lessons, 'days_left' => $daysLeft];
+    }
+
+    /**
+     * The same rule as endingSoonReason(), as a query constraint on a Student
+     * query — used for the Paid Students filter and the sidebar count.
+     */
+    public static function constrainStudentsEndingSoon($studentQuery): void
+    {
+        // First moment that is MORE than NEAR_END_DAYS calendar days away
+        $notSoon = now(self::NEAR_END_TIMEZONE)->startOfDay()->addDays(self::NEAR_END_DAYS + 1)->utc();
+
+        $studentQuery
+            ->whereHas('subscriptions', fn ($s) => $s->where('status', self::STATUS_ACTIVE))
+            ->whereDoesntHave('subscriptions', fn ($s) => $s->where('status', self::STATUS_PENDING))
+            ->where(fn ($either) => $either
+                ->whereHas('user', fn ($u) => $u->where('lesson_credits', '<=', self::NEAR_END_LESSONS))
+                ->orWhereDoesntHave('subscriptions', fn ($s) => $s
+                    ->where('status', self::STATUS_ACTIVE)
+                    ->where(fn ($x) => $x->whereNull('expires_at')->orWhere('expires_at', '>=', $notSoon))));
     }
 
     // ─── Status Helpers ───────────────────────────────────────────────────────

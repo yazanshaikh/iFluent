@@ -69,6 +69,7 @@ export interface Lead {
     has_pending_cancellation?: boolean;
     remaining_lessons?: number;
     is_near_end?: boolean;
+    ending_soon?: import('@/lib/endingSoon').EndingSoonReason | null;
     from_lesson:   { id: number; title: string } | null;
     to_lesson:     { id: number; title: string } | null;
   } | null;

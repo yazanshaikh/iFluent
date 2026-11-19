@@ -137,6 +137,7 @@ Route::middleware(['auth:sanctum', 'role:super_admin,cc,ss'])
 
         // ── Paid Students ──────────────────────────────────────────────────────
         Route::get('paid-students', [PaidStudentController::class, 'index']);
+        Route::get('paid-students/near-end-count', [PaidStudentController::class, 'nearEndCount']);
 
         // ── Assessment Lessons (view only for CC/SS) ───────────────────────────
         // CC/SS need to see them to pick one for demo bookings.
@@ -156,7 +157,6 @@ Route::middleware(['auth:sanctum', 'role:cc'])
 Route::middleware(['auth:sanctum', 'role:super_admin,ss'])
     ->prefix('crm')
     ->group(function () {
-        Route::get   ('paid-students/near-end-count',          [PaidStudentController::class, 'nearEndCount']);
         Route::get   ('teachers',                              [TeacherStudentController::class, 'index']);
         Route::get   ('teachers/unassigned-students',          [TeacherStudentController::class, 'unassigned']);
         Route::get   ('teachers/{id}',                         [TeacherStudentController::class, 'show'])->whereNumber('id');
