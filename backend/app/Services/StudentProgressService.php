@@ -29,6 +29,7 @@ class StudentProgressService
         // ── Program lessons = active, non-assessment lessons in the active sub ──
         // completed_lessons and total_lessons are counted over the SAME set.
         $programLessonIds = [];
+        $packageStart     = null;
         $profile = Student::where('user_id', $user->id)->first();
         if ($profile) {
             $sub = Subscription::where('student_id', $profile->id)
@@ -46,11 +47,14 @@ class StudentProgressService
                     ->where('is_assessment', false)
                     ->pluck('id')
                     ->all();
+                $packageStart = $sub->activated_at;
             }
         }
 
         $totalLessons = count($programLessonIds);
 
+        // Every completion inside the package's lesson range, whenever it happened.
+        // Kept for achievements so a renewal never takes back a badge already earned.
         $completedLessons = $totalLessons > 0
             ? StudentProgress::where('student_id', $user->id)
                 ->where('lesson_completed', true)
@@ -58,8 +62,22 @@ class StudentProgressService
                 ->count()
             : 0;
 
+        // The progress bar counts only lessons completed since the current package
+        // started. A package's range can overlap lessons finished under an earlier
+        // (cancelled or expired) package, and counting those made the bar run ahead
+        // of the lessons actually used: e.g. 6/7 while 5 of 7 paid lessons were left.
+        // A lesson retaken in this package counts, because finishing a session
+        // refreshes its completed_at.
+        $packageCompleted = $totalLessons > 0
+            ? StudentProgress::where('student_id', $user->id)
+                ->where('lesson_completed', true)
+                ->whereIn('lesson_id', $programLessonIds)
+                ->when($packageStart, fn ($q) => $q->where('completed_at', '>=', $packageStart))
+                ->count()
+            : 0;
+
         $overallPct = $totalLessons > 0
-            ? min(100, (int) round($completedLessons / $totalLessons * 100))
+            ? min(100, (int) round($packageCompleted / $totalLessons * 100))
             : 0;
 
         // ── Learning minutes = sum of attended live-session durations ──────────
@@ -104,7 +122,7 @@ class StudentProgressService
 
         return [
             'overall_pct'       => $overallPct,
-            'completed_lessons' => $completedLessons,
+            'completed_lessons' => $packageCompleted,
             'total_lessons'     => $totalLessons,
             'learning_minutes'  => $learningMinutes,
             'absent_sessions'   => $absentSessions,
